@@ -17,15 +17,15 @@ type ProxyCategory struct {
 }
 
 type ConfigSaver struct {
-	results    *[]info.Proxy
-	categories []ProxyCategory
-	saveMethod func([]byte, string) error
+	results     *[]info.Proxy
+	categories  []ProxyCategory
+	saveMethods []func([]byte, string) error
 }
 
 func NewConfigSaver(results *[]info.Proxy) *ConfigSaver {
 	return &ConfigSaver{
-		results:    results,
-		saveMethod: chooseSaveMethod(),
+		results:     results,
+		saveMethods: chooseSaveMethods(),
 		categories: []ProxyCategory{
 			{
 				Name:    "all.yaml",
@@ -67,9 +67,21 @@ func NewConfigSaver(results *[]info.Proxy) *ConfigSaver {
 }
 
 func SaveConfig(results *[]info.Proxy) {
+	if len(config.GlobalConfig.Save.BeforeSaveDo) > 0 {
+		if err := BeforeSaveDo(results); err != nil {
+			log.Error("Failed to execute before-save scripts: %v", err)
+		}
+	}
+
 	saver := NewConfigSaver(results)
 	if err := saver.Save(); err != nil {
 		log.Error("save config failed: %v", err)
+	}
+
+	if len(config.GlobalConfig.Save.AfterSaveDo) > 0 {
+		if err := AfterSaveDo(results); err != nil {
+			log.Error("Failed to execute after-save scripts: %v", err)
+		}
 	}
 }
 
@@ -108,43 +120,57 @@ func (cs *ConfigSaver) saveCategory(category ProxyCategory) error {
 	if err != nil {
 		return fmt.Errorf("serialize %s failed: %w", category.Name, err)
 	}
-	if err := cs.saveMethod(yamlData, category.Name); err != nil {
-		return fmt.Errorf("save %s failed: %w", category.Name, err)
+
+	for _, saveMethod := range cs.saveMethods {
+		if err := saveMethod(yamlData, category.Name); err != nil {
+			log.Error("save %s failed with one method: %v", category.Name, err)
+		}
 	}
 
 	return nil
 }
 
-func chooseSaveMethod() func([]byte, string) error {
-	switch config.GlobalConfig.Save.Method {
-	case "r2":
-		if err := ValiR2Config(); err != nil {
-			log.Error("R2 config is incomplete: %v ,use local save", err)
-			return SaveToLocal
+func chooseSaveMethods() []func([]byte, string) error {
+	methods := make([]func([]byte, string) error, 0)
+
+	// 遍历配置的保存方法
+	for _, methodName := range config.GlobalConfig.Save.Method {
+		switch methodName {
+		case "r2":
+			if err := ValiR2Config(); err == nil {
+				methods = append(methods, UploadToR2Storage)
+			} else {
+				log.Error("R2 config is incomplete: %v", err)
+			}
+		case "gist":
+			if err := ValiGistConfig(); err == nil {
+				methods = append(methods, UploadToGist)
+			} else {
+				log.Error("Gist config is incomplete: %v", err)
+			}
+		case "webdav":
+			if err := ValiWebDAVConfig(); err == nil {
+				methods = append(methods, UploadToWebDAV)
+			} else {
+				log.Error("WebDAV config is incomplete: %v", err)
+			}
+		case "http":
+			if err := ValiHTTPConfig(); err == nil {
+				methods = append(methods, SaveToHTTP)
+			} else {
+				log.Error("HTTP config is incomplete: %v", err)
+			}
+		case "local":
+			methods = append(methods, SaveToLocal)
+		default:
+			log.Error("unknown save method: %s", methodName)
 		}
-		return UploadToR2Storage
-	case "gist":
-		if err := ValiGistConfig(); err != nil {
-			log.Error("Gist config is incomplete: %v ,use local save", err)
-			return SaveToLocal
-		}
-		return UploadToGist
-	case "webdav":
-		if err := ValiWebDAVConfig(); err != nil {
-			log.Error("WebDAV config is incomplete: %v ,use local save", err)
-			return SaveToLocal
-		}
-		return UploadToWebDAV
-	case "local":
-		return SaveToLocal
-	case "http":
-		if err := ValiHTTPConfig(); err != nil {
-			log.Error("HTTP config is incomplete: %v ,use local save", err)
-			return SaveToLocal
-		}
-		return SaveToHTTP
-	default:
-		log.Error("unknown save method: %s, use local save", config.GlobalConfig.Save.Method)
-		return SaveToLocal
 	}
+
+	if len(methods) == 0 {
+		log.Warn("no valid save methods configured, using local save only")
+		methods = append(methods, SaveToLocal)
+	}
+
+	return methods
 }

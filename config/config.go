@@ -9,16 +9,18 @@ type RenameConfig struct {
 	Flag   bool   `yaml:"flag"`
 }
 type SaveConfig struct {
-	Method          string `yaml:"method"`
-	Port            int    `yaml:"port"`
-	WebDAVURL       string `yaml:"webdav-url"`
-	WebDAVUsername  string `yaml:"webdav-username"`
-	WebDAVPassword  string `yaml:"webdav-password"`
-	GithubToken     string `yaml:"github-token"`
-	GithubGistID    string `yaml:"github-gist-id"`
-	GithubAPIMirror string `yaml:"github-api-mirror"`
-	WorkerURL       string `yaml:"worker-url"`
-	WorkerToken     string `yaml:"worker-token"`
+	BeforeSaveDo    []string `yaml:"before-save-do"`
+	AfterSaveDo     []string `yaml:"after-save-do"`
+	Method          []string `yaml:"method"`
+	Port            int      `yaml:"port"`
+	WebDAVURL       string   `yaml:"webdav-url"`
+	WebDAVUsername  string   `yaml:"webdav-username"`
+	WebDAVPassword  string   `yaml:"webdav-password"`
+	GithubToken     string   `yaml:"github-token"`
+	GithubGistID    string   `yaml:"github-gist-id"`
+	GithubAPIMirror string   `yaml:"github-api-mirror"`
+	WorkerURL       string   `yaml:"worker-url"`
+	WorkerToken     string   `yaml:"worker-token"`
 }
 type CheckConfig struct {
 	Concurrent           int      `yaml:"concurrent"`

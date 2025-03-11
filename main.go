@@ -65,7 +65,7 @@ func (app *App) Initialize() error {
 
 	app.interval = config.GlobalConfig.Check.Interval
 	mihomoLog.SetLevel(mihomoLog.ERROR)
-	if config.GlobalConfig.Save.Method == "http" {
+	if utils.Contains(config.GlobalConfig.Save.Method, "http") {
 		saver.StartHTTPServer()
 	}
 	return nil
@@ -354,32 +354,7 @@ func checkConfig() {
 		os.Exit(1)
 	}
 	log.Info("concurrents: %v", config.GlobalConfig.Check.Concurrent)
-	switch config.GlobalConfig.Save.Method {
-	case "webdav":
-		if config.GlobalConfig.Save.WebDAVURL == "" {
-			log.Error("webdav-url is required when save-method is webdav")
-			os.Exit(1)
-		} else {
-			log.Info("save method: webdav")
-		}
-	case "http":
-		if config.GlobalConfig.Save.Port <= 0 {
-			log.Error("port must be greater than 0 when save-method is http")
-			os.Exit(1)
-		} else {
-			log.Info("save method: http")
-		}
-	case "gist":
-		if config.GlobalConfig.Save.GithubGistID == "" {
-			log.Error("github-gist-id is required when save-method is gist")
-			os.Exit(1)
-		}
-		if config.GlobalConfig.Save.GithubToken == "" {
-			log.Error("github-token is required when save-method is gist")
-			os.Exit(1)
-		}
-		log.Info("save method: gist")
-	}
+	log.Info("save methods: %v", config.GlobalConfig.Save.Method)
 	if config.GlobalConfig.SubUrls == nil {
 		log.Error("sub-urls is required")
 		os.Exit(1)
