@@ -51,7 +51,13 @@ check:
 
 ```yaml
 save:
-  method: http
+  method: 
+    - http
+    - gist
+  before-save-do:
+    - D:\Github\bestsub\doc\scripts\node.js
+  after-save-do:
+    - D:\Github\bestsub\test\powershell.ps1
   port: 8081
   webdav-url: "https://webdav-url/dav/"
   webdav-username: "webdav-username"
@@ -63,7 +69,7 @@ save:
   worker-token: token 
 ```
 
-- `method`: 保存方法，可选值为 `webdav` `http` `gist` `r2` `local`
+- `method`: 保存方法，可选值为 `webdav` `http` `gist` `r2` `local` 支持多种保存方式同时保存
 - `port`: `http` 保存方式下的端口
 - webdav:
     - `webdav-url`: webdav url
@@ -76,6 +82,11 @@ save:
 - r2:
   - `worker-url`: worker url
   - `worker-token`: worker token
+
+- before-save-do: 保存前执行的脚本请填写绝对路径 支持 `js` `py` `sh` `ps1` 等 示例：[node.js](./doc/scripts/node.js)
+- after-save-do: 保存后执行的脚本请填写绝对路径 支持 `js` `py` `sh` `ps1` 等 示例：[powershell.ps1](./test/powershell.ps1)
+
+
 ## mihomo
 
 ```yaml
