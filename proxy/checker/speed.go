@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptrace"
+	"sync/atomic"
 	"time"
 
 	"github.com/bestruirui/bestsub/config"
@@ -58,6 +59,7 @@ func (c *Checker) CheckSpeed() {
 		}
 
 		var totalBytes int64
+		var bytesRead atomic.Int64
 		limitedReader := &io.LimitedReader{
 			R: resp.Body,
 			N: int64(config.GlobalConfig.Check.DownloadSize) * 1024 * 1024,
@@ -68,27 +70,49 @@ func (c *Checker) CheckSpeed() {
 
 		done := make(chan struct{})
 		go func() {
-			totalBytes, err = io.Copy(io.Discard, limitedReader)
+			buf := make([]byte, 32*1024)
+			for {
+				n, err := limitedReader.Read(buf)
+				if n > 0 {
+					bytesRead.Add(int64(n))
+				}
+				if err != nil {
+					break
+				}
+			}
+			totalBytes = bytesRead.Load()
 			close(done)
 		}()
 
+		timeoutOccurred := false
 		select {
 		case <-done:
 		case <-copyCtx.Done():
+			timeoutOccurred = true
+			totalBytes = bytesRead.Load()
 			err = copyCtx.Err()
 		}
 
 		resp.Body.Close()
+
+		if totalBytes > 0 {
+			duration := time.Since(startTime).Milliseconds()
+			if duration == 0 {
+				duration = 1
+			}
+
+			c.Proxy.Info.Speed = int(float64(totalBytes) / 1024 * 1000 / float64(duration))
+
+			if timeoutOccurred {
+				log.Debug("Speed test for %v timed out but partial speed calculated: %v KB/s",
+					c.Proxy.Raw["name"], c.Proxy.Info.Speed)
+			}
+
+			break
+		}
+
 		if err != nil {
 			continue
 		}
-
-		duration := time.Since(startTime).Milliseconds()
-		if duration == 0 {
-			duration = 1
-		}
-
-		c.Proxy.Info.Speed = int(float64(totalBytes) / 1024 * 1000 / float64(duration))
-		break
 	}
 }

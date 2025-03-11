@@ -242,8 +242,9 @@ func maintask() {
 	log.Info("check end %v proxies", len(proxies))
 
 	if utils.Contains(config.GlobalConfig.Check.Items, "speed") {
-		log.Info("start speed test")
-		pool.Tune(config.GlobalConfig.Check.SpeedCheckConcurrent)
+		log.Info("start speed test concurrent %d", config.GlobalConfig.Check.SpeedCheckConcurrent)
+		pool.Release()
+		pool, _ = ants.NewPool(config.GlobalConfig.Check.SpeedCheckConcurrent)
 		var speedCount int
 		for i := 0; i < len(proxies); i++ {
 			if speedCount < config.GlobalConfig.Check.SpeedCount {
@@ -264,8 +265,10 @@ func maintask() {
 							speedStr = fmt.Sprintf("%.2f GB/s", float64(proxies[i].Info.Speed)/(1024*1024))
 						}
 						proxies[i].Raw["name"] = fmt.Sprintf("%v | ⬇️ %s", proxies[i].Raw["name"], speedStr)
+						log.Debug("speed test success: %v", proxies[i].Raw["name"])
 					} else if !config.GlobalConfig.Check.SpeedSave {
 						proxies[i].Info.SpeedSkip = true
+						log.Debug("speed skip: %v", proxies[i].Raw["name"])
 					}
 				})
 			} else if !config.GlobalConfig.Check.SpeedSave {
