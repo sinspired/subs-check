@@ -1,8 +1,10 @@
 package config
 
 type ProxyConfig struct {
-	Type    string `yaml:"type"`
-	Address string `yaml:"address"`
+	Type     string `yaml:"type"`
+	Address  string `yaml:"address"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 type RenameConfig struct {
 	Method string `yaml:"method"`
