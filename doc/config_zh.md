@@ -121,6 +121,8 @@ rename:
 proxy:
   type: "http" # Options: http, socks
   address: "http://192.168.31.11:7890" # Proxy address
+  password: ""
+  username: ""
 ```
 此处代理用于拉取订阅和保存使用，例如保存到gist时，则需要设置此选项
 
