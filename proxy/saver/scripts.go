@@ -96,11 +96,15 @@ func BeforeSaveDo(results *[]info.Proxy) error {
 
 	ExecuteScripts(config.GlobalConfig.Save.BeforeSaveDo)
 
-	err = os.Remove(tempFile)
-	if err != nil {
-		return fmt.Errorf("remove temp file failed: %w", err)
+	if config.GlobalConfig.LogLevel == "debug" {
+		log.Debug("Debug mode, not removing temp file: %s", tempFile)
+	} else {
+		err = os.Remove(tempFile)
+		if err != nil {
+			return fmt.Errorf("remove temp file failed: %w", err)
+		}
+		log.Debug("Removed temp file: %s", tempFile)
 	}
-	log.Debug("Removed temp file: %s", tempFile)
 
 	return nil
 }
