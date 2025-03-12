@@ -27,8 +27,11 @@ const (
 	TimeFormat = "2006-01-02T15:04:05"
 )
 
-// 绝对路径
-var absPath string
+var (
+	absPath           string
+	absPathNormalized string
+	location          string
+)
 
 func init() {
 	wd, err := os.Getwd()
@@ -37,6 +40,7 @@ func init() {
 	} else {
 		absPath = wd
 	}
+	absPathNormalized = strings.ReplaceAll(absPath, "\\", "/")
 }
 
 func SetLogLevel(level string) {
@@ -77,14 +81,25 @@ func log(level LogLevel, format string, v ...any) {
 	case LogLevelDebug:
 		levelStr = "DEBUG"
 		color = DebugColor
+	case LogLevelPanic:
+		levelStr = "PANIC"
+		color = ErrorColor
 	}
 
-	var location string
 	if level == LogLevelDebug || level == LogLevelError {
 		_, file, line, ok := runtime.Caller(2)
 		if ok {
-			location = fmt.Sprintf("%s:%d ", file[len(absPath)+1:], line)
+			file = strings.ReplaceAll(file, "\\", "/")
+			if strings.HasPrefix(file, absPathNormalized) {
+				relPath := strings.TrimPrefix(file, absPathNormalized)
+				relPath = strings.TrimPrefix(relPath, "/")
+				location = fmt.Sprintf("%s:%d ", relPath, line)
+			} else {
+				location = fmt.Sprintf("%s:%d ", file, line)
+			}
 		}
+	} else {
+		location = ""
 	}
 
 	fmt.Printf("%s%-5s%s [%s] %s%s\n", color, levelStr, ResetColor, time.Now().Format(TimeFormat), location, fmt.Sprintf(format, v...))
