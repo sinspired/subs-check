@@ -39,6 +39,7 @@ check:
 - `interval`: 检测间隔时间 单位分钟 最低必须大于10分钟
 - `download-timeout`: 下载超时时间 单位秒 测速时，下载文件的最大超时时间
 - `download-size`: 下载文件大小 单位MB 测速时，下载文件的大小
+- `min-speed`: 最低测速 单位KB/s 测速时，如果速度低于此值，则根据`speed-save`的值决定是否保存
 - `speed-test-url`: 测速地址 会遍历所有地址，选择一个可用的进行测速
 - `speed-skip-name`: 跳过测速的名称(正则表达式) 例如：`(倍率|x\d+(\.\d+)?|\d+(\.\d+)?x)` 可用于屏蔽高倍率节点，不参与测速
 - `speed-check-concurrent`: 测速并发(带宽小的可用适当调低，但调低后，检测速度会变慢)
