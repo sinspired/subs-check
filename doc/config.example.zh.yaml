@@ -43,7 +43,8 @@ check:
 
 save:
   # 保存方法 webdav 或 http 或 gist 或 r2
-  method: http
+  method: 
+    - http
   # 保存端口
   port: 18989
 

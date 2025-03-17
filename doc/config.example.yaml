@@ -42,7 +42,8 @@ check:
 
 save:
   # Save method: webdav, http, gist, or r2
-  method: webdav
+  method: 
+    - webdav
   # Save port
   port: 8080
   # WebDAV
