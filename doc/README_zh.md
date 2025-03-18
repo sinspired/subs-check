@@ -61,7 +61,7 @@ speed-test-url: https://your-worker-url/speedtest?bytes=1000000
 
 我自己写的Windows下的裸核运行应用 [minihomo](https://github.com/bestruirui/minihomo)
 
-- 下载 [base.yaml](./doc/base.yaml)
+- 下载 [base.yaml](./base.yaml)
 - 将文件中对应的链接改为自己的即可
 
 例如:

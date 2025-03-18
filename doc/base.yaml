@@ -5,6 +5,12 @@ proxy-providers:
     interval: 600
     proxy: DIRECT
     path: ./proxy_provider/ALL.yaml
+  ProviderSpeed:
+    url: https://
+    type: http
+    interval: 600
+    proxy: DIRECT
+    path: ./proxy_provider/Speed.yaml
   ProviderOpenai:
     url: https:// 
     type: http
@@ -68,7 +74,6 @@ external-doh-server: /dns-query
 global-client-fingerprint: chrome
 
 hosts:
-  'mb3admin.com': 192.168.31.10
 # '*.mihomo.dev': 127.0.0.1
 # '.dev': 127.0.0.1
 # 'alpha.mihomo.dev': '::1'
@@ -142,6 +147,7 @@ proxy-groups:
       - 🙏 自动选择
       - 💪 手动选择
       - 🎡负载均衡
+      - ⬇️ Speed
       - 🇭🇰 香港节点
       - 🇯🇵 日本节点
       - 🇰🇷 韩国节点
@@ -432,8 +438,8 @@ proxy-groups:
   - name: Microsoft
     type: select
     proxies:
-      - DIRECT
       - Proxy
+      - DIRECT
       - 🇭🇰 香港节点
       - 🇯🇵 日本节点
       - 🇰🇷 韩国节点
@@ -555,6 +561,10 @@ proxy-groups:
     strategy: sticky-sessions
     use:
       - ProviderALL
+  - name: ⬇️ Speed
+    type: select
+    use:
+      - ProviderSpeed
   - name: 💪 手动选择 openai
     type: select
     use:
