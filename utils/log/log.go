@@ -1,8 +1,10 @@
 package log
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -28,9 +30,7 @@ const (
 )
 
 var (
-	absPath           string
-	absPathNormalized string
-	location          string
+	absPath string
 )
 
 func init() {
@@ -40,29 +40,13 @@ func init() {
 	} else {
 		absPath = wd
 	}
-	absPathNormalized = strings.ReplaceAll(absPath, "\\", "/")
 }
 
-func SetLogLevel(level string) {
-	switch level {
-	case "debug":
-		LogLevelSet = LogLevelDebug
-	case "info":
-		LogLevelSet = LogLevelInfo
-	case "warn":
-		LogLevelSet = LogLevelWarn
-	case "error":
-		LogLevelSet = LogLevelError
-	case "fatal":
-		LogLevelSet = LogLevelFatal
-	case "panic":
-		LogLevelSet = LogLevelPanic
-	}
-}
 func log(level LogLevel, format string, v ...any) {
 	if level < LogLevelSet {
 		return
 	}
+
 	var levelStr string
 	var color string
 	switch level {
@@ -86,25 +70,49 @@ func log(level LogLevel, format string, v ...any) {
 		color = ErrorColor
 	}
 
+	var location string
 	if level == LogLevelDebug || level == LogLevelError {
 		_, file, line, ok := runtime.Caller(2)
 		if ok {
-			file = strings.ReplaceAll(file, "\\", "/")
-			if strings.HasPrefix(file, absPathNormalized) {
-				relPath := strings.TrimPrefix(file, absPathNormalized)
-				relPath = strings.TrimPrefix(relPath, "/")
-				location = fmt.Sprintf("%s:%d ", relPath, line)
+			rel, err := filepath.Rel(absPath, file)
+			if err == nil {
+				rel = filepath.ToSlash(rel)
+				location = fmt.Sprintf("%s:%d ", rel, line)
 			} else {
-				location = fmt.Sprintf("%s:%d ", file, line)
+				location = fmt.Sprintf("%s:%d ", filepath.ToSlash(file), line)
 			}
 		}
-	} else {
-		location = ""
 	}
 
-	fmt.Printf("%s%-5s%s [%s] %s%s\n", color, levelStr, ResetColor, time.Now().Format(TimeFormat), location, fmt.Sprintf(format, v...))
-}
+	var buf bytes.Buffer
+	buf.WriteString(color)
+	buf.WriteString(fmt.Sprintf("%-5s", levelStr))
+	buf.WriteString(ResetColor)
+	buf.WriteString(" [")
+	buf.WriteString(time.Now().Format(TimeFormat))
+	buf.WriteString("] ")
+	buf.WriteString(location)
+	buf.WriteString(fmt.Sprintf(format, v...))
+	buf.WriteByte('\n')
 
+	fmt.Print(buf.String())
+}
+func SetLogLevel(level string) {
+	switch level {
+	case "debug":
+		LogLevelSet = LogLevelDebug
+	case "info":
+		LogLevelSet = LogLevelInfo
+	case "warn":
+		LogLevelSet = LogLevelWarn
+	case "error":
+		LogLevelSet = LogLevelError
+	case "fatal":
+		LogLevelSet = LogLevelFatal
+	case "panic":
+		LogLevelSet = LogLevelPanic
+	}
+}
 func Info(format string, v ...any) {
 	log(LogLevelInfo, format, v...)
 }
