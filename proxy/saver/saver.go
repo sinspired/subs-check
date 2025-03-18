@@ -5,7 +5,6 @@ import (
 
 	"github.com/bestruirui/bestsub/config"
 	"github.com/bestruirui/bestsub/proxy/info"
-	"github.com/bestruirui/bestsub/utils"
 	"github.com/bestruirui/bestsub/utils/log"
 	"gopkg.in/yaml.v3"
 )
@@ -30,17 +29,12 @@ func NewConfigSaver(results *[]info.Proxy) *ConfigSaver {
 			{
 				Name:    "all.yaml",
 				Proxies: make([]map[string]any, 0),
-				Filter: func(result info.Proxy) bool {
-					if utils.Contains(config.GlobalConfig.Check.Items, "speed") {
-						if result.Info.Speed > config.GlobalConfig.Check.MinSpeed || result.Info.SpeedSkip {
-							return true
-						} else {
-							log.Debug("proxy %s speed %d does not meet the condition, skipping", result.Raw["name"], result.Info.Speed)
-							return false
-						}
-					}
-					return result.Info.Alive
-				},
+				Filter:  func(result info.Proxy) bool { return result.Info.Alive },
+			},
+			{
+				Name:    "speed.yaml",
+				Proxies: make([]map[string]any, 0),
+				Filter:  func(result info.Proxy) bool { return result.Info.Speed > config.GlobalConfig.Check.MinSpeed },
 			},
 			{
 				Name:    "openai.yaml",
@@ -133,7 +127,6 @@ func (cs *ConfigSaver) saveCategory(category ProxyCategory) error {
 func chooseSaveMethods() []func([]byte, string) error {
 	methods := make([]func([]byte, string) error, 0)
 
-	// 遍历配置的保存方法
 	for _, methodName := range config.GlobalConfig.Save.Method {
 		switch methodName {
 		case "r2":
