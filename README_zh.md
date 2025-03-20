@@ -57,4 +57,4 @@
 
 ## 使用方法
 
-[使用方法](./doc/README.md)
+[使用方法](./doc/README_zh.md)

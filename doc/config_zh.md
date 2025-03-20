@@ -87,6 +87,7 @@ save:
 - before-save-do: 保存前执行的脚本请填写绝对路径 支持 `js` `py` `sh` `ps1` 等 示例：[node.js](./doc/scripts/node.js)
 - after-save-do: 保存后执行的脚本请填写绝对路径 支持 `js` `py` `sh` `ps1` 等 示例：[powershell.ps1](./test/powershell.ps1)
 
+> ⚠️注意脚本功能暂时请先不要投入过多尽力，后期可能会频繁变动，导致自己编写的脚本失效
 
 ## mihomo
 
