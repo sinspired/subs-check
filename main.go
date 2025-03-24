@@ -297,7 +297,7 @@ func proxyCheckTask(proxy *info.Proxy) {
 	aliveCount := 0
 	totalDelay := uint16(0)
 	for i := 0; i < 3; i++ {
-		checker.AliveTest("https://gstatic.com/generate_204", 204)
+		checker.AliveTest(config.GlobalConfig.Check.AliveTestUrl, config.GlobalConfig.Check.AliveTestExpectCode)
 		if proxy.Info.Alive {
 			aliveCount++
 			totalDelay += proxy.Info.Delay
@@ -419,5 +419,10 @@ func checkConfig() {
 			log.Info("auto update provider: true")
 			log.Info("mihomo version: %v", version)
 		}
+	}
+	if config.GlobalConfig.Check.AliveTestUrl == "" || config.GlobalConfig.Check.AliveTestExpectCode == 0 {
+		config.GlobalConfig.Check.AliveTestUrl = "https://gstatic.com/generate_204"
+		config.GlobalConfig.Check.AliveTestExpectCode = 204
+		log.Info("alive test url: %v expect code: %v", config.GlobalConfig.Check.AliveTestUrl, config.GlobalConfig.Check.AliveTestExpectCode)
 	}
 }

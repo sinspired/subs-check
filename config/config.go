@@ -29,6 +29,8 @@ type CheckConfig struct {
 	Items                []string `yaml:"items"`
 	Interval             int      `yaml:"interval"`
 	Timeout              int      `yaml:"timeout"`
+	AliveTestUrl         string   `yaml:"alive-test-url"`
+	AliveTestExpectCode  int      `yaml:"alive-test-expect-code"`
 	MinSpeed             int      `yaml:"min-speed"`
 	QualityLevel         int      `yaml:"quality-level"`
 	DownloadTimeout      int      `yaml:"download-timeout"`
