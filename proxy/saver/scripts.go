@@ -13,6 +13,17 @@ import (
 	"github.com/bestruirui/bestsub/utils/log"
 )
 
+var (
+	tempDir         string
+	tempProxiesFile string
+)
+
+func init() {
+	tempDir = os.TempDir()
+	tempProxiesFile = filepath.Join(tempDir, "bestsub_temp_proxies.json")
+
+}
+
 func ExecuteScripts(scripts []string) error {
 	if len(scripts) == 0 {
 		return nil
@@ -85,26 +96,14 @@ func BeforeSaveDo(results *[]info.Proxy) error {
 		return fmt.Errorf("serialize proxies failed: %w", err)
 	}
 
-	tempDir := os.TempDir()
-	tempFile := filepath.Join(tempDir, "bestsub_temp_proxies.json")
-	err = os.WriteFile(tempFile, jsonData, 0644)
+	err = os.WriteFile(tempProxiesFile, jsonData, 0644)
 	if err != nil {
 		return fmt.Errorf("save proxies to temp file failed: %w", err)
 	}
 
-	log.Debug("Proxies saved to temp file: %s", tempFile)
+	log.Debug("Proxies saved to temp file: %s", tempProxiesFile)
 
 	ExecuteScripts(config.GlobalConfig.Save.BeforeSaveDo)
-
-	if config.GlobalConfig.LogLevel == "debug" {
-		log.Debug("Debug mode, not removing temp file: %s", tempFile)
-	} else {
-		err = os.Remove(tempFile)
-		if err != nil {
-			return fmt.Errorf("remove temp file failed: %w", err)
-		}
-		log.Debug("Removed temp file: %s", tempFile)
-	}
 
 	return nil
 }
@@ -112,5 +111,14 @@ func BeforeSaveDo(results *[]info.Proxy) error {
 func AfterSaveDo(results *[]info.Proxy) error {
 	log.Info("Executing after-save scripts")
 	ExecuteScripts(config.GlobalConfig.Save.AfterSaveDo)
+	if config.GlobalConfig.LogLevel == "debug" {
+		log.Debug("Debug mode, not removing temp file: %s", tempProxiesFile)
+	} else {
+		err := os.Remove(tempProxiesFile)
+		if err != nil {
+			return fmt.Errorf("remove temp file failed: %w", err)
+		}
+		log.Debug("Removed temp file: %s", tempProxiesFile)
+	}
 	return nil
 }
