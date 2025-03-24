@@ -13,6 +13,10 @@ check:
   concurrent: 100
   # 检查间隔,单位分钟
   interval: 30
+  # 存活测试url
+  alive-test-url: "https://gstatic.com/generate_204"
+  # 存活测试状态码
+  alive-test-expect-code: 204
   # 超时时间 单位毫秒
   timeout: 2000
   # 最低测速 单位KB/s
@@ -47,6 +51,12 @@ save:
     - http
   # 保存端口
   port: 18989
+  # 保存前执行脚本
+  before-save-do:
+    - D:\Github\bestsub\doc\scripts\node.js
+  # 保存后执行脚本
+  after-save-do:
+    - D:\Github\bestsub\test\powershell.ps1
 
 # mihomo api
 mihomo-api-url: "http://192.168.31.11:9090"

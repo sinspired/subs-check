@@ -21,6 +21,8 @@ check:
   concurrent: 100
   timeout: 2000
   interval: 10
+  alive-test-url: https://gstatic.com/generate_204
+  alive-test-expect-code: 204 
   download-timeout: 10
   download-size: 50
   speed-test-url: 
@@ -37,6 +39,8 @@ check:
 - `concurrent`: 并发数量,此程序占用资源较少，并发可以设置较高
 - `timeout`: 超时时间 单位毫秒 节点的最大延迟
 - `interval`: 检测间隔时间 单位分钟 最低必须大于10分钟
+- `alive-test-url`: 测试节点存活的url 默认 `https://gstatic.com/generate_204`
+- `alive-test-expect-code` 判断节点存活的状态码 默认 `204`
 - `download-timeout`: 下载超时时间 单位秒 测速时，下载文件的最大超时时间
 - `download-size`: 下载文件大小 单位MB 测速时，下载文件的大小
 - `min-speed`: 最低测速 单位KB/s 测速时，如果速度低于此值，则根据`speed-save`的值决定是否保存

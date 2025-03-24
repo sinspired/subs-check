@@ -13,6 +13,10 @@ check:
   concurrent: 100
   # Check interval, in minutes
   interval: 10
+  # Alive test URL
+  alive-test-url: "https://gstatic.com/generate_204"
+  # Alive test expect code
+  alive-test-expect-code: 204
   # Timeout, in milliseconds
   timeout: 2000
   # Minimum speed, in KB/s
@@ -60,6 +64,12 @@ save:
   worker-url: https://your-worker-url.com
   # Worker token
   worker-token: your-worker-token
+  # Before save do
+  before-save-do:
+    - D:\Github\bestsub\doc\scripts\node.js
+  # After save do
+  after-save-do:
+    - D:\Github\bestsub\test\powershell.ps1
 
 # mihomo api
 mihomo-api-url: "http://192.168.31.11:9090"
