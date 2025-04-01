@@ -1,4 +1,4 @@
-# Subscription Merge and Conversion Detection Tool
+# BESTSUB
 
 <div align="center">
   <img src="https://img.shields.io/github/v/release/bestruirui/BestSub?color=blue" alt="Version">
@@ -7,6 +7,16 @@
     <img src="https://img.shields.io/badge/中文文档-brightgreen" alt="中文文档">
   </a>
   <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">
+</div>
+
+<div align="center">
+  <h2>🚀 Stay Tuned for the New BESTSUB 🚀</h2>
+  <h3 style="margin-top: 10px;">
+    <a href="https://github.com/bestruirui/BestSub/tree/api">
+      <img src="https://img.shields.io/badge/BESTSUB-Details-brightgreen?style=for-the-badge&logo=github" alt="BESTSUB">
+    </a>
+  </h3>
+  <hr style="width: 50%; margin: 20px auto;">
 </div>
 
 ## Preview

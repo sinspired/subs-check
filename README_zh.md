@@ -8,6 +8,15 @@
   </a>
   <img src="https://img.shields.io/badge/许可证-MIT-orange" alt="许可证">
 </div>
+<div align="center">
+  <h2>🚀 敬请期待全新BESTSUB 🚀</h2>
+  <h3 style="margin-top: 10px;">
+    <a href="https://github.com/bestruirui/BestSub/tree/api">
+      <img src="https://img.shields.io/badge/BESTSUB-查看详情-brightgreen?style=for-the-badge&logo=github" alt="BESTSUB">
+    </a>
+  </h3>
+  <hr style="width: 50%; margin: 20px auto;">
+</div>
 
 ## 预览
 
