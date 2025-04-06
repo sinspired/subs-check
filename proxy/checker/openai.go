@@ -11,7 +11,7 @@ func (c *Checker) OpenaiTest() {
 	ctx, cancel := context.WithCancel(c.Proxy.Ctx)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://android.chat.openai.com", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://ios.chat.openai.com", nil)
 	if err != nil {
 		return
 	}
