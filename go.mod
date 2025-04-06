@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/fsnotify/fsnotify v1.8.0
-	github.com/metacubex/mihomo v1.19.3
+	github.com/metacubex/mihomo v1.19.4
 	github.com/panjf2000/ants/v2 v2.11.2
 	golang.org/x/net v0.37.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -20,7 +20,7 @@ require (
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/coreos/go-iptables v0.8.0 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
-	github.com/enfein/mieru/v3 v3.12.0 // indirect
+	github.com/enfein/mieru/v3 v3.13.0 // indirect
 	github.com/ericlagergren/aegis v0.0.0-20230312195928-b4ce538b56f9 // indirect
 	github.com/ericlagergren/polyval v0.0.0-20230805202542-18692a1b76f9 // indirect
 	github.com/ericlagergren/siv v0.0.0-20220507050439-0b757b3aa5f1 // indirect
@@ -45,10 +45,11 @@ require (
 	github.com/mdlayher/netlink v1.7.2 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/metacubex/amneziawg-go v0.0.0-20240922133038-fdf3a4d5a4ab // indirect
+	github.com/metacubex/bart v0.19.0 // indirect
 	github.com/metacubex/bbolt v0.0.0-20240822011022-aed6d4850399 // indirect
 	github.com/metacubex/chacha v0.1.1 // indirect
 	github.com/metacubex/gopacket v1.1.20-0.20230608035415-7e2f98a3e759 // indirect
-	github.com/metacubex/gvisor v0.0.0-20241126021258-5b028898cc5a // indirect
+	github.com/metacubex/gvisor v0.0.0-20250324165734-5857f47bd43b // indirect
 	github.com/metacubex/quic-go v0.49.1-0.20250212162123-c135a4412996 // indirect
 	github.com/metacubex/randv2 v0.2.0 // indirect
 	github.com/metacubex/sing-quic v0.0.0-20250119013740-2a19cce83925 // indirect
@@ -57,7 +58,7 @@ require (
 	github.com/metacubex/sing-vmess v0.1.14-0.20250228002636-abc39e113b82 // indirect
 	github.com/metacubex/sing-wireguard v0.0.0-20241126021510-0827d417b589 // indirect
 	github.com/metacubex/tfo-go v0.0.0-20241231083714-66613d49c422 // indirect
-	github.com/metacubex/utls v1.6.6 // indirect
+	github.com/metacubex/utls v1.6.8-alpha.4 // indirect
 	github.com/metacubex/wireguard-go v0.0.0-20240922131502-c182e7471181 // indirect
 	github.com/miekg/dns v1.1.63 // indirect
 	github.com/mroth/weightedrand/v2 v2.1.0 // indirect
