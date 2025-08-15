@@ -69,10 +69,6 @@ var Bucket *ratelimit.Bucket
 var ctx context.Context
 var cancel context.CancelFunc
 
-// 添加全局变量,避免重复获取cf cdn 信息
-var isCfAccessible bool
-var cfLoc, cfIP string
-
 // NewProxyChecker 创建新的检测器实例
 func NewProxyChecker(proxyCount int) *ProxyChecker {
 	threadCount := config.GlobalConfig.Concurrent
@@ -270,6 +266,9 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 		return nil
 	}
 
+	var isCfAccessible bool
+	var cfLoc, cfIP string
+
 	if config.GlobalConfig.DropBadCfNodes {
 		if isCfAccessible, cfLoc, cfIP = platform.CheckCloudflare(httpClient.Client); !isCfAccessible {
 			// 节点可用，但无法访问cloudflare，说明是未正确设置proxyip的cf节点
@@ -371,7 +370,7 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 		if res.Country != "" {
 			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(res.Country, res.CountryCodeTag)
 		} else {
-			country, _, countryCode_tag, _ := proxyutils.GetProxyCountry(httpClient.Client, db, ctx, cfLoc, cfIP)
+			country, _, countryCode_tag, _ := proxyutils.GetProxyCountry(httpClient.Client, db, ctx, "", "")
 			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(country, countryCode_tag)
 		}
 	}
