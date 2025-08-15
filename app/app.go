@@ -64,6 +64,12 @@ func (app *App) Initialize() error {
 		return fmt.Errorf("初始化配置文件监听失败: %w", err)
 	}
 
+	// 从配置文件中读取代理，设置代理
+	if config.GlobalConfig.Proxy != "" {
+		os.Setenv("HTTP_PROXY", config.GlobalConfig.Proxy)
+		os.Setenv("HTTPS_PROXY", config.GlobalConfig.Proxy)
+	}
+
 	app.interval = config.GlobalConfig.CheckInterval
 
 	if config.GlobalConfig.ListenPort != "" {
@@ -100,8 +106,6 @@ func (app *App) Run() {
 			app.cron.Stop()
 		}
 	}()
-
-	slog.Info(fmt.Sprintf("进度展示: %v", config.GlobalConfig.PrintProgress))
 
 	// 设置初始定时器模式
 	app.setTimer()
@@ -218,7 +222,7 @@ func (app *App) triggerCheck() {
 
 // checkProxies 执行代理检测
 func (app *App) checkProxies() error {
-	slog.Info("开始检测代理")
+	slog.Info("开始准备检测代理", "进度展示", config.GlobalConfig.PrintProgress)
 
 	results, err := check.Check()
 	if err != nil {
