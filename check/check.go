@@ -265,7 +265,11 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 	if err != nil || !google {
 		return nil
 	}
-
+	// 检查 cloudflare 是否可访问前取消
+	if checkCtxDone(ctx) {
+		return nil
+	}
+	
 	if config.GlobalConfig.DropBadCfNodes {
 		if isCfAccessible, cfLoc, cfIP = platform.CheckCloudflare(httpClient.Client); !isCfAccessible {
 			// 节点可用，但无法访问cloudflare，说明是未正确设置proxyip的cf节点
