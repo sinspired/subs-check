@@ -2,6 +2,7 @@ package proxies
 
 import (
 	"fmt"
+	"runtime"
 )
 
 func DeduplicateProxies(proxies []map[string]any) []map[string]any {
@@ -26,6 +27,14 @@ func DeduplicateProxies(proxies []map[string]any) []map[string]any {
 			result = append(result, proxy)
 		}
 	}
+
+	// 收集代理节点阶段结束
+	// 进行一次内存回收，降低前期运行时内存: 10%
+	for i := range proxies {
+		proxies[i] = nil // 移除 map 引用
+	}
+	proxies = nil // 移除切片引用
+	runtime.GC()  // 提示 GC 回收
 
 	return result
 }

@@ -67,6 +67,10 @@ func GetProxies() ([]map[string]any, error) {
 					proxy["sub_tag"] = tag
 					proxyChan <- proxy
 				}
+				// 释放运行时内存
+				data = nil
+				proxyList = nil
+
 				return
 			}
 
@@ -98,6 +102,10 @@ func GetProxies() ([]map[string]any, error) {
 					proxyChan <- proxyMap
 				}
 			}
+			// 释放运行时内存
+			data = nil
+			proxyList = nil
+			
 		}(utils.WarpUrl(subUrl))
 	}
 
