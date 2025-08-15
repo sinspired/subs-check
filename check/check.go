@@ -219,10 +219,24 @@ func (pc *ProxyChecker) worker(wg *sync.WaitGroup, db *maxminddb.Reader) {
 	}
 }
 
+// ctx 检查
+func checkCtxDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
 // checkProxy 检测单个代理
 func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *Result {
 	res := &Result{
 		Proxy: proxy,
+	}
+	// 快速取消点
+	if checkCtxDone(ctx) {
+		return nil
 	}
 
 	if os.Getenv("SUB_CHECK_SKIP") != "" {
@@ -255,13 +269,21 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 			return nil
 		}
 	}
-
+	// 速度测试 前取消检查
+	if checkCtxDone(ctx) {
+		return nil
+	}
+	
 	var speed int
 	if config.GlobalConfig.SpeedTestUrl != "" {
 		speed, _, err = platform.CheckSpeed(httpClient.Client, Bucket)
 		if err != nil || speed < config.GlobalConfig.MinSpeed {
 			return nil
 		}
+	}
+	// MediaCheck 前取消检查。已经开始 MediaCheck 的任务等待其完成
+	if checkCtxDone(ctx) {
+		return nil
 	}
 	
 	if config.GlobalConfig.MediaCheck {
