@@ -57,7 +57,7 @@ func TestGetAnalyzed(t *testing.T) {
 	defer cli.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	loc, _, countryCode_tag, _ := cli.GetAnalyzed(ctx)
+	loc, _, countryCode_tag, _ := cli.GetAnalyzed(ctx, "", "")
 	if loc != "" && countryCode_tag != "" {
 		t.Logf("GetAnalyzed 获取节点位置成功: %s %s", loc, countryCode_tag)
 	} else {

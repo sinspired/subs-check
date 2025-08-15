@@ -265,9 +265,12 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 	if checkCtxDone(ctx) {
 		return nil
 	}
-	
+
+	var isCfAccessible bool
+	var cfLoc, cfIP string
+
 	if config.GlobalConfig.DropBadCfNodes {
-		if cloudflare, _, _ := platform.CheckCloudflare(httpClient.Client); !cloudflare {
+		if isCfAccessible, cfLoc, cfIP = platform.CheckCloudflare(httpClient.Client); !isCfAccessible {
 			// 节点可用，但无法访问cloudflare，说明是未正确设置proxyip的cf节点
 			slog.Debug(fmt.Sprintf("%v 无法访问Cloudflare, 已丢弃", proxy["name"]))
 			return nil
@@ -277,7 +280,7 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 	if checkCtxDone(ctx) {
 		return nil
 	}
-	
+
 	var speed int
 	if config.GlobalConfig.SpeedTestUrl != "" {
 		speed, _, err = platform.CheckSpeed(httpClient.Client, Bucket)
@@ -289,12 +292,14 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 	if checkCtxDone(ctx) {
 		return nil
 	}
-	
+
 	if config.GlobalConfig.MediaCheck {
-		cloudflare, _, _ := platform.CheckCloudflare(httpClient.Client)
+		if cfLoc == "" && cfIP == "" {
+			isCfAccessible, cfLoc, cfIP = platform.CheckCloudflare(httpClient.Client)
+		}
 		// 遍历需要检测的平台
 		for _, plat := range config.GlobalConfig.Platforms {
-			if cloudflare {
+			if isCfAccessible {
 				// 只在能访问 cloudflare 时检测 openAI 和 X,因为都使用了 Cloudflare 的 CDN
 				switch plat {
 				case "x":
@@ -333,7 +338,7 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 					res.TikTok = region
 				}
 			case "iprisk":
-				country, ip, countryCode_tag, _ := proxyutils.GetProxyCountry(httpClient.Client, db, ctx)
+				country, ip, countryCode_tag, _ := proxyutils.GetProxyCountry(httpClient.Client, db, ctx, cfLoc, cfIP)
 				if ip == "" {
 					break
 				}
@@ -353,19 +358,19 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 		}
 	}
 	// 更新代理名称
-	pc.updateProxyName(res, httpClient, speed, db)
+	pc.updateProxyName(res, httpClient, speed, db, cfLoc, cfIP)
 	pc.incrementAvailable()
 	return res
 }
 
 // updateProxyName 更新代理名称
-func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, speed int, db *maxminddb.Reader) {
+func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, speed int, db *maxminddb.Reader, cfLoc string, cfIP string) {
 	// 以节点IP查询位置重命名节点
 	if config.GlobalConfig.RenameNode {
 		if res.Country != "" {
 			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(res.Country, res.CountryCodeTag)
 		} else {
-			country, _, countryCode_tag, _ := proxyutils.GetProxyCountry(httpClient.Client, db, ctx)
+			country, _, countryCode_tag, _ := proxyutils.GetProxyCountry(httpClient.Client, db, ctx, cfLoc, cfIP)
 			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(country, countryCode_tag)
 		}
 	}

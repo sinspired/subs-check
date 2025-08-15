@@ -16,7 +16,7 @@ import (
 	"github.com/sinspired/checkip/pkg/ipinfo"
 )
 
-func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedCtx context.Context) (loc string, ip string, countryCode_tag string, err error) {
+func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedCtx context.Context, cfLoc string, cfIP string) (loc string, ip string, countryCode_tag string, err error) {
 	for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
 		// 设置一个临时环境变量，以排除部分api因数据库未更新返回的 CN
 		os.Setenv("SUBS-CHECK-CALL", "true")
@@ -59,7 +59,7 @@ func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedC
 		// - CFNodeWithDifferentCountry: HK¹-US⁰
 		// - NodeWithoutCF: HK²
 		// - 前两位字母是实际浏览网站识别的位置, -US⁰为使用CF CDN服务的网站识别的位置, 比如GPT, X等
-		loc, ip, countryCode_tag, _ = cli.GetAnalyzed(GetAnalyzedCtx)
+		loc, ip, countryCode_tag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
 		if loc != "" && countryCode_tag != "" {
 			slog.Debug(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCode_tag))
 			return loc, ip, countryCode_tag, nil
