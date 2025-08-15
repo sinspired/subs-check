@@ -51,6 +51,9 @@ type Config struct {
 	MihomoOverwriteUrl   string   `yaml:"mihomo-overwrite-url"`
 	MediaCheck           bool     `yaml:"media-check"`
 	Platforms            []string `yaml:"platforms"`
+	MaxMindDBPath        string   `yaml:"maxmind-db-path"`
+	DropBadCfNodes       bool     `yaml:"drop-bad-cf-nodes"`
+	EnhancedTag          bool     `yaml:"enhanced-tag"`
 	SuccessLimit         int32    `yaml:"success-limit"`
 	NodePrefix           string   `yaml:"node-prefix"`
 	EnableWebUI          bool     `yaml:"enable-web-ui"`
