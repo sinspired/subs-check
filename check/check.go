@@ -117,7 +117,7 @@ func Check() ([]Result, error) {
 	// 重置全局节点
 	config.GlobalProxies = make([]map[string]any, 0)
 
-	proxies = proxyutils.DeduplicateProxies(proxies)
+	proxies = proxyutils.DeduplicateProxies(proxies) // 收集订阅节点阶段: 已优化内存
 	slog.Info(fmt.Sprintf("去重后节点数量: %d", len(proxies)))
 
 	checker := NewProxyChecker(len(proxies))
@@ -223,7 +223,7 @@ func (pc *ProxyChecker) worker(wg *sync.WaitGroup, db *maxminddb.Reader) {
 	}
 }
 
-// ctx 检查
+// ctx 检查函数，接受停止信号
 func checkCtxDone(ctx context.Context) bool {
 	select {
 	case <-ctx.Done():
@@ -269,7 +269,7 @@ func (pc *ProxyChecker) checkProxy(proxy map[string]any, db *maxminddb.Reader) *
 	if checkCtxDone(ctx) {
 		return nil
 	}
-	
+
 	if config.GlobalConfig.DropBadCfNodes {
 		if isCfAccessible, cfLoc, cfIP = platform.CheckCloudflare(httpClient.Client); !isCfAccessible {
 			// 节点可用，但无法访问cloudflare，说明是未正确设置proxyip的cf节点
@@ -506,6 +506,12 @@ func (pc *ProxyChecker) distributeProxies(proxies []map[string]any) {
 		}
 		pc.tasks <- proxy
 	}
+	// 发送任务结束，进行一次内存回收
+	for i := range proxies {
+		proxies[i] = nil // 移除 map 引用
+	}
+	proxies = nil // 移除切片引用
+
 	close(pc.tasks)
 }
 
@@ -627,6 +633,12 @@ func (pc *ProxyClient) Close() {
 
 	if pc.Transport != nil {
 		TotalBytes.Add(atomic.LoadUint64(&pc.Transport.BytesRead))
+		// 清理Transport资源
+		if pc.Transport.Base != nil {
+			if transport, ok := pc.Transport.Base.(*http.Transport); ok {
+				transport.CloseIdleConnections()
+			}
+		}
 	}
 	pc.Transport = nil
 }
