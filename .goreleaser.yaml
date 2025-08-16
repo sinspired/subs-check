@@ -32,7 +32,8 @@ builds:
       - -s -w -X main.Version={{ .Version }} -X main.CurrentCommit={{ .ShortCommit }}
 
 archives:
-  - format: tar.gz
+  - formats:  # format 被弃用
+      - tar.gz
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -43,7 +44,7 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: zip
 
 changelog:
   sort: asc

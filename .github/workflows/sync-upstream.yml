@@ -19,7 +19,7 @@ jobs:
     steps:
       # Step 1: run a standard checkout action
       - name: Checkout target repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Step 2: run the sync action
       - name: Sync upstream changes
@@ -31,8 +31,8 @@ jobs:
           target_sync_branch: master
           target_repo_token: ${{ secrets.GITHUB_TOKEN }} # automatically generated, no need to set
 
-        # Set test_mode true during manual dispatch to run tests instead of the true action!!
-        test_mode: ${{ inputs.sync_test_mode }}
+          # Set test_mode true during manual dispatch to run tests instead of the true action!!
+          test_mode: ${{ inputs.sync_test_mode }}
 
       - name: Sync check
         if: failure()
