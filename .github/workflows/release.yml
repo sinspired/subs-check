@@ -4,7 +4,10 @@ on:
   push:
     tags:
       - 'v*.*.*'
-      
+
+env:
+  GOEXPERIMENT: greenteagc,jsonv2
+  
 permissions:
   contents: write
   packages: write
@@ -31,6 +34,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOEXPERIMENT: ${{ env.GOEXPERIMENT }}
 
   docker:
     if: github.ref == 'refs/heads/master'
@@ -47,12 +51,9 @@ jobs:
             ghcr.io/${{ github.repository }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
           tags: |
-            # 如果 tag 包含 "beta"，只生成具体的版本标签
             type=match,pattern=^(.*-beta.*)$,group=1,enable=${{ contains(github.ref_name, 'beta') }}
-            # 如果 tag 不包含 "beta"，生成版本标签
             type=match,pattern=^v(.*)$,group=1,enable=${{ !contains(github.ref_name, 'beta') }}
           flavor: |
-            # 明确控制 latest 标签，只有当不包含 "beta" 时才生成
             latest=${{ !contains(github.ref_name, 'beta') }}
           
       - name: Set up QEMU
@@ -83,5 +84,6 @@ jobs:
           build-args: |
             GITHUB_SHA=${{ github.sha }}
             VERSION=${{ github.ref_name }}
+            GOEXPERIMENT=${{ env.GOEXPERIMENT }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

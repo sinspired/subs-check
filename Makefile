@@ -8,6 +8,9 @@ COMMIT_TIMESTAMP := $(shell git log -1 --format=%ct)
 VERSION := $(shell git describe --tags --abbrev=0)
 GO_BIN := go
 
+# 开启内存回收特性和json解析特性
+export GOEXPERIMENT := greenteagc,jsonv2
+
 # 构建标志
 CGO_ENABLED := 0
 FLAGS := -trimpath
