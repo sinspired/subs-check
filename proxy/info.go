@@ -45,24 +45,26 @@ func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedC
 				"https://api.seeip.org/geoip",
 			),
 		)
-		if err != nil {
+
+		if err == nil {
+			// 未出错时才关闭客户端，避免panic
+			defer cli.Close()
+
+			// GetAnalyzedCtx 可以安全设置,收到停止信号依然会检测乱序后的前三个api
+			// 由于从多个API检测结果,接收到停止信号需要等待更长时间
+
+			// - BadCFNode: HK⁻¹
+			// - CFNodeWithSameCountry: HK¹⁺
+			// - CFNodeWithDifferentCountry: HK¹-US⁰
+			// - NodeWithoutCF: HK²
+			// - 前两位字母是实际浏览网站识别的位置, -US⁰为使用CF CDN服务的网站识别的位置, 比如GPT, X等
+			loc, ip, countryCode_tag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+			if loc != "" && countryCode_tag != "" {
+				slog.Debug(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCode_tag))
+				return loc, ip, countryCode_tag, nil
+			}
+		} else {
 			slog.Debug(fmt.Sprintf("创建 ipinfo 客户端失败: %s", err))
-			loc, ip, countryCode_tag, _ = "", "", "", ""
-		}
-		defer cli.Close()
-
-		// GetAnalyzedCtx 可以安全设置,收到停止信号依然会检测乱序后的前三个api
-		// 由于从多个API检测结果,接收到停止信号需要等待更长时间
-
-		// - BadCFNode: HK⁻¹
-		// - CFNodeWithSameCountry: HK¹⁺
-		// - CFNodeWithDifferentCountry: HK¹-US⁰
-		// - NodeWithoutCF: HK²
-		// - 前两位字母是实际浏览网站识别的位置, -US⁰为使用CF CDN服务的网站识别的位置, 比如GPT, X等
-		loc, ip, countryCode_tag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
-		if loc != "" && countryCode_tag != "" {
-			slog.Debug(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCode_tag))
-			return loc, ip, countryCode_tag, nil
 		}
 
 		// 保留原先获取国家代码的逻辑,但重命名时会添加 ˣ ,例如 HKˣ
