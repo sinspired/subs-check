@@ -123,7 +123,18 @@ func Check() ([]Result, error) {
 		MinSpacing: config.GlobalConfig.Concurrent * 2,     // CIDR/24 相同, 设置最小间隔为 并发数*2
 		ScanLimit:  config.GlobalConfig.Concurrent * 2,     // 冲突向前扫描的最大距离
 	}
-	proxyutils.SmartShuffleByServer(proxies, cfg)
+
+	// 前500个不乱序,避免之前成功的节点被打散
+	if len(proxies) > 500 {
+		head := proxies[:500]
+		tail := proxies[500:]
+
+		// 仅对 tail 做乱序/智能打散
+		proxyutils.SmartShuffleByServer(tail, cfg)
+
+		proxies = append(proxies[:0], append(head, tail...)...)
+	}
+
 	cidr := proxyutils.ThresholdToCIDR(cfg.Threshold)
 	slog.Info(fmt.Sprintf(
 		"节点乱序, 相同 CIDR%s 范围 IP 的最小间距: %d",
