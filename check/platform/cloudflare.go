@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
@@ -67,41 +68,66 @@ func CheckCloudflare(httpClient *http.Client) (cloudflare bool, cfRelayLoc strin
 func GetCFTrace(httpClient *http.Client) (string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return FetchCFTraceFirstWithCtx(httpClient, ctx)
+	return FetchCFTraceFirstConcurrent(httpClient, ctx, cancel)
 }
 
-// FetchCFTraceFirstWithCtx 并发处理 FetchCFCDNTrace
-func FetchCFTraceFirstWithCtx(httpClient *http.Client, ctx context.Context) (string, string) {
+// shuffle 返回一个新切片，元素是原切片的随机乱序版本
+func shuffle(in []string) []string {
+	out := append([]string(nil), in...) // 拷贝，避免修改原数据
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := len(out) - 1; i > 0; i-- {
+		j := r.Intn(i + 1)
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
+
+// FetchCFTraceFirstConcurrent 并发处理 FetchCFCDNTrace
+func FetchCFTraceFirstConcurrent(httpClient *http.Client, ctx context.Context, cancel context.CancelFunc) (string, string) {
 	type result struct {
 		loc string
 		ip  string
+	}
+
+	// 乱序 + 截取前5, 减轻网络负载
+	apis := shuffle(CF_CDN_APIS)
+	if len(apis) > 5 {
+		apis = apis[:5]
 	}
 
 	resultChan := make(chan result, 1)
 	var once sync.Once
 	var wg sync.WaitGroup
 
-	for _, url := range CF_CDN_APIS {
+	retries := 2
+
+	for _, baseURL := range apis {
 		wg.Add(1)
 		go func(url string) {
 			defer wg.Done()
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			for range 3 {
+			for range retries {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 				loc, ip := FetchCFTrace(httpClient, ctx, url)
 				if loc != "" && ip != "" {
 					once.Do(func() {
 						resultChan <- result{loc, ip}
+						cancel()
 					})
 					return
 				}
 			}
-		}(url)
+		}(baseURL)
 	}
+
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
 
 	select {
 	case r := <-resultChan:

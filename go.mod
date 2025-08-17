@@ -1,6 +1,6 @@
 module github.com/beck-8/subs-check
 
-go 1.24.6
+go 1.25
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
@@ -8,7 +8,7 @@ require (
 	github.com/metacubex/mihomo v1.19.12
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/sinspired/checkip v0.2.2
+	github.com/sinspired/checkip v0.2.3
 	gopkg.in/yaml.v3 v3.0.1
 )
 
