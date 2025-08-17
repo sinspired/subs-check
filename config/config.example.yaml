@@ -24,6 +24,9 @@ timeout: 5000
 # 尽量不要使用Speedtest，Cloudflare提供的下载链接，因为很多节点屏蔽测速网站
 # 如果找不到稳定的测速地址，可以自建测速地址
 speed-test-url: https://github.com/AaronFeng753/Waifu2x-Extension-GUI/releases/download/v2.21.12/Waifu2x-Extension-GUI-v2.21.12-Portable.7z
+
+# 注意: 节点可能被测速测死(暂时或永久), 经过多次测试, 不用怀疑!
+# 强烈建议设置较低的 min-speed, 强烈建议保留 download-timeout 和 download-mb
 # 最低测速结果舍弃(KB/s)
 min-speed: 512
 # 下载测试时间(s)(与下载链接大小相关，默认最大测试10s)
@@ -33,6 +36,14 @@ download-mb: 20
 # 总下载速度速度限制(MB/s)，0为不限
 # 限制与实际情况可能会有一定误差
 total-speed-limit: 0
+
+# 相似度阈值(Threshold)大致对应网段
+# 1.00 /32（完全相同 IP）
+# 0.75 /24（前三段相同）
+# 0.50 /16（前两段相同）
+# 0.25 /8（第一段相同）
+# 以下设置仅能 [减少] 节点被测速测死的概率, 无法避免被 "反代机房" 中断节点
+threshold:  0.75
 
 # 监听端口，用于直接返回节点信息，方便订阅转换
 # http://127.0.0.1:8199/all.yaml

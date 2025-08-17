@@ -11,6 +11,7 @@ type Config struct {
 	DownloadTimeout      int      `yaml:"download-timeout"`
 	DownloadMB           int      `yaml:"download-mb"`
 	TotalSpeedLimit      int      `yaml:"total-speed-limit"`
+	Threshold            float32  `yaml:"threshold"`
 	MinSpeed             int      `yaml:"min-speed"`
 	Timeout              int      `yaml:"timeout"`
 	FilterRegex          string   `yaml:"filter-regex"`

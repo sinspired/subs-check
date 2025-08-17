@@ -116,6 +116,20 @@ func Check() ([]Result, error) {
 	proxies = proxyutils.DeduplicateProxies(proxies)
 	slog.Info(fmt.Sprintf("去重后节点数量: %d", len(proxies)))
 
+	// 随机乱序并根据 server 字段打乱节点顺序, 减少测速直接测死的概率
+	cfg := proxyutils.ShuffleConfig{
+		Threshold:  float64(config.GlobalConfig.Threshold),             // CIDR/24 相同, 避免在一组(0.5: CIDR/16)
+		Passes:     2,                                                  // 改善轮数（1~3）
+		MinSpacing: config.GlobalConfig.Concurrent * 10,                // CIDR/24 相同, 设置最小间隔为 并发数*10
+		ScanLimit:  config.GlobalConfig.Concurrent * 2, // 冲突向前扫描的最大距离
+	}
+	proxyutils.SmartShuffleByServer(proxies, cfg)
+	cidr := proxyutils.ThresholdToCIDR(cfg.Threshold)
+	slog.Info(fmt.Sprintf(
+		"节点乱序, 相同 CIDR%s 范围 IP 的最小间距: %d",
+		cidr, cfg.MinSpacing,
+	))
+
 	checker := NewProxyChecker(len(proxies))
 	return checker.run(proxies)
 }
