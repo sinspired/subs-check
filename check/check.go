@@ -118,10 +118,10 @@ func Check() ([]Result, error) {
 
 	// 随机乱序并根据 server 字段打乱节点顺序, 减少测速直接测死的概率
 	cfg := proxyutils.ShuffleConfig{
-		Threshold:  float64(config.GlobalConfig.Threshold),             // CIDR/24 相同, 避免在一组(0.5: CIDR/16)
-		Passes:     2,                                                  // 改善轮数（1~3）
-		MinSpacing: config.GlobalConfig.Concurrent * 10,                // CIDR/24 相同, 设置最小间隔为 并发数*10
-		ScanLimit:  config.GlobalConfig.Concurrent * 2, // 冲突向前扫描的最大距离
+		Threshold:  float64(config.GlobalConfig.Threshold), // CIDR/24 相同, 避免在一组(0.5: CIDR/16)
+		Passes:     3,                                      // 改善轮数（1~3）
+		MinSpacing: config.GlobalConfig.Concurrent * 2,     // CIDR/24 相同, 设置最小间隔为 并发数*2
+		ScanLimit:  config.GlobalConfig.Concurrent * 2,     // 冲突向前扫描的最大距离
 	}
 	proxyutils.SmartShuffleByServer(proxies, cfg)
 	cidr := proxyutils.ThresholdToCIDR(cfg.Threshold)
