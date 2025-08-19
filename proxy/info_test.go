@@ -64,3 +64,46 @@ func TestGetAnalyzed(t *testing.T) {
 		t.Error("未获取到数据，说明api不可用，或者查询逻辑未涵盖")
 	}
 }
+
+func TestLookupGeoIPDataWithMMDB(t *testing.T) {
+	// 使用 subs-check 自己的 assets 包
+	db, err := assets.OpenMaxMindDB("")
+
+	if err != nil {
+		t.Errorf("打开 MaxMind 数据库失败: %v", err)
+		// 数据库打开失败时，设置为 nil，后续代码会处理这种情况
+		db = nil
+	}
+
+	// 确保数据库在函数结束时关闭
+	if db != nil {
+		defer func() {
+			if err := db.Close(); err != nil {
+				t.Errorf("关闭 MaxMind 数据库失败: %v", err)
+			}
+		}()
+	}
+
+	cli, err := ipinfo.New(
+		ipinfo.WithHttpClient(&http.Client{}),
+		ipinfo.WithDBReader(db),
+	)
+	if err != nil {
+		t.Errorf("%s", fmt.Sprintf("创建 ipinfo 客户端失败: %s", err))
+	}
+	defer cli.Close()
+
+	ip := "2a09:bac5:3988:263c::3cf:59"
+
+	ipData := ipinfo.CreateIPDataFromIP(ip)
+
+	_, err = cli.LookupGeoIPDataWithMMDB(ipData)
+	if err != nil {
+		t.Errorf("获取 MaxMind 数据失败: %v", err)
+	} else {
+		t.Logf("IP: %s, Country Code: %s, City: %s", ip, ipData.CountryCode, ipData.CountryName)
+		if ipData.CountryCode == "" {
+			t.Error("未能获取有效国家代码")
+		}
+	}
+}

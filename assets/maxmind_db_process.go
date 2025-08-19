@@ -30,7 +30,10 @@ type githubRelease struct {
 
 // OpenMaxMindDB 使用指定路径或默认路径打开 MaxMind 数据库
 func OpenMaxMindDB(dbPath string) (*maxminddb.Reader, error) {
-	mmdbPath, err := resolveDBPath(dbPath)
+	if dbPath!=""{
+		return openDBWithArch(dbPath)
+	}
+	mmdbPath, err := resolveDBPath()
 	if err != nil {
 		return nil, err
 	}
@@ -84,11 +87,7 @@ func decompressEmbeddedMMDB(targetPath string) error {
 }
 
 // 解析数据库存放路径
-func resolveDBPath(dbPath string) (string, error) {
-	if dbPath != "" {
-		return dbPath, nil
-	}
-
+func resolveDBPath() (string, error) {
 	saver, err := method.NewLocalSaver()
 	if err != nil {
 		return "", err
@@ -130,7 +129,7 @@ func openFromBytes(path string) (*maxminddb.Reader, error) {
 
 // UpdateGeoLite2DB 检查并更新 GeoLite2 数据库
 func UpdateGeoLite2DB() error {
-	dbPath, err := resolveDBPath("")
+	dbPath, err := resolveDBPath()
 	if err != nil {
 		return fmt.Errorf("解析数据库路径失败: %w", err)
 	}
