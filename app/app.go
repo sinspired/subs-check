@@ -86,6 +86,21 @@ func (app *App) Initialize() error {
 
 	// 设置信号处理器
 	utils.SetupSignalHandler(&check.ForceClose)
+
+	// 每周日 0 点自动更新 GeoLite2 数据库
+	weeklyCron := cron.New()
+	_, err := weeklyCron.AddFunc("0 0 * * 0", func() {
+		slog.Info("更新 GeoLite2 数据库...")
+		if err := assets.UpdateGeoLite2DB(); err != nil {
+			slog.Error(fmt.Sprintf("更新 GeoLite2 数据库失败: %v", err))
+		}
+	})
+	if err != nil {
+		slog.Error(fmt.Sprintf("注册 GeoLite2 数据库更新任务失败: %v", err))
+	} else {
+		weeklyCron.Start()
+	}
+
 	return nil
 }
 
