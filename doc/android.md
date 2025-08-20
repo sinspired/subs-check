@@ -9,12 +9,21 @@
 ## 安装依赖
 
 ```bash
-pkg update && pkg add nodejs ca-certificates which -y
+pkg update && pkg add nodejs ca-certificates which proot termux-exec -y
 ```
 
 ## 下载解压程序
 忽略，自行解决，不会就别玩
 
+## 切换环境
+> 每次打开终端运行subs-check都需要切换一下
+```bash
+# 目的是为了让subs-check有个完整的Linux环境
+termux-chroot
+
+# 如遇到DNS问题，请自行更改/etc/resolv.conf
+echo "nameserver 223.5.5.5" > /etc/resolv.conf
+```
 ## 设置环境变量
 ```bash
 # 临时设置环境变量
@@ -29,13 +38,6 @@ echo 'export SSL_CERT_FILE="/data/data/com.termux/files/usr/etc/tls/cert.pem"' >
 echo 'export NODEBIN_PATH="$(which node)"' >> ~/.bashrc
 source ~/.bashrc
 ```
-
-## 开启热点
-> 如果没有下方DNS解析问题，此处可忽略
-```
-dial tcp: lookup raw.githubusercontent.com on [::1]:53: read udp [::1]:45193->[::1]:53: read: connection refuse
-```
-因为没有Root的手机，没有权限访问`/etc/reslov.conf`，所以会向本地的53端口发起请求，可能无法进行正常解析。经测试发现开启热点可绕过此问题，要注意旧手机在使用WIFI的时候可能无法开启热点。
 
 ## 运行程序
 ```bash
