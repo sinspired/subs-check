@@ -10,84 +10,90 @@ import (
 	"os"
 	"strings"
 
+	// "github.com/beck-8/subs-check/config"
 	"github.com/beck-8/subs-check/config"
 	"github.com/metacubex/mihomo/common/convert"
 	"github.com/oschwald/maxminddb-golang/v2"
 	"github.com/sinspired/checkip/pkg/ipinfo"
 )
 
+var ipAPIs = []string{
+	// 可尝试在api后加 /cdn-cgi/trace, 如能返回loc则不可使用.
+	"https://check.torproject.org/api/ip",
+	"https://qifu-api.baidubce.com/ip/local/geo/v1/district",
+	"https://r.inews.qq.com/api/ip2city",
+	"https://g3.letv.com/r?format=1",
+	"https://cdid.c-ctrip.com/model-poc2/h",
+	"https://whois.pconline.com.cn/ipJson.jsp",
+	"https://api.live.bilibili.com/xlive/web-room/v1/index/getIpInfo",
+	"https://6.ipw.cn/",                  // IPv4使用了 CFCDN, IPv6 位置准确
+	"https://api6.ipify.org?format=json", // IPv4使用了 CFCDN, IPv6 位置准确
+}
+
+var geoAPIs = []string{
+	"https://ip.122911.xyz/api/ipinfo",
+	"https://ident.me/json",
+	"https://tnedi.me/json",
+	"https://api.seeip.org/geoip",
+}
+
+var ipAPIsMe = []string{}
+
+var geoAPIsMe = []string{
+	"https://ip.122911.xyz/api/ipinfo",
+}
+
+// 创建 ipinfo 检测客户端
+func NewIPInfoClient(httpClient *http.Client, db *maxminddb.Reader, ipList, geoList []string) (*ipinfo.Client, error) {
+	return ipinfo.New(
+		ipinfo.WithHttpClient(httpClient),
+		ipinfo.WithDBReader(db),
+		ipinfo.WithIPAPIs(ipList...),
+		ipinfo.WithGeoAPIs(geoList...),
+	)
+}
+
+// 使用 github.com/sinspired/checkip/pkg/ipinfo API 获取 Analyzed 结果
+// GetAnalyzedCtx 可以安全设置,收到停止信号依然会检测乱序后的前三个api
+// 由于从多个API检测结果,接收到停止信号需要等待更长时间
+
+// - BadCFNode: HK⁻¹
+// - CFNodeWithSameCountry: HK¹⁺
+// - CFNodeWithDifferentCountry: HK¹-US⁰
+// - NodeWithoutCF: HK²
+// - 前两位字母是实际浏览网站识别的位置, -US⁰为使用CF CDN服务的网站识别的位置, 比如GPT, X等
 func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedCtx context.Context, cfLoc string, cfIP string) (loc string, ip string, countryCode_tag string, err error) {
-	for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
-		// 设置一个临时环境变量，以排除部分api因数据库未更新返回的 CN
-		os.Setenv("SUBS-CHECK-CALL", "true")
-		defer os.Unsetenv("SUBS-CHECK-CALL")
+	// 设置一个临时环境变量，以排除部分api因数据库更新不及时返回的 CN
+	os.Setenv("SUBS-CHECK-CALL", "true")
+	defer os.Unsetenv("SUBS-CHECK-CALL")
 
-		// 使用 github.com/sinspired/checkip/pkg/ipinfo API 获取 Analyzed 结果
-		cli, err := ipinfo.New(
-			ipinfo.WithHttpClient(httpClient),
-			ipinfo.WithDBReader(db),
-			ipinfo.WithIPAPIs(
-				// 可尝试在api后加 /cdn-cgi/trace, 如能返回loc则不可使用.
-				// 尽管如此,有些套了 CF的节点,包含了多个出口ip,会导致结果不准
-				"https://check.torproject.org/api/ip",
-				"https://qifu-api.baidubce.com/ip/local/geo/v1/district",
-				"https://r.inews.qq.com/api/ip2city",
-				"https://g3.letv.com/r?format=1",
-				"https://cdid.c-ctrip.com/model-poc2/h",
-				"https://whois.pconline.com.cn/ipJson.jsp",
-				"https://api.live.bilibili.com/xlive/web-room/v1/index/getIpInfo",
-				"https://6.ipw.cn/",                  // IPv4使用了 CFCDN, IPv6 位置准确
-				"https://api6.ipify.org?format=json", // IPv4使用了 CFCDN, IPv6 位置准确
-			),
-			ipinfo.WithGeoAPIs(
-				"https://ident.me/json",
-				"https://tnedi.me/json",
-				"https://api.seeip.org/geoip",
-			),
-		)
+	cliMe, err := NewIPInfoClient(httpClient, db, ipAPIsMe, geoAPIsMe)
+	if err != nil {
+		slog.Debug(fmt.Sprintf("创建 MeAPI 客户端失败: %s", err))
+	} else {
+		defer cliMe.Close()
+	}
 
-		if err == nil {
-			// 未出错时才关闭客户端，避免panic
-			defer cli.Close()
-
-			// GetAnalyzedCtx 可以安全设置,收到停止信号依然会检测乱序后的前三个api
-			// 由于从多个API检测结果,接收到停止信号需要等待更长时间
-
-			// - BadCFNode: HK⁻¹
-			// - CFNodeWithSameCountry: HK¹⁺
-			// - CFNodeWithDifferentCountry: HK¹-US⁰
-			// - NodeWithoutCF: HK²
-			// - 前两位字母是实际浏览网站识别的位置, -US⁰为使用CF CDN服务的网站识别的位置, 比如GPT, X等
-			loc, ip, countryCode_tag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
-			if loc != "" && countryCode_tag != "" {
-				slog.Debug(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCode_tag))
-				return loc, ip, countryCode_tag, nil
-			}
+	for range config.GlobalConfig.SubUrlsReTry {
+		loc, ip, countryCode_tag, _ = cliMe.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+		if loc != "" && countryCode_tag != "" {
+			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置成功: %s", loc))
+			return loc, ip, countryCode_tag, nil
 		} else {
-			slog.Debug(fmt.Sprintf("创建 ipinfo 客户端失败: %s", err))
+			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置失败: %s", loc))
 		}
+	}
 
-		// 保留原先获取国家代码的逻辑,但重命名时会添加 ˣ ,例如 HKˣ
-		loc, ip = GetMe(httpClient)
-		if loc != "" && ip != "" {
-			slog.Debug(fmt.Sprintf("me 获取节点位置成功: %s %s", loc, ip))
-			return loc, ip, "", nil
-		}
-		loc, ip = GetIPLark(httpClient)
-		if loc != "" && ip != "" {
-			slog.Debug(fmt.Sprintf("iplark 获取节点位置成功: %s %s", loc, ip))
-			return loc, ip, "", nil
-		}
-		loc, ip = GetCFProxy(httpClient)
-		if loc != "" && ip != "" {
-			slog.Debug(fmt.Sprintf("cf 获取节点位置成功: %s %s", loc, ip))
-			return loc, ip, "", nil
-		}
-		// 不准,非常不准
-		loc, ip = GetEdgeOneProxy(httpClient)
-		if loc != "" && ip != "" {
-			slog.Debug(fmt.Sprintf("edgeone 获取节点位置成功: %s %s", loc, ip))
-			return loc, ip, "", nil
+	// 如失败，使用混合检测，不需要多次重试
+	cli, err := NewIPInfoClient(httpClient, db, ipAPIs, geoAPIs)
+	if err != nil {
+		slog.Debug(fmt.Sprintf("创建 ipinfo 主客户端失败: %s", err))
+	} else {
+		defer cli.Close()
+		loc, ip, countryCode_tag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+		if loc != "" && countryCode_tag != "" {
+			slog.Info(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCode_tag))
+			return loc, ip, countryCode_tag, nil
 		}
 	}
 	return "", "", "", nil
