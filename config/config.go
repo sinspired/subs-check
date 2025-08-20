@@ -33,6 +33,7 @@ type Config struct {
 	SubUrlsReTry         int      `yaml:"sub-urls-retry"`
 	SubUrlsRetryInterval int      `yaml:"sub-urls-retry-interval"`
 	SubUrlsTimeout       int      `yaml:"sub-urls-timeout"`
+	SubUrlsRemote        []string `yaml:"sub-urls-remote"`
 	SubUrls              []string `yaml:"sub-urls"`
 	SuccessRate          float32  `yaml:"success-rate"`
 	MihomoApiUrl         string   `yaml:"mihomo-api-url"`
@@ -60,6 +61,7 @@ type Config struct {
 	EnableWebUI          bool     `yaml:"enable-web-ui"`
 	APIKey               string   `yaml:"api-key"`
 	GithubProxy          string   `yaml:"github-proxy"`
+	Proxy                string   `yaml:"proxy"`
 	CallbackScript       string   `yaml:"callback-script"`
 }
 
