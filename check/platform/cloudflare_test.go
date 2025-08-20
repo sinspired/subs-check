@@ -8,7 +8,7 @@ import (
 
 )
 
-func TestGetCFProxy(t *testing.T) {
+func TestFetchCFTrace(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	httpClient := &http.Client{}
@@ -27,7 +27,7 @@ func TestGetCFProxy(t *testing.T) {
 	}
 }
 
-func TestFetchCFProxy(t *testing.T) {
+func TestGetCFTrace(t *testing.T) {
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	loc, ip := GetCFTrace(httpClient)
 	if loc == "" || ip == "" {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/beck-8/subs-check/config"
 	"github.com/metacubex/mihomo/common/convert"
 )
 
@@ -19,8 +20,7 @@ var CF_CDN_APIS = []string{
 	"https://4.ipw.cn",
 	"https://www.cloudflare.com",
 	"https://api.ipify.org",
-	"https://ip.122911.xyz",
-	"https://6.iplark.com",
+	"https://iplark.com",
 	"https://ifconfig.co",
 	"https://api.ip2location.io",
 	"https://api.ip.sb",
@@ -100,7 +100,7 @@ func FetchCFTraceFirstConcurrent(httpClient *http.Client, ctx context.Context, c
 	var once sync.Once
 	var wg sync.WaitGroup
 
-	retries := 2
+	retries := config.GlobalConfig.SubUrlsReTry
 
 	for _, baseURL := range apis {
 		wg.Add(1)
