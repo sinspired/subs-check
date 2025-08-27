@@ -92,7 +92,7 @@ func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedC
 		defer cli.Close()
 		loc, ip, countryCode_tag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
 		if loc != "" && countryCode_tag != "" {
-			slog.Info(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCode_tag))
+			slog.Debug(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCode_tag))
 			return loc, ip, countryCode_tag, nil
 		}
 	}

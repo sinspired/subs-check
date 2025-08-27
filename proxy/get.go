@@ -23,7 +23,7 @@ func GetProxies() ([]map[string]any, error) {
 
 	// 解析本地与远程订阅清单
 	subUrls := resolveSubUrls()
-	slog.Info("订阅链接数量", "本地", len(config.GlobalConfig.SubUrls), "远程", len(subUrls)-len(config.GlobalConfig.SubUrls), "总计", len(subUrls))
+	slog.Info("订阅链接数量", "本地", len(config.GlobalConfig.SubUrls), "远程", len(config.GlobalConfig.SubUrlsRemote), "总计", len(subUrls))
 
 	var wg sync.WaitGroup
 	proxyChan := make(chan map[string]any, 1)                              // 缓冲通道存储解析的代理
