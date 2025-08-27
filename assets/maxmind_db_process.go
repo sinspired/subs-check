@@ -16,6 +16,7 @@ import (
 
 	"github.com/beck-8/subs-check/config"
 	"github.com/beck-8/subs-check/save/method"
+	"github.com/beck-8/subs-check/utils"
 	"github.com/klauspost/compress/zstd"
 	"github.com/oschwald/maxminddb-golang/v2"
 )
@@ -193,6 +194,8 @@ func UpdateGeoLite2DB() error {
 	// 成功则删除备份
 	_ = os.Remove(bakPath)
 	slog.Info("GeoLite2-Country.mmdb 更新完成")
+	version:=rel.TagName
+	utils.SendNotify_geoDB_update(version)
 	return nil
 }
 

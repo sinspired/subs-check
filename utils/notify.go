@@ -77,3 +77,33 @@ func SendNotify(length int) {
 func GetCurrentTime() string {
 	return time.Now().Format("2006-01-02 15:04:05")
 }
+
+func SendNotify_geoDB_update(version string) {
+	if config.GlobalConfig.AppriseApiServer == "" {
+		return
+	} else if len(config.GlobalConfig.RecipientUrl) == 0 {
+		slog.Error("没有配置通知目标")
+		return
+	}
+
+	for _, url := range config.GlobalConfig.RecipientUrl {
+		request := NotifyRequest{
+			URLs: url,
+			Body: fmt.Sprintf("✅ 已更新到：%s\n🕒 %s",
+				version,
+				GetCurrentTime()),
+			Title: "🔔 MaxMind数据库状态",
+		}
+		var err error
+		for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
+			err = Notify(request)
+			if err == nil {
+				slog.Info(fmt.Sprintf("%s MaxMind数据库更新通知发送成功", strings.SplitN(url, "://", 2)[0]))
+				break
+			}
+		}
+		if err != nil {
+			slog.Error(fmt.Sprintf("%s MaxMind数据库更新发送通知失败: %v", strings.SplitN(url, "://", 2)[0], err))
+		}
+	}
+}
