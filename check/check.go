@@ -282,17 +282,46 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	}
 
 	slog.Info("开始检测节点")
-	slog.Info("当前参数",
-		"timeout", config.GlobalConfig.Timeout,
-		"concurrent", config.GlobalConfig.Concurrent,
+
+	// 组装参数
+	args := []any{
 		"enable-speedtest", speedON,
 		"media-check", mediaON,
+		"drop-bad-cf-nodes", config.GlobalConfig.DropBadCfNodes,
+	}
+
+	// 流水线并发参数
+	if config.GlobalConfig.AliveConcurrent <= 0 || config.GlobalConfig.SpeedConcurrent <= 0 || config.GlobalConfig.MediaConcurrent <= 0 {
+		args = append(args,
+			"auto-concurrent", true, "concurrent", config.GlobalConfig.Concurrent,
+			":alive", pc.aliveConcurrent,
+			":speed", pc.speedConcurrent,
+			":media", pc.mediaConcurrent)
+	} else {
+		args = append(args,
+			"concurrent", config.GlobalConfig.Concurrent,
+			":alive", pc.aliveConcurrent,
+			":speed", pc.speedConcurrent,
+			":media", pc.mediaConcurrent)
+	}
+	// 只有在 >0 时才输出
+	if config.GlobalConfig.SuccessLimit > 0 {
+		args = append(args, "success-limit", config.GlobalConfig.SuccessLimit)
+	}
+	if config.GlobalConfig.TotalSpeedLimit > 0 {
+		args = append(args, "total-speed-limit", config.GlobalConfig.TotalSpeedLimit)
+	}
+
+	// 再追加剩余参数
+	args = append(args,
+		"timeout", config.GlobalConfig.Timeout,
 		"min-speed", config.GlobalConfig.MinSpeed,
 		"download-timeout", config.GlobalConfig.DownloadTimeout,
 		"download-mb", config.GlobalConfig.DownloadMB,
-		"total-speed-limit", config.GlobalConfig.TotalSpeedLimit,
-		"drop-bad-cf-nodes", config.GlobalConfig.DropBadCfNodes,
 	)
+
+	// 最终日志调用
+	slog.Info("当前参数", args...)
 
 	// 监测 ForceClose
 	go func() {

@@ -50,8 +50,8 @@ func TestDecayComparison(t *testing.T) {
 }
 
 // 示例：单独调用某个衰减算法
-func TestSingleDecay(t *testing.T) {
-	fn := NewExpDecay(400, 0.001, 100)
+func TestAliveConcurrent(t *testing.T) {
+	fn := NewLogDecay(400, 0.005, 400)
 	fmt.Printf("%-5s%-5s\n", "X", "Concurrent")
 	for i := 0; i <= 1000; i += 20 {
 		fmt.Printf("%-8d%-8d\n", i, RoundInt(fn(float64(i))))
