@@ -111,6 +111,20 @@ func (j *ProxyJob) Close() {
 	})
 }
 
+// calcSpeedConcurrency 根据总速度限制计算速度测试的最佳并发数。
+func calcSpeedConcurrency(proxyCount int) int {
+	if config.GlobalConfig.TotalSpeedLimit <= 0 {
+		threadCount := min(proxyCount, config.GlobalConfig.Concurrent)
+		fnSpeed := NewPowerDecay(32, 1.1, 32, 1)
+		return min(config.GlobalConfig.Concurrent, RoundInt(fnSpeed(float64(threadCount))))
+	}
+	L := float64(config.GlobalConfig.TotalSpeedLimit) // 单位: MB/s
+	r := float64(config.GlobalConfig.MinSpeed) / 1024 // 目标每线程吞吐: MB/s
+	c := max(int(L/r), 1)
+	c = min(c, config.GlobalConfig.Concurrent)
+	return c
+}
+
 // NewProxyChecker 创建新的检测器实例
 func NewProxyChecker(proxyCount int) *ProxyChecker {
 	threadCount := config.GlobalConfig.Concurrent
@@ -134,30 +148,25 @@ func NewProxyChecker(proxyCount int) *ProxyChecker {
 		mediaConc = min(cMedia, proxyCount)
 	} else {
 		// 自动模式
-		if threadCount <= 100 {
-			aliveConc = min(proxyCount, threadCount*4)
-		} else if threadCount <= 300 {
-			aliveConc = min(proxyCount, threadCount*2)
-		} else {
-			aliveConc = min(proxyCount, threadCount)
-		}
+		// 使用相对平滑的衰减方案
+		fnAlive := NewLogDecay(400, 0.005, 400)
+		fnMedia := NewExpDecay(400, 0.001, 100)
 
-		mediaConc = min(proxyCount, threadCount)
-		speedConc = min(calcSpeedConcurrency(), proxyCount)
+		aliveConc = min(proxyCount, RoundInt(fnAlive(float64(threadCount))))
+		speedConc = min(calcSpeedConcurrency(proxyCount), proxyCount)
+		mediaConc = min(proxyCount, RoundInt(fnMedia(float64(threadCount))))
 
 		// 超大线程数
 		if threadCount > 1000 {
-			slog.Info("除非你的 CPU 和路由器同时允许, 超过 1000 并发可能影响其它上网程序")
+			slog.Info("除非你的 CPU 和路由器同时允许, 超过 1000 并发可能影响其它上网程序,如确有需求,请在配置文件分别指定测活-测速-媒体检测每个阶段并发数")
+			slog.Info(fmt.Sprintf("已限制测活并发数: %d", aliveConc))
 		}
 	}
 
 	var speedChanLength int
-	if speedConc <= 32 {
-		// 加大缓冲池,避免阻塞
-		speedChanLength = speedConc * 5
-	} else {
-		speedChanLength = speedConc * 2
-	}
+	// 测速阶段的缓冲通道不用太大,以形成阻塞,避免测活浪费资源
+	fnScLength := NewTanhDecay(100, 0.0004, float64(aliveConc))
+	speedChanLength = RoundInt(fnScLength(float64(speedConc)))
 
 	return &ProxyChecker{
 		proxyCount:  proxyCount,
@@ -917,22 +926,6 @@ func (s *StatsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 func (pc *ProxyChecker) incrementAvailable() {
 	atomic.AddInt32(&pc.available, 1)
 	Available.Add(1)
-}
-
-// calcSpeedConcurrency 根据总速度限制计算速度测试的最佳并发数。
-func calcSpeedConcurrency() int {
-	if config.GlobalConfig.TotalSpeedLimit <= 0 {
-		return min(config.GlobalConfig.Concurrent, 32)
-	}
-	L := float64(config.GlobalConfig.TotalSpeedLimit) // 单位: MB/s
-	r := 10.0                                         // 目标每线程吞吐
-	c := int(L / r)
-	if c < 1 {
-		c = 1
-	}
-	c = min(c, config.GlobalConfig.Concurrent)
-	c = min(c, 32)
-	return c
 }
 
 // checkCtxDone 提供一个非阻塞的检查，判断上下文是否已结束或是否收到强制关闭信号。
