@@ -1,8 +1,23 @@
 # 是否显示进度
 print-progress: true
 
+# 进度条显示模式: 
+# "auto": 根据测活-测速-媒体检测的阶段权重自动显示 
+# "stage": 每个阶段完成,显示下一阶段剩余任务
+progress-mode: "auto"
+
 # 并发线程数
 concurrent: 20
+
+# 流水线任务并发数,为0会自动设置
+# 测活任务受限于CPU和路由器芯片,占用带宽较小,可适当大一点,量力而行
+# 测速阶段占用带宽,如果要设大,建议设置total-speed-limit避免拉满带宽
+# 测速设置了最低两倍缓冲通道,通道占满会阻塞测活任务
+# 测活-测速-媒体检测并行,缓冲通道占满后会成为瓶颈
+# alive-concurrent: 200
+# speed-concurrent: 32
+# media-concurrent: 100
+
 # 检查间隔(分钟)
 check-interval: 120
 # cron表达式，如果配置了此项，将忽略check-interval
