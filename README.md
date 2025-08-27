@@ -4,16 +4,6 @@
 
 > **⚠️ 注意：** 功能更新频繁，请查看最新的[配置文件](https://github.com/beck-8/subs-check/blob/master/config/config.example.yaml)以获取最新功能。
 
-## 📸 预览
-
-
-![preview](./doc/images/preview.png)  
-![result](./doc/images/results.png)  
-![admin](./doc/images/admin.png)
-| | |
-|---|---|
-| ![tgram](./doc/images/tgram.png) | ![dingtalk](./doc/images/dingtalk.png)  |
-
 ## ✨ 功能特性
 
 - **🔗 订阅合并**
@@ -28,15 +18,89 @@
 - **🖥️ WEB 控制面板**
 - **⏰ 支持 Crontab 表达式**
 - **🖥️ 多平台支持**
+  
+## **✨ 新增功能和优化**
 
-## 🛠️ 部署与使用 
+### 1. 测活-测速-媒体检测,分阶段流水线,自适应高并发,大幅提高性能,缩短数倍检测时间
+
+新增设置项:
+
+```yaml
+alive-concurrent: 200
+speed-concurrent: 32
+media-concurrent: 100
+```
+
+### 2. 增强位置标签
+
+> 示例: 🇺🇸US¹-SG⁰_3|2.5MB/s|6%|GPT⁺|TK-US|YT-US|NF|D+|X
+
+- BadCFNode(无法访问CF网站的节点): `HK⁻¹`
+- CFNodeWithSameCountry(实际位置与cdn位置一致): `HK¹⁺`
+- CFNodeWithDifferentCountry(实际位置与cdn位置不一致): `HK¹-US⁰`
+- NodeWithoutCF(未使用CF加速的节点): `HK²`
+  
+前两位字母是实际浏览网站识别的位置, `-US⁰`为使用CF CDN服务的网站识别的位置, 比如GPT, X等
+
+新增设置项:
+
+```yaml
+drop-bad-cf-nodes: false
+enhanced-tag: false
+maxmind-db-path: ""
+```
+
+### 3. 优化内存 `检测期下降18%,检测结束下降49%`
+
+对内存敏感可以使用 `i386` 版本,对内存不敏感可以使用 `x64` 版本,性能略有提升,cpu占用更低.内存优化的结果可能会被高并发加回去,别太在意.
+
+- 去重后,释放原数据
+- 结束检测,手动释放节点缓存
+- pre-release 使用绿茶垃圾回收(测试中)
+
+```powershell
+[19:13:30] Start: PID=9040 mem=667.80 MB
+[19:26:38] BigChange(>=20%) reached in 13m8.0320213s, mem=102.71 MB
+[19:44:37] Down 1 step(s) of 10MB, mem=98.72 MB
+[20:37:40] Down 1 step(s) of 10MB, mem=83.64 MB
+[20:42:41] Down 3 step(s) of 10MB, mem=59.54 MB
+```
+
+### 4. 智能节点乱序,减少节点被测速"测死"的概率
+
+新增配置项:
+
+```yaml
+# 相似度阈值(Threshold)大致对应网段
+# 1.00 /32（完全相同 IP）
+# 0.75 /24（前三段相同）
+# 0.50 /16（前两段相同）
+# 0.25 /8（第一段相同）
+# 以下设置仅能 [减少] 节点被测速测死的概率, 无法避免被 "反代机房" 中断节点
+threshold:  0.75
+```
+
+## 📸 预览
+
+![preview](./doc/images/preview.png)  
+![result](./doc/images/results.png)  
+![admin](./doc/images/admin.png)
+
+| | |
+|---|---|
+| ![tgram](./doc/images/tgram.png) | ![dingtalk](./doc/images/dingtalk.png)  |
+
+## 🛠️ 部署与使用
+>
 > 首次运行会在当前目录生成默认配置文件。
 
 ### 🪜 代理设置（可选）
+
 <details>
   <summary>展开查看</summary>
 
 如果拉取非Github订阅速度慢，可使用通用的 HTTP_PROXY HTTPS_PROXY 环境变量加快速度；此变量不会影响节点测试速度
+
 ```bash
 # HTTP 代理示例
 export HTTP_PROXY=http://username:password@192.168.1.1:7890
@@ -50,7 +114,9 @@ export HTTPS_PROXY=socks5://username:password@192.168.1.1:7890
 export HTTP_PROXY=socks5h://username:password@192.168.1.1:7890
 export HTTPS_PROXY=socks5h://username:password@192.168.1.1:7890
 ```
+
 如果想加速github的链接，可使用网上公开的github proxy，或者使用下方自建测速地址处的worker.js自建加速
+
 ```
 # Github Proxy，获取订阅使用，结尾要带的 /
 # github-proxy: "https://ghfast.top/"
@@ -60,6 +126,7 @@ github-proxy: "https://custom-domain/raw/"
 </details>
 
 ### 🌐 自建测速地址（可选）
+
 <details>
   <summary>展开查看</summary>
 
@@ -75,11 +142,13 @@ speed-test-url: https://custom-domain/speedtest?bytes=104857600
 # 1GB
 speed-test-url: https://custom-domain/speedtest?bytes=1073741824
 ```
+
 </details>
 
 ### 🐳 Docker 运行
 
 > **⚠️ 注意：**  
+>
 > - 限制内存请使用 `--memory="500m"`。  
 > - 可通过环境变量 `API_KEY` 设置 Web 控制面板的 API Key。
 
@@ -129,6 +198,7 @@ services:
     restart: always
     network_mode: bridge
 ```
+
 ### 📦 二进制文件运行
 
 下载 [Releases](https://github.com/beck-8/subs-check/releases) 中适合的版本，解压后直接运行即可。
@@ -140,6 +210,7 @@ go run . -f ./config/config.yaml
 ```
 
 ## 🔔 通知渠道配置（可选）
+
 <details>
   <summary>展开查看</summary>
 
@@ -184,6 +255,7 @@ recipient-url:
 # 自定义通知标题
 notify-title: "🔔 节点状态更新"
 ```
+
 </details>
 
 ## 💾 保存方法配置
@@ -201,6 +273,7 @@ notify-title: "🔔 节点状态更新"
 > **💡 提示：** 内置 Sub-Store，可生成多种订阅格式；高级玩家可DIY很多功能
 
 **🚀 通用订阅**
+
 ```bash
 # 通用订阅
 http://127.0.0.1:8299/download/sub
@@ -236,11 +309,13 @@ http://127.0.0.1:8299/download/sub?target=Surfboard
 **🚀 Mihomo/Clash 订阅（带规则）：**
 > 默认使用 `https://raw.githubusercontent.com/beck-8/override-hub/refs/heads/main/yaml/ACL4SSR_Online_Full.yaml` 覆写  
 可在配置中更改 `mihomo-overwrite-url`。
+
 ```bash
 http://127.0.0.1:8299/api/file/mihomo
 ```
 
 ## 🌐 内置端口说明
+>
 > subs-check本身会在测试完后保存三个文件到output目录中；output目录中的所有文件会被8199端口提供文件服务
 
 | 服务地址                        | 格式说明                | 来源说明|
@@ -250,6 +325,7 @@ http://127.0.0.1:8299/api/file/mihomo
 | `http://127.0.0.1:8199/sub/base64.txt` | Base64 格式订阅 |从上方sub-store转换下载后提供|
 
 ## 🗺️ 架构图
+
 <details>
   <summary>展开查看</summary>
 
@@ -278,11 +354,12 @@ graph TD
     E1 -->|保存到 output 目录| C
     C -->|文件服务| F[8199 端口: /sub]
     B -->|Web 管理| G[8199 端口: /admin]
-``` 
+```
 
 </details>
 
 ## 🙏 鸣谢
+
 [cmliu](https://github.com/cmliu)、[Sub-Store](https://github.com/sub-store-org/Sub-Store)、[bestruirui](https://github.com/bestruirui/BestSub)、[iplark](https://iplark.com/)
 
 ## ⭐ Star History
