@@ -225,11 +225,14 @@ func Check() ([]Result, error) {
 	// 设置一个前 n 个节点保持顺序在前
 	headSize := 500
 	if len(proxies) > headSize {
+		// 假设有 15 个相似的ip
+		calcMinSpacing := max(config.GlobalConfig.Concurrent*5, len(proxies)/15)
+
 		// 随机乱序并根据 server 字段打乱节点顺序, 减少测速直接测死的概率
 		cfg := proxyutils.ShuffleConfig{
 			Threshold:  float64(config.GlobalConfig.Threshold), // CIDR/24 相同, 避免在一组(0.5: CIDR/16)
 			Passes:     3,                                      // 改善轮数（1~3）
-			MinSpacing: config.GlobalConfig.Concurrent * 5,     // CIDR/24 相同, 设置最小间隔为 并发数*2
+			MinSpacing: calcMinSpacing,                         // CIDR/24 相同, 设置最小间隔
 			ScanLimit:  config.GlobalConfig.Concurrent * 2,     // 冲突向前扫描的最大距离
 		}
 
