@@ -1,48 +1,101 @@
-name: Release
+# 工作流的友好名称
+name: buidl and release
 
+# 此工作流在推送 'v' 开头的标签时运行 (例如 v1.0, v2.0.1-alpha)
+# 也可以从 GitHub Actions 界面手动触发
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
+  workflow_dispatch: {}
 
+# 定义工作流中所有任务可用的环境变量
 env:
   GOEXPERIMENT: greenteagc,jsonv2
-  
+
+# 为此工作流的 GITHUB_TOKEN 设置权限
 permissions:
   contents: write
   packages: write
 
 jobs:
-  releaser:
+  # 此任务使用 GoReleaser 处理正式发布和预发布
+  goreleaser:
+    name: 使用 GoReleaser 发布
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      # 第 1 步：检出仓库代码
+      - name: 检出代码
         uses: actions/checkout@v5
         with:
+          # 获取所有分支和标签的完整历史记录，GoReleaser 需要它
           fetch-depth: 0
-      - name: Tag
-        run: git fetch --force --tags
-      - name: Setup Go
+
+      # 第 2 步：确保获取了所有的标签和分支
+      - name: 获取所有标签和分支
+        run: |
+          git fetch --force --tags
+          git fetch --all
+
+      # 第 3 步：检查分支并准备变量
+      - name: 检查分支并准备变量
+        id: vars
+        run: |
+          # 检查当前标签指向的 commit 是否在 main 或 master 分支上
+          # `|| true` 防止在 grep 没有匹配项时脚本失败
+          if git branch -r --contains ${{ github.sha }} | grep -q -E '(origin/main|origin/master)$'; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "goreleaser_args=release --clean" >> $GITHUB_OUTPUT
+            echo "GORELEASER_BRANCH_SUFFIX=" >> $GITHUB_ENV
+            echo "判定为正式发布 (Commit on main/master)."
+          else
+            echo "is_release=false" >> $GITHUB_OUTPUT
+            echo "goreleaser_args=release --clean" >> $GITHUB_OUTPUT
+            # 查找一个包含该 commit 的非 main/master 分支作为后缀
+            # 排除 HEAD 指针，取第一个找到的分支名，并移除空白字符
+            BRANCH_NAME=$(git branch -r --contains ${{ github.sha }} | grep -v -E '(origin/main|origin/master|HEAD)' | head -n 1 | sed 's/origin\///' | tr -d '[:space:]')
+            if [ -n "$BRANCH_NAME" ]; then
+              # 清理分支名，只保留字母、数字和 . _ -
+              SANITIZED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[^A-Za-z0-9._-]/-/g')
+              echo "GORELEASER_BRANCH_SUFFIX=${SANITIZED_BRANCH_NAME}" >> $GITHUB_ENV
+              echo "判定为预发布。找到分支: $BRANCH_NAME, 使用后缀: $SANITIZED_BRANCH_NAME"
+            else
+              echo "GORELEASER_BRANCH_SUFFIX=snapshot" >> $GITHUB_ENV
+              echo "判定为预发布，但未找到合适的分支名，使用 'snapshot' 作为后缀。"
+            fi
+          fi
+
+      # 第 4 步：设置 Go 编程环境
+      - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
           go-version: stable
-      - name: Release
+
+      # 第 5 步：运行 GoReleaser
+      # 根据上一步的判断，执行正式发布或预发布。
+      # 对于预发布，GORELEASER_BRANCH_SUFFIX 环境变量会传递给 GoReleaser。
+      - name: 运行 GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean
+          args: ${{ steps.vars.outputs.goreleaser_args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOEXPERIMENT: ${{ env.GOEXPERIMENT }}
 
+  # 此任务为正式版构建和推送 Docker 镜像 (按要求未作修改)
   docker:
-    if: github.ref == 'refs/heads/master'
+    name: 构建并推送 Docker 镜像
     runs-on: ubuntu-latest
+    # build/push docker on master OR main (both supported)
+    if: github.ref == 'refs/heads/master'
     steps:
+      # 第 1 步：检出仓库代码
       - name: Checkout
         uses: actions/checkout@v5
-        
+
+      # 第 2 步：为 Docker 镜像生成标签和标头
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -51,30 +104,35 @@ jobs:
             ghcr.io/${{ github.repository }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
           tags: |
-            type=match,pattern=^(.*-beta.*)$,group=1,enable=${{ contains(github.ref_name, 'beta') }}
-            type=match,pattern=^v(.*)$,group=1,enable=${{ !contains(github.ref_name, 'beta') }}
-          flavor: |
-            latest=${{ !contains(github.ref_name, 'beta') }}
-          
+            # 基于语义化版本创建标签 (例如 v1.2.3, v1.2, latest)
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=true
+
+      # 第 3 步：设置 QEMU 以进行多平台构建
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-        
+
+      # 第 4 步：设置 Docker Buildx，一个高级构建器
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
+
+      # 第 5 步：登录到 GitHub Container Registry
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          
+
+      # 第 6 步：登录到 Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          
+
+      # 第 7 步：构建 Docker 镜像并将其推送到镜像仓库
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
