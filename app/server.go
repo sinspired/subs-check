@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/beck-8/subs-check/check"
@@ -20,7 +21,20 @@ import (
 // initHttpServer 初始化HTTP服务器
 func (app *App) initHttpServer() error {
 	gin.SetMode(gin.ReleaseMode)
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery()) // 必要的 recovery
+
+	// 仅当不是 from_subs_check 请求时，才走默认 Logger
+	router.Use(func(c *gin.Context) {
+		if c.Request.URL.Query().Get("from_subs_check") == "true" ||
+			strings.EqualFold(c.GetHeader("X-From-Subs-Check"), "true") {
+			// 静默日志
+			c.Next()
+		} else {
+			// 调用 gin.Logger()，然后继续处理
+			gin.Logger()(c)
+		}
+	})
 
 	saver, err := method.NewLocalSaver()
 	if err != nil {
@@ -225,4 +239,23 @@ func ReadLastNLines(filePath string, n int) ([]string, error) {
 
 func GenerateSimpleKey() string {
 	return fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
+}
+
+// 自定义 logger：当请求包含 ?keep=KeepSuccess 或 header X-Keep-Success: KeepSuccess 时静默
+func keepAwareLogger() gin.HandlerFunc {
+	// 预先拿到 gin 的默认 logger middleware
+	defaultLogger := gin.Logger()
+
+	return func(c *gin.Context) {
+		// 检测 query 和 header（注意：fragment (#KeepSuccess) 不会到服务端）
+		if c.Request.URL.Query().Get("keep") == "KeepSuccess" ||
+			strings.EqualFold(c.GetHeader("X-Keep-Success"), "KeepSuccess") {
+			// 静默：不要 gin 的默认日志，直接执行后续 handler
+			c.Next()
+			return
+		}
+
+		// 其它请求：直接调用 gin 默认 logger（它会调用 c.Next() 并在之后输出日志）
+		defaultLogger(c)
+	}
 }

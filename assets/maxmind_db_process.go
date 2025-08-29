@@ -31,7 +31,7 @@ type githubRelease struct {
 
 // OpenMaxMindDB 使用指定路径或默认路径打开 MaxMind 数据库
 func OpenMaxMindDB(dbPath string) (*maxminddb.Reader, error) {
-	if dbPath!=""{
+	if dbPath != "" {
 		return openDBWithArch(dbPath)
 	}
 	mmdbPath, err := resolveDBPath()
@@ -194,7 +194,7 @@ func UpdateGeoLite2DB() error {
 	// 成功则删除备份
 	_ = os.Remove(bakPath)
 	slog.Info("GeoLite2-Country.mmdb 更新完成")
-	version:=rel.TagName
+	version := rel.TagName
 	utils.SendNotify_geoDB_update(version)
 	return nil
 }

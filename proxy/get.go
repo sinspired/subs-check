@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	u "net/url"
 	"strings"
 	"sync"
@@ -19,7 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func GetProxies() ([]map[string]any, error) {
+func GetProxies() ([]map[string]any, int, error) {
 
 	// 解析本地与远程订阅清单
 	subUrls := resolveSubUrls()
@@ -29,12 +30,17 @@ func GetProxies() ([]map[string]any, error) {
 	proxyChan := make(chan map[string]any, 1)                              // 缓冲通道存储解析的代理
 	concurrentLimit := make(chan struct{}, config.GlobalConfig.Concurrent) // 限制并发数
 
-	// 启动收集结果的协程
-	var mihomoProxies []map[string]any
+	// 启动收集结果的协程（将之前成功节点和其他订阅分别收集以便将之前成功节点放前面）
+	var succedProxies []map[string]any
+	var syncProxies []map[string]any
 	done := make(chan struct{})
 	go func() {
 		for proxy := range proxyChan {
-			mihomoProxies = append(mihomoProxies, proxy)
+			if v, ok := proxy["sub_was_succeed"].(bool); ok && v {
+				succedProxies = append(succedProxies, proxy)
+			} else {
+				syncProxies = append(syncProxies, proxy)
+			}
 		}
 		done <- struct{}{}
 	}()
@@ -44,10 +50,32 @@ func GetProxies() ([]map[string]any, error) {
 		wg.Add(1)
 		concurrentLimit <- struct{}{} // 获取令牌
 
-		go func(url string) {
+		warpUrl := utils.WarpUrl(subUrl)
+
+		// 精确判断：必须是回环地址，且 URL 明确包含端口，端口等于 config.GlobalConfig.ListenPort，且 path 以 /all.yaml 或 /all.yml 结尾
+		isSuccedProxiesUrl := false
+		if d, err := u.Parse(warpUrl); err == nil {
+			host := d.Hostname()
+			port := d.Port() // 如果 URL 没有显式端口，这里会是空字符串
+
+			// 把配置里的 ListenPort 转换成端口数字
+			requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))
+			requiredSubStorePort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":"))
+
+			if (host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1") &&
+				port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
+				isSuccedProxiesUrl = true
+			}
+		}
+
+		go func(url string, wasSucced bool) {
 			defer wg.Done()
 			defer func() { <-concurrentLimit }() // 释放令牌
 
+			if config.GlobalConfig.KeepSuccessProxies && wasSucced {
+				// 避免重复加载
+				return
+			}
 			data, err := GetDateFromSubs(url)
 			if err != nil {
 				slog.Error(fmt.Sprintf("获取订阅链接错误跳过: %v", err))
@@ -72,6 +100,7 @@ func GetProxies() ([]map[string]any, error) {
 					// 为每个节点添加订阅链接来源信息和备注
 					proxy["sub_url"] = url
 					proxy["sub_tag"] = tag
+					proxy["sub_was_succeed"] = wasSucced
 					proxyChan <- proxy
 				}
 				// 释放运行时内存
@@ -106,14 +135,15 @@ func GetProxies() ([]map[string]any, error) {
 					// 为每个节点添加订阅链接来源信息和备注
 					proxyMap["sub_url"] = url
 					proxyMap["sub_tag"] = tag
+					proxyMap["sub_was_succeed"] = wasSucced
 					proxyChan <- proxyMap
 				}
 			}
 			// 释放运行时内存
 			data = nil
 			proxyList = nil
-			
-		}(utils.WarpUrl(subUrl))
+
+		}(warpUrl, isSuccedProxiesUrl)
 	}
 
 	// 等待所有工作协程完成
@@ -121,7 +151,9 @@ func GetProxies() ([]map[string]any, error) {
 	close(proxyChan)
 	<-done // 等待收集完成
 
-	return mihomoProxies, nil
+	// 之前成功节点放在前面，保持各自到达顺序
+	mihomoProxies := append(succedProxies, syncProxies...)
+	return mihomoProxies, len(succedProxies), nil
 }
 
 // from 3k
@@ -195,7 +227,6 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 	return res, nil
 }
 
-// 订阅链接中获取数据
 func GetDateFromSubs(subUrl string) ([]byte, error) {
 	maxRetries := config.GlobalConfig.SubUrlsReTry
 	// 重试间隔
@@ -219,10 +250,31 @@ func GetDateFromSubs(subUrl string) ([]byte, error) {
 			time.Sleep(time.Duration(retryInterval) * time.Second)
 		}
 
-		req, err := http.NewRequest("GET", subUrl, nil)
+		// 解析 URL 字符串
+		u, err := url.Parse(subUrl)
+		if err != nil {
+			lastErr = fmt.Errorf("解析URL失败: %w", err)
+			continue
+		}
+
+		// 只要 fragment 非空
+		isKeepSuccess := u.Fragment != ""
+
+		// 构建请求
+		req, err := http.NewRequest("GET", u.String(), nil)
 		if err != nil {
 			lastErr = err
 			continue
+		}
+
+		// 根据判断结果添加请求头或查询参数
+		if isKeepSuccess {
+			q := req.URL.Query()
+			if q.Get("from_subs_check") == "" {
+				q.Set("from_subs_check", "true")
+				req.URL.RawQuery = q.Encode()
+			}
+			req.Header.Set("X-From-Subs-Check", "true")
 		}
 
 		req.Header.Set("User-Agent", "clash.meta")
@@ -234,13 +286,13 @@ func GetDateFromSubs(subUrl string) ([]byte, error) {
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != 200 {
-			lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d", subUrl, resp.StatusCode)
+			lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d", req.URL.String(), resp.StatusCode)
 			continue
 		}
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			lastErr = fmt.Errorf("读取订阅链接: %s 数据错误: %v", subUrl, err)
+			lastErr = fmt.Errorf("读取订阅链接: %s 数据错误: %v", req.URL.String(), err)
 			continue
 		}
 		return body, nil
