@@ -190,8 +190,8 @@ func ThresholdToCIDR(th float64) string {
 	default:
 		// 兜底逻辑：相似字节数 = 阈值 × 4
 		prefix := int(th*4) * 8
-		if prefix < 0 {
-			prefix = 0
+		if prefix <=0 {
+			prefix = 24
 		} else if prefix > 32 {
 			prefix = 32
 		}
