@@ -537,6 +537,9 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 	}
 	defer close(pc.mediaChan)
 
+	// 确保达到成功节点数量限制的日志只输出一次
+	var printSuccessLimitLogOnce sync.Once
+
 	var wg sync.WaitGroup
 	concurrency := pc.speedConcurrent
 
@@ -564,9 +567,11 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 				}
 				job.Speed = speed
 
-				if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) >= config.GlobalConfig.SuccessLimit {
-					slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d,准备停止任务!", config.GlobalConfig.SuccessLimit))
-					cancel()
+				if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) > config.GlobalConfig.SuccessLimit {
+					printSuccessLimitLogOnce.Do(func() {
+						slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d,准备停止任务!", config.GlobalConfig.SuccessLimit))
+						cancel()
+					})
 				}
 
 				select {
