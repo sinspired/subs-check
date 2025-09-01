@@ -379,7 +379,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	}
 
 	if config.GlobalConfig.SuccessLimit > 0 && pc.available >= config.GlobalConfig.SuccessLimit {
-		slog.Warn(fmt.Sprintf("达到节点数量限制: %d", config.GlobalConfig.SuccessLimit))
+		slog.Info(fmt.Sprintf("达到成功节点数量限制 %d, 收集结果完成。", config.GlobalConfig.SuccessLimit))
 	}
 
 	slog.Info(fmt.Sprintf("可用节点数量: %d", len(pc.results)))
@@ -538,7 +538,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 	defer close(pc.mediaChan)
 
 	// 确保达到成功节点数量限制的日志只输出一次
-	var printSuccessLimitLogOnce sync.Once
+	var stopOnce sync.Once
 
 	var wg sync.WaitGroup
 	concurrency := pc.speedConcurrent
@@ -568,8 +568,13 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 				job.Speed = speed
 
 				if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) > config.GlobalConfig.SuccessLimit {
-					printSuccessLimitLogOnce.Do(func() {
-						slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d,准备停止任务!", config.GlobalConfig.SuccessLimit))
+					stopOnce.Do(func() {
+						if mediaON {
+							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
+						}else{
+							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
+						}
+
 						cancel()
 					})
 				}
@@ -609,9 +614,12 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 	for range concurrency {
 		wg.Go(func() {
 			for job := range pc.mediaChan {
-				if checkCtxDone(ctx) {
-					job.Close()
-					continue
+				if !speedON {
+					// 只在没开启测速时接受媒体检测停止信号
+					if checkCtxDone(ctx) {
+						job.Close()
+						continue
+					}
 				}
 				if mediaON {
 					for _, plat := range config.GlobalConfig.Platforms {
