@@ -19,7 +19,7 @@ concurrent: 20
 # media-concurrent: 100
 
 # 检查间隔(分钟)
-check-interval: 120
+check-interval: 720
 # cron表达式，如果配置了此项，将忽略check-interval
 # 支持标准cron表达式，如：
 # "0 */2 * * *" 表示每2小时的整点执行
