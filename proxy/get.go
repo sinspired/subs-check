@@ -71,10 +71,6 @@ func GetProxies() ([]map[string]any, int, error) {
 			defer wg.Done()
 			defer func() { <-concurrentLimit }() // 释放令牌
 
-			if config.GlobalConfig.KeepSuccessProxies && wasSucced {
-				// 避免重复加载
-				return
-			}
 			data, err := GetDateFromSubs(url)
 			if err != nil {
 				slog.Error(fmt.Sprintf("获取订阅链接错误跳过: %v", err))
