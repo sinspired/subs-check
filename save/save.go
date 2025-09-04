@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/beck-8/subs-check/check"
 	"github.com/beck-8/subs-check/config"
@@ -47,6 +48,11 @@ func NewConfigSaver(results []check.Result) *ConfigSaver {
 				Name:    "base64.txt",
 				Proxies: make([]map[string]any, 0),
 				Filter:  func(result check.Result) bool { return true },
+			},
+			{
+				Name:    "Proxies_LIB.yaml", // 新增
+				Proxies: make([]map[string]any, 0),
+				Filter:  func(result check.Result) bool { return true }, // 这里可加条件
 			},
 		},
 	}
@@ -110,7 +116,34 @@ func (cs *ConfigSaver) saveCategory(category ProxyCategory) error {
 		slog.Warn(fmt.Sprintf("yaml节点为空，跳过保存: %s, saveMethod: %s", category.Name, config.GlobalConfig.SaveMethod))
 		return nil
 	}
+	if category.Name == "Proxies_LIB.yaml" {
+		// 读取已有文件
+		existing := make([]map[string]any, 0)
+		data, err := ReadFileIfExists(category.Name)
+		if err == nil && len(data) > 0 {
+			var parsed map[string][]map[string]any
+			if err := yaml.Unmarshal(data, &parsed); err == nil {
+				existing = parsed["proxies"]
+			}
+		}
 
+		// 合并去重
+		merged := mergeUniqueProxies(existing, category.Proxies)
+
+		// 序列化
+		yamlData, err := yaml.Marshal(map[string]any{
+			"proxies": merged,
+		})
+		if err != nil {
+			return fmt.Errorf("序列化yaml %s 失败: %w", category.Name, err)
+		}
+
+		// 保存（这里直接覆盖写入，因为 merged 已经包含旧数据，相当于逻辑上的“追加”）
+		if err := cs.saveMethod(yamlData, category.Name); err != nil {
+			return fmt.Errorf("保存 %s 失败: %w", category.Name, err)
+		}
+		return nil
+	}
 	if category.Name == "all.yaml" {
 		yamlData, err := yaml.Marshal(map[string]any{
 			"proxies": category.Proxies,
@@ -198,4 +231,44 @@ func chooseSaveMethod() func([]byte, string) error {
 			return fmt.Errorf("未知的保存方法或其他方法配置错误: %v", config.GlobalConfig.SaveMethod)
 		}
 	}
+}
+
+func mergeUniqueProxies(existing, newProxies []map[string]any) []map[string]any {
+	seen := make(map[string]bool)
+	result := make([]map[string]any, 0, len(existing)+len(newProxies))
+
+	// 先加旧的
+	for _, p := range existing {
+		key := proxyKey(p)
+		if !seen[key] {
+			seen[key] = true
+			result = append(result, p)
+		}
+	}
+
+	// 再加新的
+	for _, p := range newProxies {
+		key := proxyKey(p)
+		if !seen[key] {
+			seen[key] = true
+			result = append(result, p)
+		}
+	}
+
+	return result
+}
+
+// 生成唯一 key，按 server 字段
+func proxyKey(p map[string]any) string {
+	if name, ok := p["server"].(string); ok {
+		return name
+	}
+	return fmt.Sprintf("%v", p) // 兜底
+}
+
+func ReadFileIfExists(path string) ([]byte, error) {
+    if _, err := os.Stat(path); os.IsNotExist(err) {
+        return nil, nil
+    }
+    return os.ReadFile(path)
 }
