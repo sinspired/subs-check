@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	u "net/url"
 	"strings"
 	"sync"
@@ -311,7 +310,7 @@ func GetDateFromSubs(subUrl string) ([]byte, error) {
 		}
 
 		// 解析 URL 字符串
-		u, err := url.Parse(subUrl)
+		u, err := u.Parse(subUrl)
 		if err != nil {
 			lastErr = fmt.Errorf("解析URL失败: %w", err)
 			continue
