@@ -571,7 +571,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 					stopOnce.Do(func() {
 						if mediaON {
 							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
-						}else{
+						} else {
 							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
 						}
 
@@ -800,12 +800,21 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 			}
 		case "youtube":
 			if res.Youtube != "" {
-				// TODO: 位置准确之后，除了CN之外，似乎没必要加后缀了
-				tags = append(tags, fmt.Sprintf("YT-%s", res.Youtube))
+				// 只有YouTube地区和节点位置不一致时才添加YouTube地区
+				if res.Country != res.Youtube {
+					tags = append(tags, fmt.Sprintf("YT-%s", res.Youtube))
+				} else {
+					tags = append(tags, "YT")
+				}
 			}
 		case "tiktok":
 			if res.TikTok != "" {
-				tags = append(tags, fmt.Sprintf("TK-%s", res.TikTok))
+				// 只有TikTok地区和节点位置不一致时才添加TikTok地区
+				if res.Country != res.TikTok {
+					tags = append(tags, fmt.Sprintf("TK-%s", res.TikTok))
+				} else {
+					tags = append(tags, "TK")
+				}
 			}
 		}
 	}
