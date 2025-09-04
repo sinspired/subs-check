@@ -214,7 +214,7 @@ func Check() ([]Result, error) {
 		return nil, fmt.Errorf("获取节点失败: %w", err)
 	}
 	proxies = append(proxies, tmp...)
-	slog.Info(fmt.Sprintf("获取节点数量: %d", len(proxies)))
+	slog.Info(fmt.Sprintf("已获取节点数量: %d", len(proxies)))
 
 	proxies = proxyutils.DeduplicateProxies(proxies) // 收集订阅节点阶段: 已优化内存
 	slog.Info(fmt.Sprintf("去重后节点数量: %d", len(proxies)))
@@ -762,7 +762,7 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 	// 速度标签
 	if config.GlobalConfig.SpeedTestUrl != "" && speed > 0 {
 		var speedStr string
-		if speed < 1024 {
+		if speed < 100 {
 			speedStr = fmt.Sprintf("%dKB/s", speed)
 		} else {
 			speedStr = fmt.Sprintf("%.1fMB/s", float64(speed)/1024)
