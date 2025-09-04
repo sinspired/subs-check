@@ -44,6 +44,7 @@ func (app *App) initHttpServer() error {
 	// 静态文件路由 - 订阅服务相关，始终启用
 	// 最初不应该不带路径，现在保持兼容
 	router.StaticFile("/all.yaml", saver.OutputPath+"/all.yaml")
+	router.StaticFile("/history.yaml", saver.OutputPath+"/history.yaml")
 	router.StaticFile("/all.txt", saver.OutputPath+"/all.txt")
 	router.StaticFile("/base64.txt", saver.OutputPath+"/base64.txt")
 	router.StaticFile("/mihomo.yaml", saver.OutputPath+"/mihomo.yaml")

@@ -195,7 +195,7 @@ func resolveSubUrls() []string {
             // 在最前面插入，端口使用配置值
             urls = append([]string{
                 fmt.Sprintf("http://127.0.0.1:%s/all.yaml#KeepSuccess", requiredListenPort),
-                fmt.Sprintf("http://127.0.0.1:%s/proxies_LIB.yaml#ProxiesLIB", requiredListenPort),
+                fmt.Sprintf("http://127.0.0.1:%s/history.yaml#KeepHistory", requiredListenPort),
             }, urls...)
         }
     }

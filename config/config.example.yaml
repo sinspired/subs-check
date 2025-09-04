@@ -228,7 +228,7 @@ sub-urls:
   # 添加上次检测成功的节点
   - http://127.0.0.1:8199/all.yaml#KeepSuccess
   # 添加历次检测成功的节点
-  - http://127.0.0.1:8199/proxies_LIB.yaml#ProxiesLIB
+  - http://127.0.0.1:8199/history.yaml#KeepHistory
   # - https://example.com/sub.txt
   # - https://example.com/sub2.txt
   # - https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a

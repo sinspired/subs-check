@@ -50,7 +50,7 @@ func NewConfigSaver(results []check.Result) *ConfigSaver {
 				Filter:  func(result check.Result) bool { return true },
 			},
 			{
-				Name:    "Proxies_LIB.yaml", // 新增
+				Name:    "history.yaml", // 新增
 				Proxies: make([]map[string]any, 0),
 				Filter:  func(result check.Result) bool { return true }, // 这里可加条件
 			},
@@ -116,7 +116,7 @@ func (cs *ConfigSaver) saveCategory(category ProxyCategory) error {
 		slog.Warn(fmt.Sprintf("yaml节点为空，跳过保存: %s, saveMethod: %s", category.Name, config.GlobalConfig.SaveMethod))
 		return nil
 	}
-	if category.Name == "Proxies_LIB.yaml" {
+	if category.Name == "history.yaml" {
 		// 读取已有文件
 		existing := make([]map[string]any, 0)
 		data, err := ReadFileIfExists(category.Name)
