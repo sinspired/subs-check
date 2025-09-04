@@ -16,12 +16,14 @@ func DeduplicateProxies(proxies []map[string]any) []map[string]any {
 		}
 		servername, _ := proxy["servername"].(string)
 
+		proxyType, _ := proxy["type"].(string)
+
 		password, _ := proxy["password"].(string)
 		if password == "" {
 			password, _ = proxy["uuid"].(string)
 		}
 
-		key := fmt.Sprintf("%s:%v:%s:%s", server, proxy["port"], servername, password)
+		key := fmt.Sprintf("[%s]%s:%v:%s:%s", proxyType, server, proxy["port"], servername, password)
 		if !seenKeys[key] {
 			seenKeys[key] = true
 			result = append(result, proxy)
