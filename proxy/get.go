@@ -20,7 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func GetProxies() ([]map[string]any, int, error) {
+func GetProxies() ([]map[string]any, int, int, error) {
 	// 解析本地与远程订阅清单
 	subUrls := resolveSubUrls()
 	slog.Info("订阅链接数量", "本地", len(config.GlobalConfig.SubUrls), "远程", len(config.GlobalConfig.SubUrlsRemote), "总计", len(subUrls))
@@ -31,13 +31,18 @@ func GetProxies() ([]map[string]any, int, error) {
 
 	// 启动收集结果的协程（将之前成功节点和其他订阅分别收集以便将之前成功节点放前面）
 	var succedProxies []map[string]any
+	var historyProxies []map[string]any
 	var syncProxies []map[string]any
+
 	done := make(chan struct{})
 	go func() {
 		for proxy := range proxyChan {
-			if v, ok := proxy["sub_was_succeed"].(bool); ok && v {
+			switch {
+			case proxy["sub_from_history"] == true:
+				historyProxies = append(historyProxies, proxy)
+			case proxy["sub_was_succeed"] == true:
 				succedProxies = append(succedProxies, proxy)
-			} else {
+			default:
 				syncProxies = append(syncProxies, proxy)
 			}
 		}
@@ -53,6 +58,8 @@ func GetProxies() ([]map[string]any, int, error) {
 
 		// 精确判断：必须是回环地址，且 URL 明确包含端口，端口等于 config.GlobalConfig.ListenPort，且 path 以 /all.yaml 或 /all.yml 结尾
 		isSuccedProxiesUrl := false
+		isHistoryProxiesUrl := false
+
 		if d, err := u.Parse(warpUrl); err == nil {
 			host := d.Hostname()
 			port := d.Port() // 如果 URL 没有显式端口，这里会是空字符串
@@ -63,11 +70,16 @@ func GetProxies() ([]map[string]any, int, error) {
 
 			if (host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1") &&
 				port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
-				isSuccedProxiesUrl = true
+				if strings.HasSuffix(d.Path, "/all.yaml") || strings.HasSuffix(d.Path, "/all.yml") {
+					isSuccedProxiesUrl = true
+				}
+				if strings.HasSuffix(d.Path, "/history.yaml") || strings.HasSuffix(d.Path, "/history.yml") {
+					isHistoryProxiesUrl = true
+				}
 			}
 		}
 
-		go func(url string, wasSucced bool) {
+		go func(url string, wasSucced, wasHistory bool) {
 			defer wg.Done()
 			defer func() { <-concurrentLimit }() // 释放令牌
 
@@ -96,6 +108,7 @@ func GetProxies() ([]map[string]any, int, error) {
 					proxy["sub_url"] = url
 					proxy["sub_tag"] = tag
 					proxy["sub_was_succeed"] = wasSucced
+					proxy["sub_from_history"] = wasHistory
 					proxyChan <- proxy
 				}
 				// 释放运行时内存
@@ -131,6 +144,7 @@ func GetProxies() ([]map[string]any, int, error) {
 					proxyMap["sub_url"] = url
 					proxyMap["sub_tag"] = tag
 					proxyMap["sub_was_succeed"] = wasSucced
+					proxyMap["sub_from_history"] = wasHistory
 					proxyChan <- proxyMap
 				}
 			}
@@ -138,7 +152,7 @@ func GetProxies() ([]map[string]any, int, error) {
 			data = nil
 			proxyList = nil
 
-		}(warpUrl, isSuccedProxiesUrl)
+		}(warpUrl, isSuccedProxiesUrl, isHistoryProxiesUrl)
 	}
 
 	// 等待所有工作协程完成
@@ -146,73 +160,97 @@ func GetProxies() ([]map[string]any, int, error) {
 	close(proxyChan)
 	<-done // 等待收集完成
 
-	// 之前成功节点放在前面，保持各自到达顺序
-	mihomoProxies := append(succedProxies, syncProxies...)
-	return mihomoProxies, len(succedProxies), nil
+	// 构建 succed 节点的 server 集合
+	succedSet := make(map[string]struct{}, len(succedProxies))
+	for _, p := range succedProxies {
+		if server, ok := p["server"].(string); ok {
+			succedSet[server] = struct{}{}
+		}
+	}
+
+	// 去重 historyProxies，同时统计数量
+	dedupedHistory := historyProxies[:0:len(historyProxies)] // 复用原 slice 内存
+	for _, p := range historyProxies {
+		if server, ok := p["server"].(string); ok {
+			if _, exists := succedSet[server]; exists {
+				continue // 跳过重复
+			}
+			succedSet[server] = struct{}{} // 加入集合，防止 history 内部重复
+		}
+		dedupedHistory = append(dedupedHistory, p)
+	}
+	succedSet = nil
+	historyProxies = dedupedHistory
+	historyCount := len(historyProxies)
+
+	// 拼接最终节点列表（保持顺序）
+	mihomoProxies := append(append(succedProxies, historyProxies...), syncProxies...)
+
+	// 返回时用去重后的历史数量
+	return mihomoProxies, len(succedProxies), historyCount, nil
 }
 
 // from 3k
 // resolveSubUrls 合并本地与远程订阅清单并去重
 func resolveSubUrls() []string {
-    urls := make([]string, 0, len(config.GlobalConfig.SubUrls))
-    // 本地配置
-    urls = append(urls, config.GlobalConfig.SubUrls...)
+	urls := make([]string, 0, len(config.GlobalConfig.SubUrls))
+	// 本地配置
+	urls = append(urls, config.GlobalConfig.SubUrls...)
 
-    // 远程清单
-    if len(config.GlobalConfig.SubUrlsRemote) != 0 {
-        for _, d := range config.GlobalConfig.SubUrlsRemote {
-            if remote, err := fetchRemoteSubUrls(utils.WarpUrl(d)); err != nil {
-                slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
-            } else {
-                urls = append(urls, remote...)
-            }
-        }
-    }
+	// 远程清单
+	if len(config.GlobalConfig.SubUrlsRemote) != 0 {
+		for _, d := range config.GlobalConfig.SubUrlsRemote {
+			if remote, err := fetchRemoteSubUrls(utils.WarpUrl(d)); err != nil {
+				slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
+			} else {
+				urls = append(urls, remote...)
+			}
+		}
+	}
 
-    // 如果设置保留成功节点，且当前 urls 中没有符合条件的本地回环地址，则在最前面添加两个本地 URL
-    if config.GlobalConfig.KeepSuccessProxies {
-        hasLocal := false
-        requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))
-        requiredSubStorePort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":"))
+	// 如果设置保留成功节点，且当前 urls 中没有符合条件的本地回环地址，则在最前面添加两个本地 URL
+	if config.GlobalConfig.KeepSuccessProxies {
+		hasLocal := false
+		requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))
+		requiredSubStorePort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":"))
 
-        for _, raw := range urls {
-            if d, err := u.Parse(utils.WarpUrl(raw)); err == nil {
-                host := d.Hostname()
-                port := d.Port()
-                if (host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1") &&
-                    port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
-                    hasLocal = true
-                    break
-                }
-            }
-        }
+		for _, raw := range urls {
+			if d, err := u.Parse(utils.WarpUrl(raw)); err == nil {
+				host := d.Hostname()
+				port := d.Port()
+				if (host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1") &&
+					port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
+					hasLocal = true
+					break
+				}
+			}
+		}
 
-        if !hasLocal {
-            // 在最前面插入，端口使用配置值
-            urls = append([]string{
-                fmt.Sprintf("http://127.0.0.1:%s/all.yaml#KeepSuccess", requiredListenPort),
-                fmt.Sprintf("http://127.0.0.1:%s/history.yaml#KeepHistory", requiredListenPort),
-            }, urls...)
-        }
-    }
+		if !hasLocal {
+			// 在最前面插入，端口使用配置值
+			urls = append([]string{
+				fmt.Sprintf("http://127.0.0.1:%s/all.yaml#KeepSuccess", requiredListenPort),
+				fmt.Sprintf("http://127.0.0.1:%s/history.yaml#KeepHistory", requiredListenPort),
+			}, urls...)
+		}
+	}
 
-    // 规范化与去重
-    seen := make(map[string]struct{}, len(urls))
-    out := make([]string, 0, len(urls))
-    for _, s := range urls {
-        s = strings.TrimSpace(s)
-        if s == "" || strings.HasPrefix(s, "#") { // 跳过空行与注释
-            continue
-        }
-        if _, ok := seen[s]; ok {
-            continue
-        }
-        seen[s] = struct{}{}
-        out = append(out, s)
-    }
-    return out
+	// 规范化与去重
+	seen := make(map[string]struct{}, len(urls))
+	out := make([]string, 0, len(urls))
+	for _, s := range urls {
+		s = strings.TrimSpace(s)
+		if s == "" || strings.HasPrefix(s, "#") { // 跳过空行与注释
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
 }
-
 
 // fetchRemoteSubUrls 从远程地址读取订阅URL清单
 // 支持两种格式：

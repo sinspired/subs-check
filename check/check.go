@@ -202,8 +202,8 @@ func Check() ([]Result, error) {
 	speedON = config.GlobalConfig.SpeedTestUrl != ""
 	mediaON = config.GlobalConfig.MediaCheck
 
-	// // 获取订阅节点和之前成功的节点数量(已前置)
-	proxies, subWasSuccedLength, err := proxyutils.GetProxies()
+	// 获取订阅节点和之前成功的节点数量(已前置)
+	proxies, subWasSuccedLength, historyLength, err := proxyutils.GetProxies()
 	if err != nil {
 		return nil, fmt.Errorf("获取节点失败: %w", err)
 	}
@@ -214,6 +214,10 @@ func Check() ([]Result, error) {
 
 	if subWasSuccedLength > 0 {
 		slog.Info(fmt.Sprintf("已加载上次检测可用节点，数量: %d", subWasSuccedLength))
+	}
+
+	if historyLength > 0 {
+		slog.Info(fmt.Sprintf("已加载历次检测可用节点，数量: %d", historyLength))
 	}
 
 	// 设置之前成功的节点顺序在前
