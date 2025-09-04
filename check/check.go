@@ -369,11 +369,11 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 		slog.Info(fmt.Sprintf("达到成功节点数量限制 %d, 收集结果完成。", config.GlobalConfig.SuccessLimit))
 	}
 
-	slog.Info(fmt.Sprintf("可用节点数量: %d", len(pc.results)))
-	slog.Info(fmt.Sprintf("测试总消耗流量: %.3fGB", float64(TotalBytes.Load())/1024/1024/1024))
-
 	// 检查订阅成功率并发出警告
 	pc.checkSubscriptionSuccessRate(proxies)
+
+	slog.Info(fmt.Sprintf("可用节点数量: %d", len(pc.results)))
+	slog.Info(fmt.Sprintf("测试总消耗流量: %.3fGB", float64(TotalBytes.Load())/1024/1024/1024))
 
 	// 手动解除引用
 	proxies = nil

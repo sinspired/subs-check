@@ -240,22 +240,3 @@ func ReadLastNLines(filePath string, n int) ([]string, error) {
 func GenerateSimpleKey() string {
 	return fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
 }
-
-// 自定义 logger：当请求包含 ?keep=KeepSuccess 或 header X-Keep-Success: KeepSuccess 时静默
-func keepAwareLogger() gin.HandlerFunc {
-	// 预先拿到 gin 的默认 logger middleware
-	defaultLogger := gin.Logger()
-
-	return func(c *gin.Context) {
-		// 检测 query 和 header（注意：fragment (#KeepSuccess) 不会到服务端）
-		if c.Request.URL.Query().Get("keep") == "KeepSuccess" ||
-			strings.EqualFold(c.GetHeader("X-Keep-Success"), "KeepSuccess") {
-			// 静默：不要 gin 的默认日志，直接执行后续 handler
-			c.Next()
-			return
-		}
-
-		// 其它请求：直接调用 gin 默认 logger（它会调用 c.Next() 并在之后输出日志）
-		defaultLogger(c)
-	}
-}
