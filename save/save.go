@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/beck-8/subs-check/check"
 	"github.com/beck-8/subs-check/config"
@@ -119,7 +121,24 @@ func (cs *ConfigSaver) saveCategory(category ProxyCategory) error {
 	if category.Name == "history.yaml" {
 		// 读取已有文件
 		existing := make([]map[string]any, 0)
-		data, err := ReadFileIfExists(category.Name)
+
+		// 构建文件路径
+		basePath := utils.GetExecutablePath()
+		if basePath == "" {
+			return nil
+		}
+
+		var outputPath string
+		const outputDirName = "output"
+		if config.GlobalConfig.OutputDir != "" {
+			outputPath = config.GlobalConfig.OutputDir
+		} else {
+			outputPath = filepath.Join(basePath, outputDirName)
+		}
+
+		filepath := filepath.Join(outputPath, category.Name)
+		// 读取原有历史记录
+		data, err := ReadFileIfExists(filepath)
 		if err == nil && len(data) > 0 {
 			var parsed map[string][]map[string]any
 			if err := yaml.Unmarshal(data, &parsed); err == nil {
@@ -258,17 +277,30 @@ func mergeUniqueProxies(existing, newProxies []map[string]any) []map[string]any 
 	return result
 }
 
-// 生成唯一 key，按 server 字段
+// 生成唯一 key，按 server、port、type 三个字段
 func proxyKey(p map[string]any) string {
-	if name, ok := p["server"].(string); ok {
-		return name
+	server := strings.TrimSpace(fmt.Sprint(p["server"]))
+	port := strings.TrimSpace(fmt.Sprint(p["port"]))
+	typ := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["type"])))
+	servername := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["servername"])))
+
+	password := strings.TrimSpace(fmt.Sprint(p["password"]))
+	if password == "" {
+		password = strings.TrimSpace(fmt.Sprint(p["uuid"]))
 	}
-	return fmt.Sprintf("%v", p) // 兜底
+
+	// 如果全部字段都为空，则把整个 map 以简短形式作为 fallback key（避免丢失）
+	if server == "" && port == "" && typ == "" && servername == "" && password == "" {
+		// 尽量稳定地生成字符串
+		return fmt.Sprintf("raw:%v", p)
+	}
+	// 使用 '|' 分隔构建 key
+	return server + "|" + port + "|" + typ + "|" + servername + "|" + password
 }
 
 func ReadFileIfExists(path string) ([]byte, error) {
-    if _, err := os.Stat(path); os.IsNotExist(err) {
-        return nil, nil
-    }
-    return os.ReadFile(path)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, nil
+	}
+	return os.ReadFile(path)
 }

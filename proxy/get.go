@@ -191,6 +191,7 @@ func GetProxies() ([]map[string]any, int, int, error) {
 
 // from 3k
 // resolveSubUrls 合并本地与远程订阅清单并去重
+// resolveSubUrls 合并本地与远程订阅清单并去重（去重时忽略 fragment）
 func resolveSubUrls() []string {
 	urls := make([]string, 0, len(config.GlobalConfig.SubUrls))
 	// 本地配置
@@ -207,34 +208,16 @@ func resolveSubUrls() []string {
 		}
 	}
 
-	// 如果设置保留成功节点，且当前 urls 中没有符合条件的本地回环地址，则在最前面添加两个本地 URL
+	// 如果设置保留成功节点，直接在最前面添加两个本地 URL（去重会在后面处理）
 	if config.GlobalConfig.KeepSuccessProxies {
-		hasLocal := false
 		requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))
-		requiredSubStorePort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":"))
-
-		for _, raw := range urls {
-			if d, err := u.Parse(utils.WarpUrl(raw)); err == nil {
-				host := d.Hostname()
-				port := d.Port()
-				if (host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1") &&
-					port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
-					hasLocal = true
-					break
-				}
-			}
-		}
-
-		if !hasLocal {
-			// 在最前面插入，端口使用配置值
-			urls = append([]string{
-				fmt.Sprintf("http://127.0.0.1:%s/all.yaml#KeepSuccess", requiredListenPort),
-				fmt.Sprintf("http://127.0.0.1:%s/history.yaml#KeepHistory", requiredListenPort),
-			}, urls...)
-		}
+		urls = append([]string{
+			fmt.Sprintf("http://127.0.0.1:%s/all.yaml#KeepSuccess", requiredListenPort),
+			fmt.Sprintf("http://127.0.0.1:%s/history.yaml#KeepHistory", requiredListenPort),
+		}, urls...)
 	}
 
-	// 规范化与去重
+	// 规范化与去重（去重时忽略 fragment）
 	seen := make(map[string]struct{}, len(urls))
 	out := make([]string, 0, len(urls))
 	for _, s := range urls {
@@ -242,11 +225,19 @@ func resolveSubUrls() []string {
 		if s == "" || strings.HasPrefix(s, "#") { // 跳过空行与注释
 			continue
 		}
-		if _, ok := seen[s]; ok {
+
+		// 解析并去掉 fragment 以生成去重 key；解析失败则用原始字符串做 key
+		key := s
+		if d, err := u.Parse(utils.WarpUrl(s)); err == nil {
+			d.Fragment = ""  // 忽略 fragment
+			key = d.String()
+		}
+
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[s] = struct{}{}
-		out = append(out, s)
+		seen[key] = struct{}{}
+		out = append(out, s) // 保留原始 s（含 fragment）在输出中
 	}
 	return out
 }
