@@ -202,32 +202,19 @@ func Check() ([]Result, error) {
 	speedON = config.GlobalConfig.SpeedTestUrl != ""
 	mediaON = config.GlobalConfig.MediaCheck
 
-	// 之前好的节点前置
-	var proxies []map[string]any
-	if config.GlobalConfig.KeepSuccessProxies {
-		proxies = append(proxies, config.GlobalProxies...)
-	}
-
-	// 获取订阅节点和之前成功的节点数量(已前置)
-	tmp, subWasSuccedLength, err := proxyutils.GetProxies()
+	// // 获取订阅节点和之前成功的节点数量(已前置)
+	proxies, subWasSuccedLength, err := proxyutils.GetProxies()
 	if err != nil {
 		return nil, fmt.Errorf("获取节点失败: %w", err)
 	}
-	proxies = append(proxies, tmp...)
 	slog.Info(fmt.Sprintf("已获取节点数量: %d", len(proxies)))
 
 	proxies = proxyutils.DeduplicateProxies(proxies) // 收集订阅节点阶段: 已优化内存
 	slog.Info(fmt.Sprintf("去重后节点数量: %d", len(proxies)))
 
-	// 确定之前成功的节点数量
-	subWasSuccedLength = max(subWasSuccedLength, len(config.GlobalProxies))
 	if subWasSuccedLength > 0 {
 		slog.Info(fmt.Sprintf("已加载上次检测可用节点，数量: %d", subWasSuccedLength))
 	}
-
-	// 重置全局节点
-	tmp = nil
-	config.GlobalProxies = make([]map[string]any, 0)
 
 	// 设置之前成功的节点顺序在前
 	headSize := subWasSuccedLength

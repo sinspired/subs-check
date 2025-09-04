@@ -243,14 +243,6 @@ func (app *App) checkProxies() error {
 	if err != nil {
 		return fmt.Errorf("检测代理失败: %w", err)
 	}
-	// 将成功的节点添加到全局中，暂时内存保存
-	if config.GlobalConfig.KeepSuccessProxies {
-		for _, result := range results {
-			if result.Proxy != nil {
-				config.GlobalProxies = append(config.GlobalProxies, result.Proxy)
-			}
-		}
-	}
 
 	slog.Info("检测完成")
 	save.SaveConfig(results)

@@ -21,7 +21,6 @@ import (
 )
 
 func GetProxies() ([]map[string]any, int, error) {
-
 	// 解析本地与远程订阅清单
 	subUrls := resolveSubUrls()
 	slog.Info("订阅链接数量", "本地", len(config.GlobalConfig.SubUrls), "远程", len(config.GlobalConfig.SubUrlsRemote), "总计", len(subUrls))
@@ -159,38 +158,65 @@ func GetProxies() ([]map[string]any, int, error) {
 // from 3k
 // resolveSubUrls 合并本地与远程订阅清单并去重
 func resolveSubUrls() []string {
-	urls := make([]string, 0, len(config.GlobalConfig.SubUrls))
-	// 本地配置
-	urls = append(urls, config.GlobalConfig.SubUrls...)
+    urls := make([]string, 0, len(config.GlobalConfig.SubUrls))
+    // 本地配置
+    urls = append(urls, config.GlobalConfig.SubUrls...)
 
-	// 远程清单
-	if len(config.GlobalConfig.SubUrlsRemote) != 0 {
-		for _, d := range config.GlobalConfig.SubUrlsRemote {
-			if remote, err := fetchRemoteSubUrls(utils.WarpUrl(d)); err != nil {
-				slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
-			} else {
-				urls = append(urls, remote...)
-			}
-		}
+    // 远程清单
+    if len(config.GlobalConfig.SubUrlsRemote) != 0 {
+        for _, d := range config.GlobalConfig.SubUrlsRemote {
+            if remote, err := fetchRemoteSubUrls(utils.WarpUrl(d)); err != nil {
+                slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
+            } else {
+                urls = append(urls, remote...)
+            }
+        }
+    }
 
-	}
+    // 如果设置保留成功节点，且当前 urls 中没有符合条件的本地回环地址，则在最前面添加两个本地 URL
+    if config.GlobalConfig.KeepSuccessProxies {
+        hasLocal := false
+        requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))
+        requiredSubStorePort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":"))
 
-	// 规范化与去重
-	seen := make(map[string]struct{}, len(urls))
-	out := make([]string, 0, len(urls))
-	for _, s := range urls {
-		s = strings.TrimSpace(s)
-		if s == "" || strings.HasPrefix(s, "#") { // 跳过空行与注释
-			continue
-		}
-		if _, ok := seen[s]; ok {
-			continue
-		}
-		seen[s] = struct{}{}
-		out = append(out, s)
-	}
-	return out
+        for _, raw := range urls {
+            if d, err := u.Parse(utils.WarpUrl(raw)); err == nil {
+                host := d.Hostname()
+                port := d.Port()
+                if (host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1") &&
+                    port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
+                    hasLocal = true
+                    break
+                }
+            }
+        }
+
+        if !hasLocal {
+            // 在最前面插入，端口使用配置值
+            urls = append([]string{
+                fmt.Sprintf("http://127.0.0.1:%s/all.yaml#KeepSuccess", requiredListenPort),
+                fmt.Sprintf("http://127.0.0.1:%s/proxies_LIB.yaml#ProxiesLIB", requiredListenPort),
+            }, urls...)
+        }
+    }
+
+    // 规范化与去重
+    seen := make(map[string]struct{}, len(urls))
+    out := make([]string, 0, len(urls))
+    for _, s := range urls {
+        s = strings.TrimSpace(s)
+        if s == "" || strings.HasPrefix(s, "#") { // 跳过空行与注释
+            continue
+        }
+        if _, ok := seen[s]; ok {
+            continue
+        }
+        seen[s] = struct{}{}
+        out = append(out, s)
+    }
+    return out
 }
+
 
 // fetchRemoteSubUrls 从远程地址读取订阅URL清单
 // 支持两种格式：

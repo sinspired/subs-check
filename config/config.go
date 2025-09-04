@@ -80,5 +80,3 @@ var GlobalConfig = &Config{
 
 //go:embed config.example.yaml
 var DefaultConfigTemplate []byte
-
-var GlobalProxies []map[string]any
