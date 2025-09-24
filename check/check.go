@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -380,7 +381,11 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	slog.Info(fmt.Sprintf("测试总消耗流量: %.3fGB", float64(TotalBytes.Load())/1024/1024/1024))
 
 	// 手动解除引用
+	for i := range proxies {
+		proxies[i] = nil
+	}
 	proxies = nil
+	runtime.GC() // 提示 GC 回收
 
 	return pc.results, nil
 }

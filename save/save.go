@@ -225,17 +225,17 @@ func chooseSaveMethod() func([]byte, string) error {
 	switch config.GlobalConfig.SaveMethod {
 	case "r2":
 		if err := method.ValiR2Config(); err != nil {
-			return func(b []byte, s string) error { return fmt.Errorf("R2配置不完整: %v", err) }
+			return func(b []byte, s string) error { return fmt.Errorf("r2配置不完整: %v", err) }
 		}
 		return method.UploadToR2Storage
 	case "gist":
 		if err := method.ValiGistConfig(); err != nil {
-			return func(b []byte, s string) error { return fmt.Errorf("Gist配置不完整: %v", err) }
+			return func(b []byte, s string) error { return fmt.Errorf("gist配置不完整: %v", err) }
 		}
 		return method.UploadToGist
 	case "webdav":
 		if err := method.ValiWebDAVConfig(); err != nil {
-			return func(b []byte, s string) error { return fmt.Errorf("WebDAV配置不完整: %v", err) }
+			return func(b []byte, s string) error { return fmt.Errorf("webDAV配置不完整: %v", err) }
 		}
 		return method.UploadToWebDAV
 	case "local":
@@ -258,6 +258,8 @@ func mergeUniqueProxies(existing, newProxies []map[string]any) []map[string]any 
 
 	// 先加旧的
 	for _, p := range existing {
+		delete(p, "sub_was_succeed")  // 删除旧的标记
+		delete(p, "sub_from_history") // 删除旧的标记
 		key := proxyKey(p)
 		if !seen[key] {
 			seen[key] = true
@@ -267,12 +269,17 @@ func mergeUniqueProxies(existing, newProxies []map[string]any) []map[string]any 
 
 	// 再加新的
 	for _, p := range newProxies {
+		delete(p, "sub_was_succeed")  // 删除旧的标记
+		delete(p, "sub_from_history") // 删除旧的标记
 		key := proxyKey(p)
 		if !seen[key] {
 			seen[key] = true
 			result = append(result, p)
 		}
 	}
+
+	existing = nil // 移除切片引用，帮助 GC
+	newProxies = nil
 
 	return result
 }

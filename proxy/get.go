@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	u "net/url"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -162,31 +163,45 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	// 构建 succed 节点的 server 集合
 	succedSet := make(map[string]struct{}, len(succedProxies))
 	for _, p := range succedProxies {
-		if server, ok := p["server"].(string); ok {
-			succedSet[server] = struct{}{}
-		}
+		proxyKey := generateProxyKey(p)
+		succedSet[proxyKey] = struct{}{}
 	}
 
 	// 去重 historyProxies，同时统计数量
-	dedupedHistory := historyProxies[:0:len(historyProxies)] // 复用原 slice 内存
+	dedupedHistory := make([]map[string]any, 0)
 	for _, p := range historyProxies {
-		if server, ok := p["server"].(string); ok {
-			if _, exists := succedSet[server]; exists {
-				continue // 跳过重复
-			}
-			succedSet[server] = struct{}{} // 加入集合，防止 history 内部重复
+		proxyKey := generateProxyKey(p)
+		// 如果在 succedSet 中，说明已经在 succedProxies 里了，跳过
+		if _, exists := succedSet[proxyKey]; exists {
+			continue
 		}
+		succedSet[proxyKey] = struct{}{} // 加入集合，防止 history 内部重复
+
 		dedupedHistory = append(dedupedHistory, p)
 	}
-	succedSet = nil
+	
 	historyProxies = dedupedHistory
+
+	// 统计数量
+	succedCount := len(succedProxies)
 	historyCount := len(historyProxies)
 
 	// 拼接最终节点列表（保持顺序）
 	mihomoProxies := append(append(succedProxies, historyProxies...), syncProxies...)
 
+	// 释放不再需要的内存
+	proxyChan = nil
+	succedSet = nil
+	succedProxies = nil
+	historyProxies = nil
+	for i := range syncProxies {
+		syncProxies[i] = nil // 移除 map 引用
+	}
+	syncProxies = nil
+	runtime.GC() // 提示 GC 回收
+
 	// 返回时用去重后的历史数量
-	return mihomoProxies, len(succedProxies), historyCount, nil
+	return mihomoProxies, succedCount, historyCount, nil
 }
 
 // from 3k
@@ -194,10 +209,8 @@ func GetProxies() ([]map[string]any, int, int, error) {
 // resolveSubUrls 合并本地与远程订阅清单并去重（去重时忽略 fragment）
 func resolveSubUrls() []string {
 	urls := make([]string, 0, len(config.GlobalConfig.SubUrls))
-	// 本地配置
 	urls = append(urls, config.GlobalConfig.SubUrls...)
 
-	// 远程清单
 	if len(config.GlobalConfig.SubUrlsRemote) != 0 {
 		for _, d := range config.GlobalConfig.SubUrlsRemote {
 			if remote, err := fetchRemoteSubUrls(utils.WarpUrl(d)); err != nil {
@@ -208,36 +221,43 @@ func resolveSubUrls() []string {
 		}
 	}
 
-	// 如果设置保留成功节点，直接在最前面添加两个本地 URL（去重会在后面处理）
+	requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))
+	localLastSucced := fmt.Sprintf("http://127.0.0.1:%s/all.yaml", requiredListenPort)
+	localHistory := fmt.Sprintf("http://127.0.0.1:%s/history.yaml", requiredListenPort)
+
 	if config.GlobalConfig.KeepSuccessProxies {
-		requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))
 		urls = append([]string{
-			fmt.Sprintf("http://127.0.0.1:%s/all.yaml#KeepSuccess", requiredListenPort),
-			fmt.Sprintf("http://127.0.0.1:%s/history.yaml#KeepHistory", requiredListenPort),
+			localLastSucced + "#KeepSucced",
+			localHistory + "#KeepHistory",
 		}, urls...)
 	}
 
-	// 规范化与去重（去重时忽略 fragment）
+	// 去重并过滤本地 URL（忽略 fragment）
 	seen := make(map[string]struct{}, len(urls))
 	out := make([]string, 0, len(urls))
 	for _, s := range urls {
 		s = strings.TrimSpace(s)
-		if s == "" || strings.HasPrefix(s, "#") { // 跳过空行与注释
+		if s == "" || strings.HasPrefix(s, "#") {
 			continue
 		}
 
-		// 解析并去掉 fragment 以生成去重 key；解析失败则用原始字符串做 key
 		key := s
 		if d, err := u.Parse(utils.WarpUrl(s)); err == nil {
-			d.Fragment = ""  // 忽略 fragment
+			d.Fragment = ""
 			key = d.String()
+
+			// 如果不保留成功节点，过滤掉本地 all.yaml 和 history.yaml
+			if !config.GlobalConfig.KeepSuccessProxies &&
+				(key == localLastSucced || key == localHistory) {
+				continue
+			}
 		}
 
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		seen[key] = struct{}{}
-		out = append(out, s) // 保留原始 s（含 fragment）在输出中
+		out = append(out, s)
 	}
 	return out
 }
@@ -349,4 +369,25 @@ func GetDateFromSubs(subUrl string) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("重试%d次后失败: %v", maxRetries, lastErr)
+}
+
+// 生成唯一 key，按 server、port、type 三个字段
+func generateProxyKey(p map[string]any) string {
+	server := strings.TrimSpace(fmt.Sprint(p["server"]))
+	port := strings.TrimSpace(fmt.Sprint(p["port"]))
+	typ := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["type"])))
+	servername := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["servername"])))
+
+	password := strings.TrimSpace(fmt.Sprint(p["password"]))
+	if password == "" {
+		password = strings.TrimSpace(fmt.Sprint(p["uuid"]))
+	}
+
+	// 如果全部字段都为空，则把整个 map 以简短形式作为 fallback key（避免丢失）
+	if server == "" && port == "" && typ == "" && servername == "" && password == "" {
+		// 尽量稳定地生成字符串
+		return fmt.Sprintf("raw:%v", p)
+	}
+	// 使用 '|' 分隔构建 key
+	return server + "|" + port + "|" + typ + "|" + servername + "|" + password
 }
