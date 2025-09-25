@@ -1,23 +1,36 @@
+# --- .goreleaser.yaml ---
+
+version: 2
+
 before:
   hooks:
     - go mod tidy
-release:
-  prerelease: auto  # 自动识别 beta、rc 作为预发布
 
+release:
+  # 自动检测是否为预发布版本（例如，tag 中包含 -rc, -beta 等）
+  prerelease: auto
+
+# 构建配置
 builds:
-  - env:
+  - id: subs-check
+    # 启用 CGO_ENABLED=0 来创建静态链接的二进制文件
+    env:
       - CGO_ENABLED=0
+    # 目标操作系统
     goos:
       - linux
       - windows
       - darwin
+    # 目标 CPU 架构
     goarch:
       - amd64
       - arm64
       - arm
       - "386"
+    # 为 arm 架构指定版本
     goarm:
       - "7"
+    # 忽略不支持的平台组合
     ignore:
       - goos: darwin
         goarch: arm
@@ -25,15 +38,20 @@ builds:
         goarch: arm
       - goos: darwin
         goarch: "386"
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    # 使用 Git 提交的时间戳作为模块的时间戳，确保可复现构建
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    # 构建标志
     flags:
       - -trimpath
+    # 链接器标志，用于注入版本信息并减小二进制文件大小
     ldflags:
       - -s -w -X main.Version={{ .Version }} -X main.CurrentCommit={{ .ShortCommit }}
 
+# 归档配置（用于创建 .tar.gz 和 .zip 文件）
 archives:
-  - formats:  # format 被弃用
+  - formats:
       - tar.gz
+    # 自定义归档文件的命名模板
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -42,16 +60,7 @@ archives:
       {{- else if eq .Arch "arm64" }}aarch64
       {{- else if eq .Arch "arm" }}armv7
       {{- else }}{{ .Arch }}{{ end }}
+    # 针对 Windows 系统，覆盖打包格式为 zip
     format_overrides:
       - goos: windows
         formats: zip
-
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
-      - '^chore:'
-      - Merge pull request
-      - Merge branch 

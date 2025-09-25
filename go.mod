@@ -1,4 +1,4 @@
-module github.com/beck-8/subs-check
+module github.com/sinspired/subs-check
 
 go 1.25
 
@@ -9,6 +9,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/oschwald/maxminddb-golang/v2 v2.0.0-beta.10
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/samber/lo v1.51.0
 	github.com/shirou/gopsutil/v4 v4.25.8
 	github.com/sinspired/checkip v0.2.6
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -47,7 +48,6 @@ require (
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
-	github.com/samber/lo v1.51.0 // indirect
 	github.com/sina-ghaderi/poly1305 v0.0.0-20220724002748-c5926b03988b // indirect
 	github.com/sina-ghaderi/rabaead v0.0.0-20220730151906-ab6e06b96e8c // indirect
 	github.com/sina-ghaderi/rabbitio v0.0.0-20220730151941-9ce26f4f872e // indirect
@@ -109,7 +109,6 @@ require (
 	github.com/gofrs/uuid/v5 v5.3.2 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20250919081422-f80a1952f48e // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/juju/ratelimit v1.0.2

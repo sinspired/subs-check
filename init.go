@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/beck-8/subs-check/app"
+	"github.com/sinspired/subs-check/app"
 	"github.com/lmittmann/tint"
 	mihomoLog "github.com/metacubex/mihomo/log"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -68,8 +68,8 @@ func init() {
 	fmt.Println("⚠️  重要提示：")
 	fmt.Println("1. 本项目完全开源免费，请勿相信任何收费版本")
 	fmt.Println("2. 本项目仅供学习交流，请勿用于非法用途")
-	fmt.Println("3. 项目地址：https://github.com/beck-8/subs-check")
-	fmt.Println("4. 镜像地址：ghcr.io/beck-8/subs-check:latest")
+	fmt.Println("3. 项目地址：https://github.com/sinspired/subs-check")
+	fmt.Println("4. 镜像地址：ghcr.io/sinspired/subs-check:latest")
 	fmt.Println("==================================================")
 
 	if strings.ToLower(os.Getenv("SUB_CHECK_PPROF")) != "" {

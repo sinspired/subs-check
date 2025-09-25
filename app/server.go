@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/beck-8/subs-check/check"
-	"github.com/beck-8/subs-check/config"
-	"github.com/beck-8/subs-check/save/method"
+	"github.com/sinspired/subs-check/check"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/save/method"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )

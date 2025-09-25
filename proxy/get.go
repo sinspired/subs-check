@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/beck-8/subs-check/config"
-	"github.com/beck-8/subs-check/utils"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/utils"
 	"github.com/metacubex/mihomo/common/convert"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"

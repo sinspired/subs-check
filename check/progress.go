@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/beck-8/subs-check/config"
+	"github.com/sinspired/subs-check/config"
 )
 
 // 默认使用动态权重显示进度条

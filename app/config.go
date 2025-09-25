@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/beck-8/subs-check/config"
-	"github.com/beck-8/subs-check/utils"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/utils"
 	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
 )

@@ -13,3 +13,7 @@ test
 *.bak
 bin/*
 test_*.*
+
+output/*
+subs-check*
+mihomo-check*

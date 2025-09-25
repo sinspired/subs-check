@@ -14,9 +14,9 @@ import (
 
 	"encoding/json"
 
-	"github.com/beck-8/subs-check/config"
-	"github.com/beck-8/subs-check/save/method"
-	"github.com/beck-8/subs-check/utils"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/save/method"
+	"github.com/sinspired/subs-check/utils"
 	"github.com/klauspost/compress/zstd"
 	"github.com/oschwald/maxminddb-golang/v2"
 )

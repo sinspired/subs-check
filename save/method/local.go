@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/beck-8/subs-check/config"
-	"github.com/beck-8/subs-check/utils"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/utils"
 )
 
 const (

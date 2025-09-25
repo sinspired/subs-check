@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/beck-8/subs-check/assets"
+	"github.com/sinspired/subs-check/assets"
 	"github.com/sinspired/checkip/pkg/ipinfo"
 )
 

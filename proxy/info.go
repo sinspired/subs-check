@@ -10,8 +10,7 @@ import (
 	"os"
 	"strings"
 
-	// "github.com/beck-8/subs-check/config"
-	"github.com/beck-8/subs-check/config"
+	"github.com/sinspired/subs-check/config"
 	"github.com/metacubex/mihomo/common/convert"
 	"github.com/oschwald/maxminddb-golang/v2"
 	"github.com/sinspired/checkip/pkg/ipinfo"

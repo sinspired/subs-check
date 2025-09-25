@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/beck-8/subs-check/config"
-	"github.com/beck-8/subs-check/save/method"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/save/method"
 	"github.com/klauspost/compress/zstd"
 	"github.com/shirou/gopsutil/v4/process"
 	"gopkg.in/natefinch/lumberjack.v2"
