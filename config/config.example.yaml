@@ -72,6 +72,12 @@ rename-node: true
 # 节点前缀，依赖rename-node为true才生效
 node-prefix: ""
 
+# 只测试指定协议的节点
+node-type:
+  # - ss
+  # - vmess
+  # - vless
+
 # 是否开启流媒体检测，其中IP欺诈依赖重命名
 media-check: false
 platforms:

@@ -62,6 +62,7 @@ type Config struct {
 	EnhancedTag          bool     `yaml:"enhanced-tag"`
 	SuccessLimit         int32    `yaml:"success-limit"`
 	NodePrefix           string   `yaml:"node-prefix"`
+	NodeType             []string `yaml:"node-type"`
 	EnableWebUI          bool     `yaml:"enable-web-ui"`
 	APIKey               string   `yaml:"api-key"`
 	GithubProxy          string   `yaml:"github-proxy"`

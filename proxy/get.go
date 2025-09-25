@@ -17,6 +17,7 @@ import (
 	"github.com/beck-8/subs-check/config"
 	"github.com/beck-8/subs-check/utils"
 	"github.com/metacubex/mihomo/common/convert"
+	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -24,6 +25,10 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	// 解析本地与远程订阅清单
 	subUrls := resolveSubUrls()
 	slog.Info("订阅链接数量", "本地", len(config.GlobalConfig.SubUrls), "远程", len(config.GlobalConfig.SubUrlsRemote), "总计", len(subUrls))
+
+	if len(config.GlobalConfig.NodeType) > 0 {
+		slog.Info("只筛选用户设置的协议", "type", config.GlobalConfig.NodeType)
+	}
 
 	var wg sync.WaitGroup
 	proxyChan := make(chan map[string]any, 1)                              // 缓冲通道存储解析的代理
@@ -104,6 +109,13 @@ func GetProxies() ([]map[string]any, int, int, error) {
 				}
 				slog.Debug(fmt.Sprintf("获取订阅链接: %s，有效节点数量: %d", url, len(proxyList)))
 				for _, proxy := range proxyList {
+					// 只测试指定协议
+					if t, ok := proxy["type"].(string); ok {
+						if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+							continue
+						}
+					}
+
 					// 为每个节点添加订阅链接来源信息和备注
 					proxy["sub_url"] = url
 					proxy["sub_tag"] = tag
@@ -131,13 +143,19 @@ func GetProxies() ([]map[string]any, int, int, error) {
 			slog.Debug(fmt.Sprintf("获取订阅链接: %s，有效节点数量: %d", url, len(proxyList)))
 			for _, proxy := range proxyList {
 				if proxyMap, ok := proxy.(map[string]any); ok {
-					// 虽然支持mihomo支持下划线，但是这里为了规范，还是改成横杠
-					// todo: 不知道后边还有没有这类问题
-					switch proxyMap["type"] {
-					case "hysteria2", "hy2":
-						if _, ok := proxyMap["obfs_password"]; ok {
-							proxyMap["obfs-password"] = proxyMap["obfs_password"]
-							delete(proxyMap, "obfs_password")
+					if t, ok := proxyMap["type"].(string); ok {
+						// 只测试指定协议
+						if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+							continue
+						}
+						// 虽然支持mihomo支持下划线，但是这里为了规范，还是改成横杠
+						// todo: 不知道后边还有没有这类问题
+						switch t {
+						case "hysteria2", "hy2":
+							if _, ok := proxyMap["obfs_password"]; ok {
+								proxyMap["obfs-password"] = proxyMap["obfs_password"]
+								delete(proxyMap, "obfs_password")
+							}
 						}
 					}
 					// 为每个节点添加订阅链接来源信息和备注
