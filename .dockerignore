@@ -8,3 +8,8 @@ Dockerfile
 .idea
 .vscode 
 test
+
+*.ps1
+*.bak
+bin/*
+test_*.*
