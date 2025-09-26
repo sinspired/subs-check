@@ -12,9 +12,9 @@ FROM node:22-slim AS builder
 # RUN mkdir -p /app/output /app/config
 
 # 收集 Node 依赖库（仅复制必要的动态库，去除符号表以减小体积）
-# RUN mkdir -p /node-dist/lib && \
-#     ldd $(which node) | awk '{print $3}' | grep '^/' | xargs -I '{}' cp -v --remove-destination '{}' /node-dist/lib/ && \
-#     strip --strip-unneeded /node-dist/lib/* || true
+RUN mkdir -p /node-dist/lib && \
+    ldd $(which node) | awk '{print $3}' | grep '^/' | grep 'libstdc++.so.6' | xargs -I '{}' cp -v --remove-destination '{}' /node-dist/lib/ && \
+    strip --strip-unneeded /node-dist/lib/* || true
 
 # ---------- 运行阶段 ----------
 FROM gcr.io/distroless/base-debian12
@@ -28,10 +28,10 @@ WORKDIR /app
 # COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # 拷贝 Node 依赖库
-# COPY --from=builder /node-dist/lib /usr/lib/
+COPY --from=builder /node-dist/lib /usr/lib/
 
 # 拷贝 GoReleaser 构建好的二进制
-COPY subs-check /app/subs-check
+# COPY subs-check /app/subs-check
 
 EXPOSE 8199
 EXPOSE 8299
