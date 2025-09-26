@@ -27,8 +27,8 @@ WORKDIR /app
 # COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 # COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# # 拷贝 Node 依赖库
-# COPY --from=builder /node-dist/lib /usr/lib/
+# 拷贝 Node 依赖库
+COPY --from=builder /node-dist/lib /usr/lib/
 
 # 拷贝 GoReleaser 构建好的二进制
 COPY subs-check /app/subs-check
