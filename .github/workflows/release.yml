@@ -46,11 +46,11 @@ jobs:
           TAG_NAME="${GITHUB_REF#refs/tags/}"
           RELEASE_ID=$(gh api repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME} --jq '.id' || echo "")
           if [ -n "$RELEASE_ID" ]; then
-          echo "Release for tag $TAG_NAME exists. Deleting..."
-          gh api -X DELETE repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}
-            else
-          echo "No existing release for tag $TAG_NAME."
-            fi
+            echo "Release for tag $TAG_NAME exists. Deleting..."
+            gh release delete "$TAG_NAME" --yes
+          else
+            echo "No existing release for tag $TAG_NAME."
+          fi
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
