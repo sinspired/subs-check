@@ -64,3 +64,41 @@ archives:
     format_overrides:
       - goos: windows
         formats: zip
+
+dockers:
+  - use: buildx
+
+    # 镜像的标签模板
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}"
+      - "{{ if not .Prerelease }}ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:latest{{ end }}"
+      - "{{ if not .Prerelease }}{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest{{ end }}"
+
+    # 指定 Dockerfile 的路径
+    dockerfile: Dockerfile.goreleaser
+
+    # 构建 Docker 镜像时的额外参数（已移除 --platform 参数以避免在某些 runner 上出现
+    # "docker exporter does not currently support exporting manifest lists" 错误）
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.authors=sinspired"
+      - "--label=org.opencontainers.image.vendor=sinspired"
+      - "--label=org.opencontainers.image.url=https://github.com/sinspired/subs-check"
+      - "--build-arg=VERSION={{.Version}}"
+      - "--build-arg=GITHUB_SHA={{.FullCommit}}"
+
+# 更新日志（Changelog）的配置
+changelog:
+  sort: asc
+  filters:
+    # 排除不需要展示在 changelog 中的提交信息
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
