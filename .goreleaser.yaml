@@ -64,53 +64,43 @@ archives:
     format_overrides:
       - goos: windows
         formats: zip
+
 dockers:
-  - image_templates:
+  - use: buildx
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile.goreleaser
+    image_templates:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-amd64"
       - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-amd64"
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/amd64,linux/arm64,linux/arm/v7"
+    build_flag_templates: &build_flags
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.authors=sinspired"
+      - "--label=org.opencontainers.image.vendor=sinspired"
+      - "--build-arg=VERSION={{.Version}}"
+      - "--build-arg=GITHUB_SHA={{.FullCommit}}"
 
-# dockers:
-#   - use: buildx
-#     goos: linux
-#     goarch: amd64
-#     dockerfile: Dockerfile.goreleaser
-#     image_templates:
-#       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-amd64"
-#       - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-amd64"
-#     build_flag_templates: &build_flags
-#       - "--label=org.opencontainers.image.created={{.Date}}"
-#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
-#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-#       - "--label=org.opencontainers.image.version={{.Version}}"
-#       - "--label=org.opencontainers.image.authors=sinspired"
-#       - "--label=org.opencontainers.image.vendor=sinspired"
-#       - "--build-arg=VERSION={{.Version}}"
-#       - "--build-arg=GITHUB_SHA={{.FullCommit}}"
-#     skip_push: true
+  - use: buildx
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile.goreleaser
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-arm64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-arm64"
+    build_flag_templates: *build_flags
 
-#   - use: buildx
-#     goos: linux
-#     goarch: arm64
-#     dockerfile: Dockerfile.goreleaser
-#     image_templates:
-#       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-arm64"
-#       - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-arm64"
-#     build_flag_templates: *build_flags
-#     skip_push: true
-
-#   - use: buildx
-#     goos: linux
-#     goarch: arm
-#     goarm: 7
-#     dockerfile: Dockerfile.goreleaser
-#     image_templates:
-#       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-armv7"
-#       - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-armv7"
-#     build_flag_templates: *build_flags
-#     skip_push: true
+  - use: buildx
+    goos: linux
+    goarch: arm
+    goarm: 7
+    dockerfile: Dockerfile.goreleaser
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-armv7"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-armv7"
+    build_flag_templates: *build_flags
 
 docker_manifests:
   - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}"
