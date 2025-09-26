@@ -23,9 +23,6 @@ jobs:
         with:
           go-version: stable
 
-      # - name: Set up QEMU
-      #   uses: docker/setup-qemu-action@v3
-
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -66,25 +63,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-
-      - name: Delete arch-specific tags from GHCR
-        run: |
-          VERSION=$(grep '^version:' .goreleaser.yaml | awk '{print $2}')
-          for arch in amd64 arm64 armv7; do
-            echo "Deleting ghcr.io/${GITHUB_REPOSITORY}:${VERSION}-${arch}"
-            docker rmi ghcr.io/${GITHUB_REPOSITORY}:${VERSION}-${arch} || true
-            # 远端删除（GHCR 支持 API 删除）
-            curl -X DELETE \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://ghcr.io/v2/${GITHUB_REPOSITORY}/manifests/${VERSION}-${arch}" || true
-          done
-
-      - name: Delete arch-specific tags from DockerHub
-        run: |
-          for arch in amd64 arm64 armv7; do
-            TAG="${{ github.ref_name }}-${arch}"
-            echo "Deleting DockerHub tag: $TAG"
-            curl -s -X DELETE \
-              -u "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
-              "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}/tags/${TAG}/" || true
-          done
