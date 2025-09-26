@@ -70,7 +70,7 @@ dockers_v2:
   - #
     # ID of the image, needed if you want to filter by it later on (e.g. on custom publishers).
     # Default: project name
-    id: subs-check
+    # id: subs-check
 
     # Path to the Dockerfile (from the project root).
     #
@@ -85,8 +85,8 @@ dockers_v2:
     #
     # If you include IDs that don't exist or are not available for the current
     # architecture being built, the build of the image will be skipped.
-    ids:
-      - subs-check
+    # ids:
+    #   - subs-check
 
     # Image names.
     #
@@ -104,8 +104,8 @@ dockers_v2:
     # Templates: allowed.
     tags:
       - "v{{ .Version }}"
-      - "{{ if .IsNightly }}nightly{{ end }}"
-      - "{{ if not .IsNightly }}latest{{ end }}"
+      - "{{ if .Prerelease }}nightly{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
 
     # If your Dockerfile copies files other than binaries and packages,
     # you should list them here as well.
@@ -140,10 +140,10 @@ dockers_v2:
     # Items with empty keys or values will be ignored.
     #
     # Templates: allowed.
-    annotations:
-      "foo": "bar"
-      "project": "{{.ProjectName}}"
-      "org.opencontainers.image.description": "高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。"
+    # annotations:
+    #   "foo": "bar"
+    #   "project": "{{.ProjectName}}"
+    #   "org.opencontainers.image.description": "高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。"
 
     # Platforms to build.
     #
