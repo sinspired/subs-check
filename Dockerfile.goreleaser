@@ -1,18 +1,15 @@
 # ---------- 构建阶段 ----------
 FROM node:22-slim AS builder
 
-# 安装时区和证书
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    tzdata ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# # 安装时区和证书
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     tzdata ca-certificates \
+#     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# WORKDIR /app
 
-# 创建目录
-RUN mkdir -p /app/output /app/config
-
-# 拷贝 GoReleaser 构建好的二进制
-COPY subs-check /app/subs-check
+# # 创建目录
+# RUN mkdir -p /app/output /app/config
 
 # 收集 Node 依赖库
 RUN mkdir -p /node-dist/lib && \
@@ -30,13 +27,19 @@ WORKDIR /app
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# 拷贝 Go 二进制
-COPY --from=builder /app/subs-check /app/subs-check
-
 # 拷贝 Node 依赖库
 COPY --from=builder /node-dist/lib /usr/lib/
+
+# 拷贝 GoReleaser 构建好的二进制
+COPY subs-check /app/subs-check
 
 EXPOSE 8199
 EXPOSE 8299
 
 CMD ["/app/subs-check"]
+
+# 镜像描述标签
+LABEL org.opencontainers.image.description="高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。"
+LABEL org.opencontainers.image.keywords="subs-check,测活,测速,媒体检测,sub-store,节点管理,流媒体检测,测速节点,自动化,GoReleaser,Docker,best-sub,proxy,proxies,mihomo,v2ay,clash"
+LABEL org.opencontainers.image.url="https://github.com/sinspired/subs-check"
+LABEL org.opencontainers.image.documentation="https://github.com/sinspired/subs-check/wiki"
