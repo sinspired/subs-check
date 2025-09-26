@@ -23,8 +23,8 @@ jobs:
         with:
           go-version: stable
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3

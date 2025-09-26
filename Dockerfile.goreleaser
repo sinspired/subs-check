@@ -11,10 +11,11 @@ FROM node:22-slim AS builder
 # # 创建目录
 # RUN mkdir -p /app/output /app/config
 
-# 收集 Node 依赖库
+# 收集 Node 依赖库（仅复制必要的动态库，去除符号表以减小体积）
 RUN mkdir -p /node-dist/lib && \
     cp $(which node) /node-dist/node && \
-    ldd $(which node) | awk '{print $3}' | grep '^/' | xargs -I '{}' cp -v '{}' /node-dist/lib/ || true
+    ldd $(which node) | awk '{print $3}' | grep '^/' | xargs -I '{}' cp -v --remove-destination '{}' /node-dist/lib/ && \
+    strip --strip-unneeded /node-dist/lib/* || true
 
 # ---------- 运行阶段 ----------
 FROM gcr.io/distroless/base-debian12
