@@ -87,7 +87,6 @@ dockers:
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--label=org.opencontainers.image.authors=sinspired"
       - "--label=org.opencontainers.image.vendor=sinspired"
-      - "--platform=linux/amd64,linux/arm64,linux/arm/v7"
       - "--build-arg=VERSION={{.Version}}"
       - "--build-arg=GITHUB_SHA={{.FullCommit}}"
 
