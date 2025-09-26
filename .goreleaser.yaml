@@ -119,7 +119,7 @@ docker_manifests:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-amd64"
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-arm64"
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-armv7"
-  - name_template: "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:latest"
+  - name_template: "{{ if not .Prerelease }}ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:latest{{ end }}"
     image_templates:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-amd64"
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-arm64"
