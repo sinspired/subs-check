@@ -82,6 +82,7 @@ dockers:
       - "--label=org.opencontainers.image.vendor=sinspired"
       - "--build-arg=VERSION={{.Version}}"
       - "--build-arg=GITHUB_SHA={{.FullCommit}}"
+      - "--load"
 
   - use: buildx
     goos: linux
