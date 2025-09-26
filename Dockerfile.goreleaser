@@ -31,7 +31,7 @@ WORKDIR /app
 COPY --from=builder /node-dist/lib /usr/lib/
 
 # 拷贝 GoReleaser 构建好的二进制
-# COPY subs-check /app/subs-check
+COPY subs-check /app/subs-check
 
 EXPOSE 8199
 EXPOSE 8299
