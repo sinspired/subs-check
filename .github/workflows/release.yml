@@ -39,18 +39,23 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           
-      - name: Check if tag already released and delete if exists
+      - name: Check existing release
+        id: check_release
+        run: |
+          if gh release view ${{ github.ref_name }} &> /dev/null; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete existing release
+        if: steps.check_release.outputs.release_exists == 'true'
         run: |
-          TAG_NAME="${GITHUB_REF#refs/tags/}"
-          RELEASE_ID=$(gh api repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME} --jq '.id' || echo "")
-          if [ -n "$RELEASE_ID" ]; then
-            echo "Release for tag $TAG_NAME exists. Deleting..."
-            gh release delete "$TAG_NAME" --yes
-          else
-            echo "No existing release for tag $TAG_NAME."
-          fi
+          gh release delete ${{ github.ref_name }} --yes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
