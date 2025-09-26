@@ -1,5 +1,5 @@
 # ---------- 构建阶段 ----------
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 # 安装时区和证书
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,20 +16,13 @@ COPY subs-check /app/subs-check
 
 # 收集 Node 依赖库
 RUN mkdir -p /node-dist/lib && \
-    cp /usr/bin/node /node-dist/ && \
-    ldd /usr/bin/node | awk '{print $3}' | grep '^/' | xargs -I '{}' cp -v '{}' /node-dist/lib/ || true
+    cp $(which node) /node-dist/node && \
+    ldd $(which node) | awk '{print $3}' | grep '^/' | xargs -I '{}' cp -v '{}' /node-dist/lib/ || true
 
 # ---------- 运行阶段 ----------
 FROM gcr.io/distroless/base-debian12
 
-# 设置时区环境变量
 ENV TZ=Asia/Shanghai
-
-# 镜像描述标签
-LABEL org.opencontainers.image.description="高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。"
-LABEL org.opencontainers.image.keywords="subs-check,测活,测速,媒体检测,sub-store,节点管理,流媒体检测,测速节点,自动化,GoReleaser,Docker,best-sub,proxy,proxies,mihomo,v2ay,clash"
-LABEL org.opencontainers.image.url="https://github.com/sinspired/subs-check"
-LABEL org.opencontainers.image.documentation="https://github.com/sinspired/subs-check/wiki"
 
 WORKDIR /app
 
