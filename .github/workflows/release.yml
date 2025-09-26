@@ -21,6 +21,23 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: stable
+      - name: Check existing release
+        id: check_release
+        run: |
+          if gh release view ${{ github.ref_name }} &> /dev/null; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete existing release
+        if: steps.check_release.outputs.release_exists == 'true'
+        run: |
+          gh release delete ${{ github.ref_name }} --yes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Release
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -32,6 +49,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -44,13 +62,11 @@ jobs:
             ghcr.io/${{ github.repository }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
           tags: |
-            # 如果 tag 包含 "beta"，只生成具体的版本标签
-            type=match,pattern=^(.*-beta.*)$,group=1,enable=${{ contains(github.ref_name, 'beta') }}
-            # 如果 tag 不包含 "beta"，生成版本标签
-            type=match,pattern=^v(.*)$,group=1,enable=${{ !contains(github.ref_name, 'beta') }}
+            type=match,pattern=^v?(.*-(?:beta|alpha|rc|dev|snapshot).*?)$,group=1,enable=${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') || contains(github.ref_name, 'dev') || contains(github.ref_name, 'snapshot') }}
+
+            type=match,pattern=^v?(.*)$,group=1,enable=${{ !(contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') || contains(github.ref_name, 'dev') || contains(github.ref_name, 'snapshot')) }}
           flavor: |
-            # 明确控制 latest 标签，只有当不包含 "beta" 时才生成
-            latest=${{ !contains(github.ref_name, 'beta') }}
+            latest=${{ !(contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') || contains(github.ref_name, 'dev') || contains(github.ref_name, 'snapshot')) }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -82,3 +98,4 @@ jobs:
             VERSION=${{ github.ref_name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=target,annotation-index.org.opencontainers.image.description='高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。'
