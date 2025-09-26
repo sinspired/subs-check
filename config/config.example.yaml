@@ -1,5 +1,5 @@
 # 是否显示进度
-print-progress: true
+print-progress: false
 
 # 进度条显示模式: 
 # "auto": 根据测活-测速-媒体检测的阶段权重自动显示 
