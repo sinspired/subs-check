@@ -82,7 +82,7 @@ dockers:
       - "--label=org.opencontainers.image.vendor=sinspired"
       - "--build-arg=VERSION={{.Version}}"
       - "--build-arg=GITHUB_SHA={{.FullCommit}}"
-      - "--load"
+    skip_push: true
 
   - use: buildx
     goos: linux
@@ -92,6 +92,7 @@ dockers:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-arm64"
       - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-arm64"
     build_flag_templates: *build_flags
+    skip_push: true
 
   - use: buildx
     goos: linux
@@ -102,6 +103,7 @@ dockers:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-armv7"
       - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-armv7"
     build_flag_templates: *build_flags
+    skip_push: true
 
 docker_manifests:
   - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}"
