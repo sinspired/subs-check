@@ -65,67 +65,125 @@ archives:
       - goos: windows
         formats: zip
 
-dockers:
-  - use: buildx
-    goos: linux
-    goarch: amd64
+dockers_v2:
+  # You can have multiple Docker images.
+  - #
+    # ID of the image, needed if you want to filter by it later on (e.g. on custom publishers).
+    # Default: project name
+    id: subs-check
+
+    # Path to the Dockerfile (from the project root).
+    #
+    # Default: 'Dockerfile'.
+    # Templates: allowed.
     dockerfile: Dockerfile.goreleaser
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-amd64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-amd64"
-    build_flag_templates: &build_flags
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.authors=sinspired"
-      - "--label=org.opencontainers.image.vendor=sinspired"
-      - "--label=org.opencontainers.image.description=高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。"
-      - "--label=org.opencontainers.image.keywords=subs-check,测活,测速,媒体检测,sub-store,节点管理,流媒体检测,测速节点,自动化,GoReleaser,Docker,best-sub,proxy,proxies,mihomo,v2ay,clash"
-      - "--build-arg=VERSION={{.Version}}"
-      - "--build-arg=GITHUB_SHA={{.FullCommit}}"
 
-  - use: buildx
-    goos: linux
-    goarch: arm64
-    dockerfile: Dockerfile.goreleaser
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-arm64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-arm64"
-    build_flag_templates: *build_flags
+    # IDs to filter the binaries/packages.
+    #
+    # Make sure to only include the IDs of binaries you want to `COPY` in your
+    # Dockerfile.
+    #
+    # If you include IDs that don't exist or are not available for the current
+    # architecture being built, the build of the image will be skipped.
+    ids:
+      - subs-check
 
-  - use: buildx
-    goos: linux
-    goarch: arm
-    goarm: 7
-    dockerfile: Dockerfile.goreleaser
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-armv7"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-armv7"
-    build_flag_templates: *build_flags
+    # Image names.
+    #
+    # Empty image names are ignored.
+    #
+    # Templates: allowed.
+    images:
+      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}"
 
-docker_manifests:
-  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}"
-    image_templates:
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-amd64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-arm64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-armv7"
-  - name_template: "{{ if not .Prerelease }}{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:latest{{ end }}"
-    image_templates:
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-amd64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-arm64"
-      - "{{ .Env.DOCKERHUB_USERNAME }}/{{ .ProjectName }}:{{ .Version }}-armv7"
+    # Tag names.
+    #
+    # Empty tags are ignored.
+    #
+    # Templates: allowed.
+    tags:
+      - "v{{ .Version }}"
+      - "{{ if .IsNightly }}nightly{{ end }}"
+      - "{{ if not .IsNightly }}latest{{ end }}"
 
-  - name_template: "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-arm64"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-armv7"
-  - name_template: "{{ if not .Prerelease }}ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:latest{{ end }}"
-    image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-arm64"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}-armv7"
+    # If your Dockerfile copies files other than binaries and packages,
+    # you should list them here as well.
+    # Note that GoReleaser will create the same structure inside a temporary
+    # directory, so if you add `foo/bar.json` here, on your Dockerfile you can
+    # `COPY foo/bar.json /whatever.json`.
+    # Also note that the paths here are relative to the directory in which
+    # GoReleaser is being run (usually the repository root directory).
+    # This field does not support wildcards, you can add an entire directory here
+    # and use wildcards when you `COPY`/`ADD` in your Dockerfile.
+    # extra_files:
+    #   - config.yml
+
+    # Labels to be added to the image.
+    #
+    # Items with empty keys or values will be ignored.
+    #
+    # Templates: allowed.
+    labels:
+      "org.opencontainers.image.description": "高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。"
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.name": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "{{.GitURL}}"
+      "org.opencontainers.image.authors": "sinspired"
+      "org.opencontainers.image.vendor": "sinspired"
+      "org.opencontainers.image.documentation": "https://github.com/sinspired/subs-check/wiki"
+
+    # Annotations to be added to the image.
+    #
+    # Items with empty keys or values will be ignored.
+    #
+    # Templates: allowed.
+    annotations:
+      "foo": "bar"
+      "project": "{{.ProjectName}}"
+      "org.opencontainers.image.description": "高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。"
+
+    # Platforms to build.
+    #
+    # Default: [ linux/amd64 linux/arm64 ]
+    platforms:
+      - linux/amd64
+      - linux/arm64
+      - linux/arm/v7
+
+    # Additional `--build-arg`s to be passed.
+    #
+    # Templates: allowed.
+    # build_args:
+    #   FOO: bar
+
+    # Arbitrary flags to pass to the build command.
+    #
+    # Note: use this at your own risk.
+    # Note: flags must have the `=` sign between flag name and value.
+    #
+    # Templates: allowed.
+    # flags:
+    #   - "--ulimit=10"
+
+    # Retry configuration.
+    # retry:
+    #   # Attempts of retry.
+    #   #
+    #   # Default: 10.
+    #   attempts: 5
+
+    #   # Delay between retry attempts.
+    #   #
+    #   # Default: 10s.
+    #   delay: 5s
+
+    #   # Maximum delay between retry attempts.
+    #   #
+    #   # Default: 5m.
+    #   max_delay: 2m
 
 # 更新日志（Changelog）的配置
 changelog:

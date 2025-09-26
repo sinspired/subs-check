@@ -22,10 +22,6 @@ COPY subs-check /app/subs-check
 EXPOSE 8199
 EXPOSE 8299
 
-CMD ["/app/subs-check"]
-
-# 镜像描述标签
-LABEL org.opencontainers.image.description="高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。"
-LABEL org.opencontainers.image.keywords="subs-check,测活,测速,媒体检测,sub-store,节点管理,流媒体检测,测速节点,自动化,GoReleaser,Docker,best-sub,proxy,proxies,mihomo,v2ay,clash"
-LABEL org.opencontainers.image.url="https://github.com/sinspired/subs-check"
-LABEL org.opencontainers.image.documentation="https://github.com/sinspired/subs-check/wiki"
+ARG TARGETPLATFORM
+ENTRYPOINT ["/app/subs-check"]
+COPY $TARGETPLATFORM/subs-check /app/subs-check
