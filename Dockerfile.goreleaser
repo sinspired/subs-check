@@ -23,9 +23,9 @@ ENV TZ=Asia/Shanghai
 
 WORKDIR /app
 
-# 拷贝时区和证书
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# # 拷贝时区和证书
+# COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+# COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # 拷贝 Node 依赖库
 COPY --from=builder /node-dist/lib /usr/lib/
