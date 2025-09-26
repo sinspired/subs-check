@@ -67,7 +67,9 @@ archives:
 
 dockers:
   - use: buildx
-
+    build_flag_templates:
+      - "--platform=linux/amd64,linux/arm64,linux/arm/v7"
+      - "--push"
     # 镜像的标签模板
     image_templates:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}"
@@ -80,17 +82,17 @@ dockers:
 
     # 构建 Docker 镜像时的额外参数（已移除 --platform 参数以避免在某些 runner 上出现
     # "docker exporter does not currently support exporting manifest lists" 错误）
-    build_flag_templates:
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.authors=sinspired"
-      - "--label=org.opencontainers.image.vendor=sinspired"
-      - "--build-arg=VERSION={{.Version}}"
-      - "--build-arg=GITHUB_SHA={{.FullCommit}}"
-      - "--platform=linux/amd64,linux/arm64,linux/arm/v7"
-      - "--push"
+    # build_flag_templates:
+    #   - "--label=org.opencontainers.image.created={{.Date}}"
+    #   - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    #   - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    #   - "--label=org.opencontainers.image.version={{.Version}}"
+    #   - "--label=org.opencontainers.image.authors=sinspired"
+    #   - "--label=org.opencontainers.image.vendor=sinspired"
+    #   - "--build-arg=VERSION={{.Version}}"
+    #   - "--build-arg=GITHUB_SHA={{.FullCommit}}"
+    #   - "--platform=linux/amd64,linux/arm64,linux/arm/v7"
+    #   - "--push"
 
 # 更新日志（Changelog）的配置
 changelog:
