@@ -98,4 +98,4 @@ jobs:
             VERSION=${{ github.ref_name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=target,annotation-index.org.opencontainers.image.description='高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。'
+          outputs: type=image,name=target,annotation-index.org.opencontainers.image.description=高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。

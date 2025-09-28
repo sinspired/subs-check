@@ -1,3 +1,17 @@
+# # Use phusion/baseimage as base image. To make your builds reproducible, make
+# # sure you lock down to a specific version, not to `latest`!
+# # See https://github.com/phusion/baseimage-docker/blob/master/Changelog.md for
+# # a list of version numbers.
+# FROM phusion/baseimage:<VERSION>
+
+# # Use baseimage-docker's init system.
+# CMD ["/sbin/my_init"]
+
+# # ...put your own build instructions here...
+
+# # Clean up APT when done.
+# RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 FROM golang:alpine AS builder
 WORKDIR /app
 COPY . .
@@ -17,6 +31,7 @@ LABEL org.opencontainers.image.description="高性能[测活、测速、媒体�
 LABEL org.opencontainers.image.keywords="subs-check,测活,测速,媒体检测,sub-store,节点管理,流媒体检测,测速节点,自动化,GoReleaser,Docker,best-sub,proxy,proxies,mihomo,v2ay,clash"
 LABEL org.opencontainers.image.url="https://github.com/sinspired/subs-check"
 LABEL org.opencontainers.image.documentation="https://github.com/sinspired/subs-check/wiki"
+LABEL org.opencontainers.image.source="https://github.com/sinspired/subs-check"
 
 RUN echo "Building commit: ${GITHUB_SHA:0:7}" && \
     go mod tidy && \

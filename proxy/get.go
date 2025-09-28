@@ -9,15 +9,18 @@ import (
 	"log/slog"
 	"net/http"
 	u "net/url"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/sinspired/subs-check/config"
-	"github.com/sinspired/subs-check/utils"
 	"github.com/metacubex/mihomo/common/convert"
 	"github.com/samber/lo"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/save/method"
+	"github.com/sinspired/subs-check/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -197,7 +200,7 @@ func GetProxies() ([]map[string]any, int, int, error) {
 
 		dedupedHistory = append(dedupedHistory, p)
 	}
-	
+
 	historyProxies = dedupedHistory
 
 	// 统计数量
@@ -244,10 +247,21 @@ func resolveSubUrls() []string {
 	localHistory := fmt.Sprintf("http://127.0.0.1:%s/history.yaml", requiredListenPort)
 
 	if config.GlobalConfig.KeepSuccessProxies {
-		urls = append([]string{
-			localLastSucced + "#KeepSucced",
-			localHistory + "#KeepHistory",
-		}, urls...)
+		saver, err := method.NewLocalSaver()
+		if err == nil {
+			if !filepath.IsAbs(saver.OutputPath) {
+				// 处理用户写相对路径的问题
+				saver.OutputPath = filepath.Join(saver.BasePath, saver.OutputPath)
+			}
+			localLastSuccedFile := filepath.Join(filepath.Dir(saver.OutputPath), "all.yaml")
+			localHistoryFile := filepath.Join(filepath.Dir(saver.OutputPath), "history.yaml")
+			if _, err := os.Stat(localLastSuccedFile); err == nil {
+				urls = append([]string{localLastSucced + "#KeepSucced"}, urls...)
+			}
+			if _, err := os.Stat(localHistoryFile); err == nil {
+				urls = append([]string{localHistory + "#KeepHistory"}, urls...)
+			}
+		}
 	}
 
 	// 去重并过滤本地 URL（忽略 fragment）

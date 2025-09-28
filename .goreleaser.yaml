@@ -49,7 +49,10 @@ builds:
 
 # 归档配置（用于创建 .tar.gz 和 .zip 文件）
 archives:
-  - formats:
+  - builds:
+    - subs-check
+    # 归档文件的打包
+    formats:
       - tar.gz
     # 自定义归档文件的命名模板
     name_template: >-

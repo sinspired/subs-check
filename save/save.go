@@ -119,23 +119,19 @@ func (cs *ConfigSaver) saveCategory(category ProxyCategory) error {
 		return nil
 	}
 	if category.Name == "history.yaml" {
+		saver, err := method.NewLocalSaver()
+		if err != nil {
+			return fmt.Errorf("本地存储初始化失败，无法启用历史记录功能: %w", err)
+		}
+		if !filepath.IsAbs(saver.OutputPath) {
+			// 处理用户写相对路径的问题
+			saver.OutputPath = filepath.Join(saver.BasePath, saver.OutputPath)
+		}
+
 		// 读取已有文件
 		existing := make([]map[string]any, 0)
 
-		// 构建文件路径
-		basePath := utils.GetExecutablePath()
-		if basePath == "" {
-			return nil
-		}
-
-		var outputPath string
-		const outputDirName = "output"
-		if config.GlobalConfig.OutputDir != "" {
-			outputPath = config.GlobalConfig.OutputDir
-		} else {
-			outputPath = filepath.Join(basePath, outputDirName)
-		}
-
+		outputPath := saver.OutputPath
 		filepath := filepath.Join(outputPath, category.Name)
 		// 读取原有历史记录
 		data, err := ReadFileIfExists(filepath)
