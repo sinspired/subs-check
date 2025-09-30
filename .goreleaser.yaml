@@ -49,7 +49,7 @@ builds:
 
 # 归档配置（用于创建 .tar.gz 和 .zip 文件）
 archives:
-  - builds:
+  - ids:
     - subs-check
     # 归档文件的打包
     formats:
