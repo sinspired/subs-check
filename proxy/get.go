@@ -246,6 +246,7 @@ func resolveSubUrls() []string {
 	localLastSucced := fmt.Sprintf("http://127.0.0.1:%s/all.yaml", requiredListenPort)
 	localHistory := fmt.Sprintf("http://127.0.0.1:%s/history.yaml", requiredListenPort)
 
+	// 如果用户设置了保留成功节点，则把本地的 all.yaml 和 history.yaml 放到最前面（如果存在的话）
 	if config.GlobalConfig.KeepSuccessProxies {
 		saver, err := method.NewLocalSaver()
 		if err == nil {
@@ -253,8 +254,9 @@ func resolveSubUrls() []string {
 				// 处理用户写相对路径的问题
 				saver.OutputPath = filepath.Join(saver.BasePath, saver.OutputPath)
 			}
-			localLastSuccedFile := filepath.Join(filepath.Dir(saver.OutputPath), "all.yaml")
-			localHistoryFile := filepath.Join(filepath.Dir(saver.OutputPath), "history.yaml")
+			localLastSuccedFile := filepath.Join(saver.OutputPath, "all.yaml")
+			localHistoryFile := filepath.Join(saver.OutputPath, "history.yaml")
+
 			if _, err := os.Stat(localLastSuccedFile); err == nil {
 				urls = append([]string{localLastSucced + "#KeepSucced"}, urls...)
 			}
