@@ -3,7 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/sinspired/subs-check?logo=github)](https://github.com/sinspired/subs-check/releases)
 [![Docker Pulls](https://img.shields.io/docker/pulls/sinspired/subs-check?logo=docker)](https://hub.docker.com/r/sinspired/subs-check)
 [![GHCR](https://img.shields.io/badge/ghcr.io-available-blue?logo=github)](https://ghcr.io/sinspired/subs-check)
-![GitHub Release](https://img.shields.io/github/v/release/sinspired/SubsCheck-Win-GUI?display_name=release&style=social&logo=github&label=WindowsGUI界面)
+[![GitHub Release](https://img.shields.io/github/v/release/sinspired/SubsCheck-Win-GUI?display_name=release&style=social&logo=github&label=WindowsGUI界面)](https://github.com/sinspired/SubsCheck-Win-GUI/releases/latest)
 
 本项目基于 [beck-8](https://github.com/beck-8/subs-check)，新增[**自适应流水线高并发模式**](#1-测活-测速-媒体检测分阶段流水线自适应高并发)、[增强位置标签](#2-增强位置标签)、[优化内存](#3-优化内存)、[智能节点乱序](#4-智能节点乱序减少节点被测速-测死-的概率)、[历次检测可用节点](#5-保存并加载-历次-检测可用节点)。**大幅优化性能，减少数倍检测时间。**
 
