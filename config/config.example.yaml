@@ -247,6 +247,7 @@ sub-urls:
   - https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.yml
   - https://raw.githubusercontent.com/zhangkaiitugithub/passcro/main/speednodes.yaml
   - https://raw.githubusercontent.com/aiboboxx/v2rayfree/refs/heads/main/README.md
+  - https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/snippets/nodes.meta.yml
   - https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.meta.yml
   - https://raw.githubusercontent.com/anaer/Sub/refs/heads/main/clash.yaml
   - https://raw.githubusercontent.com/free18/v2ray/refs/heads/main/c.yaml
