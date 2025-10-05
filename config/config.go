@@ -66,9 +66,9 @@ type Config struct {
 	EnableWebUI          bool     `yaml:"enable-web-ui"`
 	APIKey               string   `yaml:"api-key"`
 	CallbackScript       string   `yaml:"callback-script"`
-	SysProxy             string   `yaml:"sys-proxy"`
+	SystemProxy          string   `yaml:"system-proxy"`
 	GithubProxy          string   `yaml:"github-proxy"`
-	GithubProxyGroup     []string   `yaml:"ghproxy-group"`
+	GithubProxyGroup     []string `yaml:"ghproxy-group"`
 }
 
 var GlobalConfig = &Config{

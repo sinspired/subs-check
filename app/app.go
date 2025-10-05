@@ -65,9 +65,9 @@ func (app *App) Initialize() error {
 	}
 
 	// 从配置文件中读取代理，设置代理
-	if config.GlobalConfig.SysProxy != "" {
-		os.Setenv("HTTP_PROXY", config.GlobalConfig.SysProxy)
-		os.Setenv("HTTPS_PROXY", config.GlobalConfig.SysProxy)
+	if config.GlobalConfig.SystemProxy != "" {
+		os.Setenv("HTTP_PROXY", config.GlobalConfig.SystemProxy)
+		os.Setenv("HTTPS_PROXY", config.GlobalConfig.SystemProxy)
 	}
 
 	app.interval = config.GlobalConfig.CheckInterval

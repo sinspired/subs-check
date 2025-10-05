@@ -204,14 +204,14 @@ s3-use-ssl: false
 # 可选值：auto, path, dns
 s3-bucket-lookup: "auto"
 
-# 优先级 1.sys-proxy;2.github-proxy;3.ghproxy-group
+# 优先级 1.system-proxy;2.github-proxy;3.ghproxy-group
 # 即使未设置,也会检测常见端口(v2ray\clash)的系统代理自动设置
 
 # 系统代理设置: 适用于拉取代理、消息推送、文件上传等等。
 # 写法跟环境变量一样，修改需重启生效
-# sys-proxy: "http://username:password@192.168.1.1:7890"
-# sys-proxy: "socks5://username:password@192.168.1.1:7890"
-sys-proxy: ""
+# system-proxy: "http://username:password@192.168.1.1:7890"
+# system-proxy: "socks5://username:password@192.168.1.1:7890"
+system-proxy: ""
 # Github 代理：获取订阅使用
 # github-proxy: "https://ghfast.top/"
 github-proxy: ""

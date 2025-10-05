@@ -26,10 +26,11 @@ func GetSysProxy() bool {
 	}
 
 	// 优先使用配置文件中的代理，其次检测常见端口
-	proxy := findAvailableSysProxy(config.GlobalConfig.SysProxy, commonProxies)
+	proxy := findAvailableSysProxy(config.GlobalConfig.SystemProxy, commonProxies)
 	if proxy != "" {
 		os.Setenv("HTTP_PROXY", proxy)
 		os.Setenv("HTTPS_PROXY", proxy)
+		config.GlobalConfig.SystemProxy = proxy
 		slog.Debug("系统代理", "proxy", proxy)
 		return true
 	}
