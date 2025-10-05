@@ -165,7 +165,6 @@ sub-store-produce-cron: ""
 # 注意：仅需修改 XXXXXXXXXXXX 为自己的 token，[推送标题]/[推送内容] 会被sub-store自动替换为对应的内容
 sub-store-push-service: ""
 
-
 # 覆写订阅的url，这个的作用是生成带指定规则的mihomo/clash.meta订阅链接
 # 防止网络不好，所以现在内置，依赖:8199端口
 # 如果你想替换其他的自定义覆写文件，自己命名后放在output目录，然后更改此URL后缀即可
@@ -205,17 +204,24 @@ s3-use-ssl: false
 # 可选值：auto, path, dns
 s3-bucket-lookup: "auto"
 
-# 优先级 1.sys-proxy;2.github-proxy
+# 优先级 1.sys-proxy;2.github-proxy;3.ghproxy-group
 # 即使未设置,也会检测常见端口(v2ray\clash)的系统代理自动设置
 
-# 系统代理设置:此参数更通用，适用于拉取代理、消息推送、文件上传等等
+# 系统代理设置: 适用于拉取代理、消息推送、文件上传等等。
+# 写法跟环境变量一样，修改需重启生效
 # sys-proxy: "http://username:password@192.168.1.1:7890"
 # sys-proxy: "socks5://username:password@192.168.1.1:7890"
-# 写法跟环境变量一样。修改需重启生效
 sys-proxy: ""
-# Github代理 获取订阅使用
+# Github 代理：获取订阅使用
 # github-proxy: "https://ghfast.top/"
 github-proxy: ""
+# GitHub 代理列表：程序会自动筛选可用的 GitHub 代理
+ghproxy-group:
+- https://ghp.yeye.f5.si/
+- https://git.llvho.com/
+- https://hub.885666.xyz/
+- https://p.jackyu.cn/
+- https://github.cnxiaobai.com/
 
 # 重试次数(获取订阅失败后重试次数)
 sub-urls-retry: 3

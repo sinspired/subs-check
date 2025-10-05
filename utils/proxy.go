@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -29,7 +30,7 @@ func GetSysProxy() bool {
 	if proxy != "" {
 		os.Setenv("HTTP_PROXY", proxy)
 		os.Setenv("HTTPS_PROXY", proxy)
-		slog.Info("使用代理", "proxy", proxy)
+		slog.Debug("系统代理", "proxy", proxy)
 		return true
 	}
 
@@ -37,26 +38,77 @@ func GetSysProxy() bool {
 	return false
 }
 
-// GetSysProxy 检测系统代理是否可用，并设置环境变量
+// GetGhProxy 检测 github 代理是否可用，并设置可用的 github 代理
 func GetGhProxy() bool {
 	GhProxy := config.GlobalConfig.GithubProxy
-	if config.GlobalConfig.GithubProxy == "" {
+	GhProxyGroup := config.GlobalConfig.GithubProxyGroup
+
+	if GhProxy == "" && GhProxyGroup == nil {
 		slog.Debug("未配置 githubproxy，将不使用 githubproxy")
 		return false
 	}
-	checkGhProxyAvailable := checkGhProxyAvailable(GhProxy)
-	GhProxy = config.GlobalConfig.GithubProxy
-	if checkGhProxyAvailable {
-		slog.Info("githubproxy 可用", "githubproxy", GhProxy)
-		return true
-	} else {
-		slog.Debug("githubproxy 不可用，将不使用 githubproxy", "githubproxy", GhProxy)
-		return false
+
+	// 先检测单个 GhProxy
+	if GhProxy != "" {
+		if ok, normalized := checkGhProxyAvailable(GhProxy); ok {
+			config.GlobalConfig.GithubProxy = normalized
+			slog.Debug("GitHub代理", "normalized", normalized)
+			return true
+		}
 	}
+
+	// 并发检测 GhProxyGroup
+	if len(GhProxyGroup) > 0 {
+		slog.Debug("开始并发检测 GhProxyGroup 内的代理")
+
+		type result struct {
+			proxy string
+			ok    bool
+			cost  time.Duration
+		}
+
+		resultCh := make(chan result, len(GhProxyGroup))
+		var wg sync.WaitGroup
+
+		for _, proxy := range GhProxyGroup {
+			wg.Add(1)
+			go func(p string) {
+				defer wg.Done()
+				start := time.Now()
+				ok, normalized := checkGhProxyAvailable(p)
+				cost := time.Since(start)
+				resultCh <- result{proxy: normalized, ok: ok, cost: cost}
+			}(proxy)
+		}
+
+		// 等待所有 goroutine 完成后关闭通道
+		go func() {
+			wg.Wait()
+			close(resultCh)
+		}()
+
+		// 找到最快可用的代理
+		var best result
+		best.cost = time.Hour // 初始设为一个很大的值
+		for r := range resultCh {
+			if r.ok && r.cost < best.cost {
+				best = r
+			}
+		}
+
+		if best.ok {
+			config.GlobalConfig.GithubProxy = best.proxy
+			slog.Debug("最佳GitHub代理", "best", best.proxy, "耗时", best.cost)
+			return true
+		}
+	}
+
+	slog.Debug("未找到可用的 GitHubProxy，将不使用 GitHubProxy")
+	return false
 }
 
-// checkGhProxyAvailable 检查指定的 githubproxy 是否可用
-func checkGhProxyAvailable(githubProxy string) bool {
+// checkGhProxyAvailable 检查指定的 githubproxy是否可用,并返回处理后的地址
+func checkGhProxyAvailable(githubProxy string) (bool, string) {
 	// proxyBase 例如: "https://ghproxy.com/"
 	if !strings.HasSuffix(githubProxy, "/") {
 		githubProxy = githubProxy + "/"
@@ -66,13 +118,11 @@ func checkGhProxyAvailable(githubProxy string) bool {
 		githubProxy = "https://" + githubProxy
 	}
 
-	config.GlobalConfig.GithubProxy = githubProxy
-
 	testTarget := "https://raw.githubusercontent.com/github/gitignore/main/Go.gitignore"
 	testURL := githubProxy + testTarget
 
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
 			Proxy: nil, // 禁用系统代理，确保直连测试
 		},
@@ -80,18 +130,30 @@ func checkGhProxyAvailable(githubProxy string) bool {
 
 	resp, err := client.Get(testURL)
 	if err != nil {
-		return false
+		return false, githubProxy
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return false
+		return false, githubProxy
 	}
 
-	// 简单读取部分内容，确保不是空响应
-	buf := make([]byte, 64)
-	n, _ := resp.Body.Read(buf)
-	return n > 0
+	// // 简单读取部分内容，确保不是空响应
+	// buf := make([]byte, 64)
+	// n, _ := resp.Body.Read(buf)
+	// if n > 0 {
+	// 	return true, githubProxy
+	// } else {
+	// 	return false, githubProxy
+	// }
+
+	// 读取完整响应体，确保下载完成
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		return false, githubProxy
+	}
+
+	return true, githubProxy
 }
 
 // isSysProxyAvailable 并发检测代理是否可用
