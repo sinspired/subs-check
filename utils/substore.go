@@ -22,11 +22,6 @@ type sub struct {
 	Process []map[string]any `json:"process"`
 }
 
-type subResult struct {
-	Data   sub    `json:"data"`
-	Status string `json:"status"`
-}
-
 type args struct {
 	Content string `json:"content"`
 	Mode    string `json:"mode"`
@@ -219,7 +214,7 @@ func createfile() error {
 		Process: []Operator{
 			{
 				Args: args{
-					Content: WarpUrl(config.GlobalConfig.MihomoOverwriteUrl),
+					Content: WarpUrl(config.GlobalConfig.MihomoOverwriteUrl, GetGhProxy()),
 					Mode:    "link",
 				},
 				Disabled: false,
@@ -253,7 +248,7 @@ func updatefile() error {
 		Process: []Operator{
 			{
 				Args: args{
-					Content: WarpUrl(config.GlobalConfig.MihomoOverwriteUrl),
+					Content: WarpUrl(config.GlobalConfig.MihomoOverwriteUrl, GetGhProxy()),
 					Mode:    "link",
 				},
 				Disabled: false,
@@ -297,11 +292,11 @@ func formatPort(port string) string {
 	return ":" + port
 }
 
-func WarpUrl(url string) string {
+func WarpUrl(url string, isGhProxyAvailable bool) string {
 	url = formatTimePlaceholders(url, time.Now())
 
 	// 如果url中以https://raw.githubusercontent.com开头，那么就使用github代理
-	if strings.HasPrefix(url, "https://raw.githubusercontent.com") {
+	if strings.HasPrefix(url, "https://raw.githubusercontent.com") && isGhProxyAvailable {
 		return config.GlobalConfig.GithubProxy + url
 	}
 	return url

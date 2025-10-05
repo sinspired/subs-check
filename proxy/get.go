@@ -24,10 +24,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var (
+	IsSysProxyAvailable bool
+	IsGhProxyAvailable  bool
+)
+
 func GetProxies() ([]map[string]any, int, int, error) {
 	// 解析本地与远程订阅清单
 	subUrls := resolveSubUrls()
 	slog.Info("订阅链接数量", "本地", len(config.GlobalConfig.SubUrls), "远程", len(config.GlobalConfig.SubUrlsRemote), "总计", len(subUrls))
+
+	// 初始化系统代理和 githubproxy
+	IsSysProxyAvailable = utils.GetSysProxy()
+	IsGhProxyAvailable = utils.GetGhProxy()
 
 	if len(config.GlobalConfig.NodeType) > 0 {
 		slog.Info("只筛选用户设置的协议", "type", config.GlobalConfig.NodeType)
@@ -62,13 +71,11 @@ func GetProxies() ([]map[string]any, int, int, error) {
 		wg.Add(1)
 		concurrentLimit <- struct{}{} // 获取令牌
 
-		warpUrl := utils.WarpUrl(subUrl)
-
 		// 精确判断：必须是回环地址，且 URL 明确包含端口，端口等于 config.GlobalConfig.ListenPort，且 path 以 /all.yaml 或 /all.yml 结尾
 		isSuccedProxiesUrl := false
 		isHistoryProxiesUrl := false
 
-		if d, err := u.Parse(warpUrl); err == nil {
+		if d, err := u.Parse(subUrl); err == nil {
 			host := d.Hostname()
 			port := d.Port() // 如果 URL 没有显式端口，这里会是空字符串
 
@@ -173,7 +180,7 @@ func GetProxies() ([]map[string]any, int, int, error) {
 			data = nil
 			proxyList = nil
 
-		}(warpUrl, isSuccedProxiesUrl, isHistoryProxiesUrl)
+		}(subUrl, isSuccedProxiesUrl, isHistoryProxiesUrl)
 	}
 
 	// 等待所有工作协程完成
@@ -233,8 +240,8 @@ func resolveSubUrls() []string {
 	urls = append(urls, config.GlobalConfig.SubUrls...)
 
 	if len(config.GlobalConfig.SubUrlsRemote) != 0 {
-		for _, d := range config.GlobalConfig.SubUrlsRemote {
-			if remote, err := fetchRemoteSubUrls(utils.WarpUrl(d)); err != nil {
+		for _, subUrlRemote := range config.GlobalConfig.SubUrlsRemote {
+			if remote, err := fetchRemoteSubUrls(subUrlRemote); err != nil {
 				slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
 			} else {
 				urls = append(urls, remote...)
@@ -276,7 +283,7 @@ func resolveSubUrls() []string {
 		}
 
 		key := s
-		if d, err := u.Parse(utils.WarpUrl(s)); err == nil {
+		if d, err := u.Parse(s); err == nil {
 			d.Fragment = ""
 			key = d.String()
 
@@ -331,75 +338,115 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 	return res, nil
 }
 
+// GetDateFromSubs 从订阅链接获取数据
+// 逻辑：
+// 1. 如果配置了代理，优先使用代理请求原始 URL（默认行为，无需显式设置）
+// 2. 如果失败，再尝试 githubproxy，但明确禁用代理直连
 func GetDateFromSubs(subUrl string) ([]byte, error) {
 	maxRetries := config.GlobalConfig.SubUrlsReTry
-	// 重试间隔
 	retryInterval := config.GlobalConfig.SubUrlsRetryInterval
 	if retryInterval == 0 {
 		retryInterval = 1
 	}
-	// 超时时间
 	timeout := config.GlobalConfig.SubUrlsTimeout
 	if timeout == 0 {
 		timeout = 10
 	}
+
 	var lastErr error
 
-	client := &http.Client{
-		Timeout: time.Duration(timeout) * time.Second,
+	// 定义直连 Transport（禁用代理）
+	directTransport := &http.Transport{
+		Proxy: nil,
 	}
 
+	// 判断是否存在系统代理（环境变量）
+	useProxy := IsSysProxyAvailable
+
+	type tryURL struct {
+		url      string
+		useProxy bool
+	}
+
+	var tryUrls []tryURL
+
+	// 如果配置了系统代理，优先尝试使用系统代理请求原始 URL
+	if useProxy {
+		slog.Debug("优先使用系统代理请求原始链接")
+		tryUrls = append(tryUrls, tryURL{subUrl, true})
+	}
+
+	// utils.WarpUrl 会自动添加 / 以及 http(s)://,并且根据 IsGhProxyAvailable 决定是否添加 githubproxy
+	tryUrls = append(tryUrls, tryURL{utils.WarpUrl(subUrl, IsGhProxyAvailable), false})
+
+	// 如果配置了 githubproxy，如果失败,则尝试一次 原始url
+	if IsGhProxyAvailable {
+		slog.Debug("添加原始链接到重试列表作为最后直连尝试")
+		tryUrls = append(tryUrls, tryURL{subUrl, false})
+	}
+
+	// 重试逻辑
 	for i := 0; i < maxRetries; i++ {
 		if i > 0 {
 			time.Sleep(time.Duration(retryInterval) * time.Second)
 		}
 
-		// 解析 URL 字符串
-		u, err := u.Parse(subUrl)
-		if err != nil {
-			lastErr = fmt.Errorf("解析URL失败: %w", err)
-			continue
-		}
-
-		// 只要 fragment 非空
-		isKeepSuccess := u.Fragment != ""
-
-		// 构建请求
-		req, err := http.NewRequest("GET", u.String(), nil)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		// 根据判断结果添加请求头或查询参数
-		if isKeepSuccess {
-			q := req.URL.Query()
-			if q.Get("from_subs_check") == "" {
-				q.Set("from_subs_check", "true")
-				req.URL.RawQuery = q.Encode()
+		for _, t := range tryUrls {
+			u, err := u.Parse(t.url)
+			if err != nil {
+				lastErr = fmt.Errorf("解析URL失败: %w", err)
+				continue
 			}
-			req.Header.Set("X-From-Subs-Check", "true")
-		}
 
-		req.Header.Set("User-Agent", "clash.meta")
+			req, err := http.NewRequest("GET", u.String(), nil)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			req.Header.Set("User-Agent", "clash.meta")
 
-		resp, err := client.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != 200 {
-			lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d", req.URL.String(), resp.StatusCode)
-			continue
-		}
+			// 根据判断结果添加请求头或查询参数
+			// 只要 fragment 非空, 就认为是保留成功节点的请求
+			isKeepSuccess := u.Fragment != ""
+			if isKeepSuccess {
+				q := req.URL.Query()
+				if q.Get("from_subs_check") == "" {
+					q.Set("from_subs_check", "true")
+					req.URL.RawQuery = q.Encode()
+				}
+				req.Header.Set("X-From-Subs-Check", "true")
+			}
 
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			lastErr = fmt.Errorf("读取订阅链接: %s 数据错误: %v", req.URL.String(), err)
-			continue
+			// 根据是否走代理选择 Client
+			client := &http.Client{Timeout: time.Duration(timeout) * time.Second}
+			if !t.useProxy {
+				client.Transport = directTransport // 禁用代理
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				if os.IsTimeout(err) {
+					lastErr = fmt.Errorf("订阅链接: %s 请求超时", req.URL.String())
+				} else {
+					lastErr = fmt.Errorf("订阅链接: %s 请求失败: %v", req.URL.String(), err)
+				}
+				// lastErr = err
+				continue
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d", req.URL.String(), resp.StatusCode)
+				continue
+			}
+
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				lastErr = fmt.Errorf("读取订阅链接: %s 数据错误: %v", req.URL.String(), err)
+				continue
+			}
+			return body, nil
 		}
-		return body, nil
 	}
 
 	return nil, fmt.Errorf("重试%d次后失败: %v", maxRetries, lastErr)

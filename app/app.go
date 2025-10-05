@@ -11,14 +11,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
+	"github.com/robfig/cron/v3"
 	"github.com/sinspired/subs-check/app/monitor"
 	"github.com/sinspired/subs-check/assets"
 	"github.com/sinspired/subs-check/check"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save"
 	"github.com/sinspired/subs-check/utils"
-	"github.com/fsnotify/fsnotify"
-	"github.com/robfig/cron/v3"
 )
 
 // App 结构体用于管理应用程序状态
@@ -65,9 +65,9 @@ func (app *App) Initialize() error {
 	}
 
 	// 从配置文件中读取代理，设置代理
-	if config.GlobalConfig.Proxy != "" {
-		os.Setenv("HTTP_PROXY", config.GlobalConfig.Proxy)
-		os.Setenv("HTTPS_PROXY", config.GlobalConfig.Proxy)
+	if config.GlobalConfig.SysProxy != "" {
+		os.Setenv("HTTP_PROXY", config.GlobalConfig.SysProxy)
+		os.Setenv("HTTPS_PROXY", config.GlobalConfig.SysProxy)
 	}
 
 	app.interval = config.GlobalConfig.CheckInterval

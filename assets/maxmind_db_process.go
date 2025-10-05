@@ -14,11 +14,11 @@ import (
 
 	"encoding/json"
 
+	"github.com/klauspost/compress/zstd"
+	"github.com/oschwald/maxminddb-golang/v2"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
 	"github.com/sinspired/subs-check/utils"
-	"github.com/klauspost/compress/zstd"
-	"github.com/oschwald/maxminddb-golang/v2"
 )
 
 type githubRelease struct {
@@ -153,9 +153,13 @@ func UpdateGeoLite2DB() error {
 	}
 
 	var downloadURL string
+	isGhProxy := utils.GetGhProxy()
 	for _, asset := range rel.Assets {
 		if asset.Name == "GeoLite2-Country.mmdb" {
-			downloadURL = config.GlobalConfig.GithubProxy + asset.BrowserDownloadURL
+			downloadURL = asset.BrowserDownloadURL
+			if isGhProxy {
+				downloadURL = config.GlobalConfig.GithubProxy + asset.BrowserDownloadURL
+			}
 			break
 		}
 	}
