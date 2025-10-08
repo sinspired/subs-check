@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/sinspired/subs-check/check"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
-	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
 
@@ -99,15 +99,19 @@ func (app *App) initHttpServer() error {
 	}
 
 	// 启动HTTP服务器
+	srv := &http.Server{
+		Addr:    config.GlobalConfig.ListenPort,
+		Handler: router,
+	}
+	app.httpServer = srv
+
 	go func() {
-		for {
-			if err := router.Run(config.GlobalConfig.ListenPort); err != nil {
-				slog.Error(fmt.Sprintf("HTTP服务器启动失败，正在重启中: %v", err))
-			}
-			time.Sleep(30 * time.Second)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error(fmt.Sprintf("HTTP服务器启动失败: %v", err))
 		}
 	}()
 	slog.Info("HTTP服务器启动", "port", config.GlobalConfig.ListenPort)
+
 	return nil
 }
 

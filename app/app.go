@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -35,6 +36,7 @@ type App struct {
 	done       chan struct{} // 用于结束ticker goroutine的信号
 	cron       *cron.Cron    // crontab调度器
 	version    string
+	httpServer *http.Server
 }
 
 // New 创建新的应用实例
@@ -297,6 +299,17 @@ func (app *App) Shutdown() {
 	}
 	if app.watcher != nil {
 		_ = app.watcher.Close()
+	}
+
+	// 优雅关闭 HTTP 服务
+	if app.httpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := app.httpServer.Shutdown(ctx); err != nil {
+			slog.Error("关闭 HTTP 服务器失败", "err", err)
+		} else {
+			slog.Info("HTTP 服务器已关闭")
+		}
 	}
 
 	// 关闭 done 通道以通知定时 goroutine 退出（如果仍在）
