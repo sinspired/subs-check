@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/sinspired/go-selfupdate"
@@ -46,8 +47,6 @@ func clearProxyEnv() {
 	for _, key := range []string{
 		"HTTP_PROXY", "http_proxy",
 		"HTTPS_PROXY", "https_proxy",
-		"ALL_PROXY", "all_proxy",
-		"NO_PROXY", "no_proxy",
 	} {
 		os.Unsetenv(key)
 	}
@@ -61,7 +60,7 @@ func tryUpdateOnce(ctx context.Context, updater *selfupdate.Updater, latest *sel
 	}
 	latest.AssetURL = assetURL
 	latest.ValidationAssetURL = validationURL
-	slog.Info("更新中", slog.String("策略", label))
+	slog.Info("正在更新", slog.String("策略", label))
 	return updater.UpdateTo(ctx, latest, exe)
 }
 
@@ -178,69 +177,63 @@ func (app *App) CheckUpdateAndRestart() {
 		return
 	}
 
-	isGhProxy := utils.GetGhProxy()
-	ghProxy := config.GlobalConfig.GithubProxy
-
-	// 构造策略队列（注意：清理代理只在失败后下一次尝试前执行）
-	type strategy struct {
-		assetURL      string
-		validationURL string
-		clearProxy    bool
-		label         string
-	}
-	var strategies []strategy
-
-	origAsset := latest.AssetURL
-	origValidation := latest.ValidationAssetURL
-	proxyAsset := ghProxy + latest.AssetURL
-	proxyValidation := ghProxy + latest.ValidationAssetURL
-
+	// 策略分支
 	if isSysProxy {
-		// 1) 系统代理存在：先用原始链接（保留代理）
-		strategies = append(strategies, strategy{
-			assetURL: origAsset, validationURL: origValidation,
-			clearProxy: false, label: "使用系统代理更新",
-		})
-		// 2) 失败后：清理代理再尝试 GitHub 代理（如有）
-		if isGhProxy {
-			strategies = append(strategies, strategy{
-				assetURL: proxyAsset, validationURL: proxyValidation,
-				clearProxy: true, label: "使用 GitHub 代理更新",
-			})
+		// 立即尝试系统代理
+		if err := tryUpdateOnce(ctx, updater, latest, exe,
+			latest.AssetURL, latest.ValidationAssetURL, false, "使用系统代理"); err == nil {
+			slog.Info("更新成功，准备重启...")
+			app.Shutdown()
+			_ = restartSelf()
+			return
 		}
-		// 3) 再失败：清理后使用原始链接兜底
-		strategies = append(strategies, strategy{
-			assetURL: origAsset, validationURL: origValidation,
-			clearProxy: true, label: "使用原始链接兜底",
-		})
+		// 等待 GitHub Proxy 结果（最多 10 秒）
+		var isGhProxy bool
+		select {
+		case isGhProxy = <-ghProxyCh:
+		case <-time.After(10 * time.Second):
+			isGhProxy = false
+		}
+		if isGhProxy {
+			ghProxy := config.GlobalConfig.GithubProxy
+			proxyAsset := ghProxy + latest.AssetURL
+			proxyValidation := ghProxy + latest.ValidationAssetURL
+			if err := tryUpdateOnce(ctx, updater, latest, exe, proxyAsset, proxyValidation, true, "使用 GitHub 代理"); err == nil {
+				slog.Info("更新成功，准备重启...")
+				app.Shutdown()
+				_ = restartSelf()
+				return
+			}
+		}
+		// 最后兜底
+		if err := tryUpdateOnce(ctx, updater, latest, exe, latest.AssetURL, latest.ValidationAssetURL, true, "原始链接兜底"); err == nil {
+			slog.Info("更新成功，准备重启...")
+			app.Shutdown()
+			_ = restartSelf()
+			return
+		}
 	} else {
-		// 无系统代理：优先 GitHub 代理（如有），否则原始链接
+		// 系统代理不可用 → 等 GitHub Proxy
+		isGhProxy := <-ghProxyCh
 		if isGhProxy {
-			strategies = append(strategies, strategy{
-				assetURL: proxyAsset, validationURL: proxyValidation,
-				clearProxy: false, label: "使用 GitHub 代理更新",
-			})
+			ghProxy := config.GlobalConfig.GithubProxy
+			proxyAsset := ghProxy + latest.AssetURL
+			proxyValidation := ghProxy + latest.ValidationAssetURL
+			if err := tryUpdateOnce(ctx, updater, latest, exe, proxyAsset, proxyValidation, false, "使用 GitHub 代理"); err == nil {
+				slog.Info("更新成功，准备重启...")
+				app.Shutdown()
+				_ = restartSelf()
+				return
+			}
 		}
-		strategies = append(strategies, strategy{
-			assetURL: origAsset, validationURL: origValidation,
-			clearProxy: false, label: "使用原始链接兜底",
-		})
+		// 兜底
+		if err := tryUpdateOnce(ctx, updater, latest, exe, latest.AssetURL, latest.ValidationAssetURL, false, "原始链接兜底"); err == nil {
+			slog.Info("更新成功，准备重启...")
+			app.Shutdown()
+			_ = restartSelf()
+			return
+		}
 	}
 
-	// 执行策略队列
-	for i, s := range strategies {
-		err := tryUpdateOnce(ctx, updater, latest, exe, s.assetURL, s.validationURL, s.clearProxy, s.label)
-		if err != nil {
-			slog.Debug("策略更新失败", slog.Int("index", i), slog.String("strategy", s.label), slog.Any("err", err))
-			continue
-		}
-		slog.Info("更新成功，正在重启...")
-		app.Shutdown()
-		if err := restartSelf(); err != nil {
-			slog.Error("重启失败", slog.Any("err", err))
-		}
-		return
-	}
-
-	slog.Error("更新失败,请稍后重试或手动更新", slog.String("url", latest.AssetURL))
+	slog.Error("更新失败，请稍后重试或手动更新", slog.String("url", latest.AssetURL))
 }

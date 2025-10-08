@@ -118,10 +118,10 @@ func (app *App) Initialize() error {
 		weeklyCron.Start()
 	}
 
-	// TODO: 添加版本更新订阅
-	// 检查更新
-	checking := app.checking.Load()
-	if !checking {
+	// 检查版本更新
+	// TODO: 定时检查更新,接受配置设置
+	if config.GlobalConfig.CronExpression != "" {
+		// 使用cron表达式时,首次启动不检测代理,可以检查更新
 		go app.CheckUpdateAndRestart()
 	}
 	return nil
@@ -283,7 +283,7 @@ func TempLog() string {
 
 // Shutdown 尝试优雅关闭所有子服务与资源
 func (app *App) Shutdown() {
-	slog.Info("开始关闭应用...")
+	slog.Debug("开始关闭应用...")
 
 	// 取消上下文，通知各子服务退出（sub-store 等）
 	if app.cancel != nil {
@@ -308,7 +308,7 @@ func (app *App) Shutdown() {
 		if err := app.httpServer.Shutdown(ctx); err != nil {
 			slog.Error("关闭 HTTP 服务器失败", "err", err)
 		} else {
-			slog.Info("HTTP 服务器已关闭")
+			slog.Info("HTTP 服务器关闭", "port", config.GlobalConfig.ListenPort)
 		}
 	}
 
@@ -327,5 +327,5 @@ func (app *App) Shutdown() {
 	// TODO：尝试调用 assets 提供的清理接口
 	// 或 WaitGroup 等待所有 goroutine 结束。
 
-	slog.Info("关闭流程已完成（已尝试停止子服务与清理资源）")
+	slog.Info("应用已关闭")
 }

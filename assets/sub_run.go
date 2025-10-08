@@ -27,7 +27,6 @@ func RunSubStoreService(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("Sub-store service received stop signal, exiting")
 			return
 		default:
 			if err := startSubStore(ctx); err != nil {
@@ -36,7 +35,7 @@ func RunSubStoreService(ctx context.Context) {
 			// 在循环间隙检查 ctx，若被取消则退出
 			select {
 			case <-ctx.Done():
-				slog.Info("Sub-store service received stop signal during backoff, exiting")
+				slog.Info("Sub-store 服务已停止", "port", config.GlobalConfig.SubStorePort)
 				return
 			case <-time.After(time.Second * 30):
 				// 继续重启循环
@@ -195,9 +194,13 @@ func startSubStore(ctx context.Context) error {
 	go func() {
 		select {
 		case <-ctx.Done():
-			slog.Debug("收到 sub-store 停止信号，尝试杀掉 node 进程")
 			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
+				err := cmd.Process.Kill()
+				if err != nil {
+					slog.Error("杀掉 node 进程失败", "error", err)
+				}else{
+					slog.Info("node 进程已终结", "pid", cmd.Process.Pid)
+				}
 			}
 		case <-done:
 			// 正常结束，不需要操作
@@ -214,6 +217,7 @@ func startSubStore(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
+			slog.Error("Sub-store service crashed", "error", err)
 			return err
 		}
 	}
