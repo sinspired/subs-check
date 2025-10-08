@@ -108,7 +108,11 @@ func (app *App) Initialize() error {
 	}
 
 	// TODO: 添加版本更新订阅
-
+	// 检查更新
+	checking := app.checking.Load()
+	if !checking {
+		go app.CheckUpdateAndRestart()
+	}
 	return nil
 }
 
