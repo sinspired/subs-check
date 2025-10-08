@@ -16,3 +16,4 @@ mihomo-check*
 *.bak
 bin/*
 test_*.*
+test_*/

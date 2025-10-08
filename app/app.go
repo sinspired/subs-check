@@ -107,6 +107,8 @@ func (app *App) Initialize() error {
 		weeklyCron.Start()
 	}
 
+	// TODO: 添加版本更新订阅
+
 	return nil
 }
 
