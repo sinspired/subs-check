@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -36,23 +35,24 @@ type App struct {
 	done       chan struct{} // 用于结束ticker goroutine的信号
 	cron       *cron.Cron    // crontab调度器
 	version    string
+	originVersion string
 	httpServer *http.Server
+	stopCh     <-chan struct{}
 }
 
 // New 创建新的应用实例
-func New(version string) *App {
-	configPath := flag.String("f", "", "配置文件路径")
-	flag.Parse()
-
+// 注意：不再在这里调用 flag.Parse() 或定义 flags，全部由 main 负责。
+func New(originVersion string, version string, configPath string) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &App{
-		ctx:        ctx,
-		cancel:     cancel,
-		configPath: *configPath,
-		checkChan:  make(chan struct{}),
-		done:       make(chan struct{}),
-		version:    version,
+		ctx:           ctx,
+		cancel:        cancel,
+		configPath:    configPath,
+		checkChan:     make(chan struct{}),
+		done:          make(chan struct{}),
+		version:       version,
+		originVersion: originVersion,
 	}
 }
 
@@ -102,7 +102,7 @@ func (app *App) Initialize() error {
 	monitor.StartMemoryMonitor()
 
 	// 设置信号处理器
-	utils.SetupSignalHandler(&check.ForceClose)
+	app.stopCh = utils.SetupSignalHandler(&check.ForceClose, &app.checking)
 
 	// 每周日 0 点自动更新 GeoLite2 数据库
 	weeklyCron := cron.New()
@@ -120,17 +120,22 @@ func (app *App) Initialize() error {
 
 	// 检查版本更新
 	// TODO: 定时检查更新,接受配置设置
-	if config.GlobalConfig.CronExpression != "" {
-		// 使用cron表达式时,首次启动不检测代理,可以检查更新
-		go app.CheckUpdateAndRestart()
+	START_FROM_GUI := os.Getenv("START_FROM_GUI")
+	if START_FROM_GUI == "" {
+		updateDone := make(chan struct{})
+		go func() {
+			app.CheckUpdateAndRestart(false)
+			close(updateDone)
+		}()
+		<-updateDone // 等待后台更新完成
 	}
+
 	return nil
 }
 
 // Run 运行应用程序主循环
 func (app *App) Run() {
 	defer func() {
-		// 程序退出时确保 watcher/ticker/cron 关闭
 		if app.watcher != nil {
 			_ = app.watcher.Close()
 		}
@@ -142,20 +147,24 @@ func (app *App) Run() {
 		}
 	}()
 
-	// 设置初始定时器模式
 	app.setTimer()
 
-	// 仅在cron表达式为空时，首次启动立即执行检测
 	if config.GlobalConfig.CronExpression != "" {
 		slog.Warn("使用cron表达式，首次启动不立即执行检测")
 	} else {
 		app.triggerCheck()
 	}
 
-	// 在主循环中处理手动触发
-	for range app.checkChan {
-		go app.triggerCheck()
-	}
+	// 并发处理 checkChan
+	go func() {
+		for range app.checkChan {
+			go app.triggerCheck()
+		}
+	}()
+
+	// 阻塞等待 stopCh 被关闭
+	<-app.stopCh
+	app.Shutdown()
 }
 
 // setTimer 根据配置设置定时器
@@ -327,5 +336,7 @@ func (app *App) Shutdown() {
 	// TODO：尝试调用 assets 提供的清理接口
 	// 或 WaitGroup 等待所有 goroutine 结束。
 
-	slog.Info("应用已关闭")
+	slog.Info("应用已关闭\n")
+	// fmt.Println("")
+	// os.Exit(0)
 }

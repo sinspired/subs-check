@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -8,8 +9,19 @@ import (
 	"github.com/sinspired/subs-check/app"
 )
 
+// 命令行参数
+var (
+	flagConfigPath = flag.String("f", "", "配置文件路径")
+)
+
 func main() {
-	application := app.New(fmt.Sprintf("%s-%s", Version, CurrentCommit))
+	// 解析命令行参数
+	flag.Parse()
+
+	// 初始化应用
+	application := app.New(Version, fmt.Sprintf("%s-%s", Version, CurrentCommit), *flagConfigPath)
+	// 版本更新成功通知
+	application.InitUpdateInfo()
 	slog.Info(fmt.Sprintf("当前版本: %s-%s", Version, CurrentCommit))
 
 	if err := application.Initialize(); err != nil {

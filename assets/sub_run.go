@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sinspired/subs-check/config"
-	"github.com/sinspired/subs-check/save/method"
 	"github.com/klauspost/compress/zstd"
 	"github.com/shirou/gopsutil/v4/process"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/save/method"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -27,10 +27,11 @@ func RunSubStoreService(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			slog.Info("Sub-store 服务已停止", "port", config.GlobalConfig.SubStorePort)
 			return
 		default:
 			if err := startSubStore(ctx); err != nil {
-				slog.Error("Sub-store service crashed, restarting...", "error", err)
+				slog.Error("Sub-store 服务崩溃, 正在重启...", "error", err)
 			}
 			// 在循环间隙检查 ctx，若被取消则退出
 			select {
@@ -186,9 +187,14 @@ func startSubStore(ctx context.Context) error {
 	done := make(chan struct{})
 	defer close(done)
 
+	// 让子进程独立进程组，避免收到 Ctrl+C，在app中负责接收信号关闭sub-store
+	setSysProcAttr(cmd) // 跨平台设置
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("启动 sub-store 失败: %w", err)
 	}
+
+	slog.Info("Sub-store 服务已启动", "pid", cmd.Process.Pid, "port", config.GlobalConfig.SubStorePort, "log", logPath)
 
 	// ctx 取消时尝试杀掉子进程
 	go func() {
@@ -198,7 +204,7 @@ func startSubStore(ctx context.Context) error {
 				err := cmd.Process.Kill()
 				if err != nil {
 					slog.Error("杀掉 node 进程失败", "error", err)
-				}else{
+				} else {
 					slog.Info("node 进程已终结", "pid", cmd.Process.Pid)
 				}
 			}
@@ -206,8 +212,6 @@ func startSubStore(ctx context.Context) error {
 			// 正常结束，不需要操作
 		}
 	}()
-
-	slog.Info("Sub-store service started", "pid", cmd.Process.Pid, "port", config.GlobalConfig.SubStorePort, "log", logPath)
 
 	// 等待程序结束（或被上面的 goroutine 杀掉）
 	err = cmd.Wait()
@@ -217,7 +221,6 @@ func startSubStore(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			slog.Error("Sub-store service crashed", "error", err)
 			return err
 		}
 	}
@@ -328,6 +331,36 @@ func killProcess(pid int32) error {
 
 	if err := p.Kill(); err != nil {
 		return fmt.Errorf("杀死进程 %d 失败: %v", pid, err)
+	}
+	return nil
+}
+
+func KillNode() error {
+	saver, err := method.NewLocalSaver()
+	if err != nil {
+		return err
+	}
+	if !filepath.IsAbs(saver.OutputPath) {
+		// 处理用户写相对路径的问题
+		saver.OutputPath = filepath.Join(saver.BasePath, saver.OutputPath)
+	}
+	nodeName := "node"
+	if runtime.GOOS == "windows" {
+		nodeName += ".exe"
+	}
+
+	if err := os.MkdirAll(saver.OutputPath, 0755); err != nil {
+		return fmt.Errorf("创建输出目录失败: %w", err)
+	}
+	nodePath := filepath.Join(saver.OutputPath, nodeName)
+	pid, err := findProcesses(nodePath)
+	if err == nil {
+		err := killProcess(pid)
+		if err != nil {
+			slog.Debug("Sub-store service kill failed", "error", err)
+			return err
+		}
+		slog.Debug("Sub-store service already killed", "pid", pid)
 	}
 	return nil
 }
