@@ -31,7 +31,7 @@ func GetSysProxy() bool {
 		os.Setenv("HTTP_PROXY", proxy)
 		os.Setenv("HTTPS_PROXY", proxy)
 		config.GlobalConfig.SystemProxy = proxy
-		slog.Debug("系统代理", "proxy", proxy)
+		slog.Info("系统代理", "proxy", proxy)
 		return true
 	}
 
@@ -99,7 +99,7 @@ func GetGhProxy() bool {
 
 		if best.ok {
 			config.GlobalConfig.GithubProxy = best.proxy
-			slog.Debug("最佳GitHub代理", "best", best.proxy, "耗时", best.cost)
+			slog.Info("最佳GitHub代理", "best", best.proxy, "耗时", best.cost)
 			return true
 		}
 	}
