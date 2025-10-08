@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -23,6 +24,8 @@ import (
 
 // App 结构体用于管理应用程序状态
 type App struct {
+	ctx        context.Context
+	cancel     context.CancelFunc
 	configPath string
 	interval   int
 	watcher    *fsnotify.Watcher
@@ -39,7 +42,11 @@ func New(version string) *App {
 	configPath := flag.String("f", "", "配置文件路径")
 	flag.Parse()
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &App{
+		ctx:        ctx,
+		cancel:     cancel,
 		configPath: *configPath,
 		checkChan:  make(chan struct{}),
 		done:       make(chan struct{}),
@@ -81,10 +88,12 @@ func (app *App) Initialize() error {
 	if config.GlobalConfig.SubStorePort != "" {
 		if runtime.GOOS == "linux" && runtime.GOARCH == "386" {
 			slog.Warn("node不支持Linux 32位系统，不启动sub-store服务")
+		} else {
+			// 使用 app.ctx 启动 sub-store，让其可被取消
+			go assets.RunSubStoreService(app.ctx)
+			// 短暂等待，保证 sub-store 启动日志按预期顺序输出
+			time.Sleep(500 * time.Millisecond)
 		}
-		go assets.RunSubStoreService()
-		// 求等吗得，日志会按预期顺序输出
-		time.Sleep(500 * time.Millisecond)
 	}
 
 	// 启动内存监控
@@ -119,7 +128,10 @@ func (app *App) Initialize() error {
 // Run 运行应用程序主循环
 func (app *App) Run() {
 	defer func() {
-		app.watcher.Close()
+		// 程序退出时确保 watcher/ticker/cron 关闭
+		if app.watcher != nil {
+			_ = app.watcher.Close()
+		}
 		if app.ticker != nil {
 			app.ticker.Stop()
 		}
@@ -169,6 +181,7 @@ func (app *App) setTimer() {
 			app.triggerCheck()
 		})
 		if err != nil {
+			app.cron.Stop()
 			slog.Error(fmt.Sprintf("cron表达式 '%s' 解析失败: %v，将使用检查间隔时间",
 				config.GlobalConfig.CronExpression, err))
 			// 使用间隔时间
@@ -221,7 +234,7 @@ func (app *App) triggerCheck() {
 
 	if err := app.checkProxies(); err != nil {
 		slog.Error(fmt.Sprintf("检测代理失败: %v", err))
-		os.Exit(1)
+		// 不在这里直接退出进程，因为在正常运行中检测失败不应结束程序
 	}
 
 	// 检测完成后显示下次检查时间
@@ -261,6 +274,45 @@ func (app *App) checkProxies() error {
 	return nil
 }
 
+// TempLog 返回临时日志路径
 func TempLog() string {
 	return filepath.Join(os.TempDir(), "subs-check.log")
+}
+
+// Shutdown 尝试优雅关闭所有子服务与资源
+func (app *App) Shutdown() {
+	slog.Info("开始关闭应用...")
+
+	// 取消上下文，通知各子服务退出（sub-store 等）
+	if app.cancel != nil {
+		app.cancel()
+	}
+
+	// 停止 ticker/cron/watcher（如果存在）
+	if app.ticker != nil {
+		app.ticker.Stop()
+	}
+	if app.cron != nil {
+		app.cron.Stop()
+	}
+	if app.watcher != nil {
+		_ = app.watcher.Close()
+	}
+
+	// 关闭 done 通道以通知定时 goroutine 退出（如果仍在）
+	select {
+	case <-app.done:
+		// already closed or receiving
+	default:
+		// 保护性关闭 done，避免 panic
+		close(app.done)
+	}
+
+	// 等待短时间，给子 goroutine 清理时间（作为最小可行方案）
+	time.Sleep(500 * time.Millisecond)
+
+	// TODO：尝试调用 assets 提供的清理接口
+	// 或 WaitGroup 等待所有 goroutine 结束。
+
+	slog.Info("关闭流程已完成（已尝试停止子服务与清理资源）")
 }

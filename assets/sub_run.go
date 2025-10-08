@@ -2,6 +2,7 @@ package assets
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,16 +22,30 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func RunSubStoreService() {
+// RunSubStoreService 运行sub-store服务，支持 ctx，可被外部取消
+func RunSubStoreService(ctx context.Context) {
 	for {
-		if err := startSubStore(); err != nil {
-			slog.Error("Sub-store service crashed, restarting...", "error", err)
+		select {
+		case <-ctx.Done():
+			slog.Info("Sub-store service received stop signal, exiting")
+			return
+		default:
+			if err := startSubStore(ctx); err != nil {
+				slog.Error("Sub-store service crashed, restarting...", "error", err)
+			}
+			// 在循环间隙检查 ctx，若被取消则退出
+			select {
+			case <-ctx.Done():
+				slog.Info("Sub-store service received stop signal during backoff, exiting")
+				return
+			case <-time.After(time.Second * 30):
+				// 继续重启循环
+			}
 		}
-		time.Sleep(time.Second * 30)
 	}
 }
 
-func startSubStore() error {
+func startSubStore(ctx context.Context) error {
 	saver, err := method.NewLocalSaver()
 	if err != nil {
 		return err
@@ -44,7 +59,9 @@ func startSubStore() error {
 		nodeName += ".exe"
 	}
 
-	os.MkdirAll(saver.OutputPath, 0755)
+	if err := os.MkdirAll(saver.OutputPath, 0755); err != nil {
+		return fmt.Errorf("创建输出目录失败: %w", err)
+	}
 	nodePath := filepath.Join(saver.OutputPath, nodeName)
 	jsPath := filepath.Join(saver.OutputPath, "sub-store.bundle.js")
 	overYamlPath := filepath.Join(saver.OutputPath, "ACL4SSR_Online_Full.yaml")
@@ -60,12 +77,13 @@ func startSubStore() error {
 			slog.Debug("Sub-store service already killed", "pid", pid)
 		}
 	}
+	// 在函数结束前确保尝试杀掉 node
 	defer killNode()
 
 	// 如果subs-check内存问题退出，会导致node二进制损坏，启动的node变成僵尸，所以删一遍
-	os.Remove(nodePath)
-	os.Remove(jsPath)
-	os.Remove(overYamlPath)
+	_ = os.Remove(nodePath)
+	_ = os.Remove(jsPath)
+	_ = os.Remove(overYamlPath)
 	if err := decodeZstd(nodePath, jsPath, overYamlPath); err != nil {
 		return err
 	}
@@ -87,7 +105,8 @@ func startSubStore() error {
 	if subStoreBinPath := os.Getenv("SUB_STORE_PATH"); subStoreBinPath != "" {
 		jsPath = subStoreBinPath
 	}
-	// 运行 JavaScript 文件
+
+	// 构建命令
 	cmd := exec.Command(nodePath, jsPath)
 	// js会在运行目录释放依赖文件
 	cmd.Dir = saver.OutputPath
@@ -121,8 +140,6 @@ func startSubStore() error {
 		return fmt.Errorf("sub-store-port invalid port format: %s", config.GlobalConfig.SubStorePort)
 	}
 
-	// https://hub.docker.com/r/xream/sub-store
-	// 这里有详细的变量说明，可能用NO_PROXY过滤到127.0.0.1更合适
 	// 如果MihomoOverwriteUrl包含本地IP，则移除所有代理环境变量
 	if cleanProxyEnv {
 		filteredEnv := make([]string, 0, len(cmd.Env))
@@ -166,14 +183,41 @@ func startSubStore() error {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SUB_STORE_PUSH_SERVICE=%s", config.GlobalConfig.SubStorePushService))
 	}
 
+	// 启动子进程并监听 ctx 取消以便优雅杀掉子进程
+	done := make(chan struct{})
+	defer close(done)
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("启动 sub-store 失败: %w", err)
 	}
 
+	// ctx 取消时尝试杀掉子进程
+	go func() {
+		select {
+		case <-ctx.Done():
+			slog.Debug("收到 sub-store 停止信号，尝试杀掉 node 进程")
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+		case <-done:
+			// 正常结束，不需要操作
+		}
+	}()
+
 	slog.Info("Sub-store service started", "pid", cmd.Process.Pid, "port", config.GlobalConfig.SubStorePort, "log", logPath)
 
-	// 等待程序结束
-	return cmd.Wait()
+	// 等待程序结束（或被上面的 goroutine 杀掉）
+	err = cmd.Wait()
+	if err != nil {
+		// 如果 ctx 已取消，视为优雅退出
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 // isLocalIP 检查IP是否是本地IP（127.0.0.1或局域网IP）
@@ -195,7 +239,7 @@ func isLocalIP(host string) bool {
 		"172.16.0.0/12",  // 172.16.0.0 - 172.31.255.255
 		"192.168.0.0/16", // 192.168.0.0 - 192.168.255.255
 		"169.254.0.0/16", // 169.254.0.0 - 169.254.255.255
-		"fd00::/8",       // fd00:: - fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+		"fd00::/8",       // fd00:: - fdff:ffff...
 	}
 
 	for _, block := range privateIPBlocks {
@@ -265,9 +309,6 @@ func findProcesses(targetName string) (int32, error) {
 
 	for _, p := range processes {
 		name, err := p.Exe()
-		// if err != nil {
-		// 	// slog.Debug("获取进程名称失败", "error", err)
-		// }
 		if err == nil && name == targetName {
 			return p.Pid, nil
 		}
