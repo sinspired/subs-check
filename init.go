@@ -9,9 +9,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sinspired/subs-check/app"
 	"github.com/lmittmann/tint"
 	mihomoLog "github.com/metacubex/mihomo/log"
+	"github.com/sinspired/subs-check/app"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -64,6 +64,9 @@ func init() {
 	// 设置为全局日志记录器
 	slog.SetDefault(logger)
 
+	if os.Getenv("SUBS_CHECK_RESTARTED") == "1" {
+		fmt.Println("\033[32m重启成功\033[0m")
+	}
 	fmt.Println("==================== WARNING ====================")
 	fmt.Println("⚠️  重要提示：")
 	fmt.Println("1. 本项目完全开源免费，请勿相信任何收费版本")
