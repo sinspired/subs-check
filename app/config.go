@@ -103,7 +103,12 @@ func (app *App) initConfigWatcher() error {
 						if oldCronExpr != config.GlobalConfig.CronExpression ||
 							oldInterval != config.GlobalConfig.CheckInterval {
 
-							app.interval = config.GlobalConfig.CheckInterval
+							app.interval = func() int {
+								if config.GlobalConfig.CheckInterval <= 0 {
+									return 1
+								}
+								return config.GlobalConfig.CheckInterval
+							}()
 							slog.Warn("检测设置发生变化，重新配置定时器")
 
 							// 使用setTimer方法重新设置定时器
