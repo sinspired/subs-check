@@ -107,33 +107,3 @@ func SendNotify_geoDB_update(version string) {
 		}
 	}
 }
-
-func SendNotify_self_update(current string, lastest string) {
-	if config.GlobalConfig.AppriseApiServer == "" {
-		return
-	} else if len(config.GlobalConfig.RecipientUrl) == 0 {
-		slog.Error("没有配置通知目标")
-		return
-	}
-
-	for _, url := range config.GlobalConfig.RecipientUrl {
-		request := NotifyRequest{
-			URLs: url,
-			Body: fmt.Sprintf("✅ %s\n🕒 %s",
-				current+" -> "+lastest,
-				GetCurrentTime()),
-			Title: "🔔 subs-check 自动更新",
-		}
-		var err error
-		for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
-			err = Notify(request)
-			if err == nil {
-				slog.Info(fmt.Sprintf("%s subs-check 更新通知发送成功", strings.SplitN(url, "://", 2)[0]))
-				break
-			}
-		}
-		if err != nil {
-			slog.Error(fmt.Sprintf("%s subs-check 更新发送通知失败: %v", strings.SplitN(url, "://", 2)[0], err))
-		}
-	}
-}
