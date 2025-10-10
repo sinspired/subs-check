@@ -99,6 +99,24 @@ func (app *App) Initialize() error {
 	// 启动内存监控
 	monitor.StartMemoryMonitor()
 
+	// 注册退出前清理逻辑（兜底）
+	utils.BeforeExitHook = func() {
+		NodeAlive, err := assets.FindNode()
+		if err == nil && NodeAlive {
+			slog.Warn("强制退出前，尝试清理 node 子进程")
+			if err := assets.KillNode(); err != nil {
+				slog.Error("强制清理 node 失败", "err", err)
+			}
+			slog.Warn("程序未正常退出，强制停止")
+		}
+	}
+
+	// 注册 ShutdownHook（第二次 Ctrl+C 立即调用）
+	utils.ShutdownHook = func() {
+		slog.Warn("立即退出程序")
+		app.Shutdown()
+	}
+
 	// 设置信号处理器
 	app.stopCh = utils.SetupSignalHandler(&check.ForceClose, &app.checking)
 
@@ -334,7 +352,7 @@ func (app *App) Shutdown() {
 	// TODO：尝试调用 assets 提供的清理接口
 	// 或 WaitGroup 等待所有 goroutine 结束。
 
-	slog.Info("应用已关闭\n")
+	slog.Info("应用已关闭")
 	// fmt.Println("")
 	// os.Exit(0)
 }

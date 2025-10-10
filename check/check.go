@@ -335,7 +335,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 				return
 			case <-ticker.C:
 				if ForceClose.Load() {
-					slog.Warn("收到强制停止信号,准备停止任务!")
+					slog.Warn("用户手动结束检测,等待收集结果")
 					cancel()
 					return
 				}
