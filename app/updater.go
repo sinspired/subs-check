@@ -20,7 +20,8 @@ import (
 var (
 	originExePath string                                                    // exe路径,避免linux syscall路径错误
 	repo          = selfupdate.NewRepositorySlug("sinspired", "subs-check") // 更新仓库
-	arch          = getArch()                                               // 架构映射                     // 是否检查预发布版本
+	arch          = getArch()                                               // 架构映射
+	isSysProxy    bool                                                      // 系统代理是否可用
 )
 
 // 获取当前架构映射,和GitHub release对应
@@ -71,47 +72,66 @@ func (app *App) InitUpdateInfo() {
 }
 
 // 更新成功处理
-func (app *App) updateSuccess(current string, latest string) {
+func (app *App) updateSuccess(current string, latest string, silentUpdate bool) {
 	slog.Info("更新成功，清理进程后重启...")
 	app.Shutdown()
 	utils.SendNotify_self_update(current, latest)
-	if err := restartSelf(); err != nil {
+	if err := restartSelf(silentUpdate); err != nil {
 		slog.Error("重启失败", "err", err)
 	}
 }
 
 // restartSelf 跨平台自启
-func restartSelf() error {
+func restartSelf(silentUpdate bool) error {
 	exe := originExePath
 	if runtime.GOOS == "windows" {
+		if silentUpdate {
+			return restartSelfWindows_silent(exe)
+		}
 		return restartSelfWindows(exe)
 	}
 	return syscall.Exec(exe, os.Args, os.Environ())
 }
 
-// Windows 平台重启方案
+// Windows 平台重启方案,需要按任意键,能够正常接收ctrl+c信号
 func restartSelfWindows(exe string) error {
-	args := os.Args[1:]
-	quotedArgs := make([]string, len(args))
-	for i, arg := range args {
-		if strings.ContainsAny(arg, " &=\")") {
-			quotedArgs[i] = fmt.Sprintf(`"%s"`, arg)
-		} else {
-			quotedArgs[i] = arg
-		}
-	}
+	args := strings.Join(os.Args[1:], " ")
 
-	command := fmt.Sprintf(`timeout /t 1 /nobreak >nul && %s %s`, exe, strings.Join(quotedArgs, " "))
+	// 使用当前窗口并接收ctrl+c信号
+	// command := fmt.Sprintf(`ping -n 1 127.0.0.1 >nul && %s %s`, exe, args)
+
+	// 打开新控制台
+	command := fmt.Sprintf(`start %s %s`, exe, args)
 	cmd := exec.Command("cmd.exe", "/c", command)
 
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	cmd.Env = append(os.Environ(), "SUBS_CHECK_RESTARTED=1")
 
-	slog.Info("新版本启动中...请勿关闭窗口！（约1-2分钟）")
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("启动重启脚本失败: %w", err)
+	}
+
+	slog.Info("\033[32m🚀 已在新窗口重启...\033[0m")
+
+	os.Exit(0)
+	return nil
+}
+
+// Windows 平台重启方案,会在当前窗口,但无法接收ctrl+c信号
+func restartSelfWindows_silent(exe string) error {
+	args := strings.Join(os.Args[1:], " ")
+
+	cmd := exec.Command(exe, args)
+
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	cmd.Env = append(os.Environ(), "SUBS_CHECK_RESTARTED=1")
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("启动重启脚本失败: %w", err)
 	}
+
+	slog.Info("\033[32m🚀 即将重启...\033[0m")
+
 	os.Exit(0)
 	return nil
 }
@@ -149,7 +169,7 @@ func (app *App) detectLatestRelease() (*selfupdate.Release, bool, error) {
 	}
 
 	// 探测前确保系统代理环境
-	_ = utils.GetSysProxy()
+	isSysProxy = utils.GetSysProxy()
 	latest, found, err := updaterProbe.DetectLatest(ctx, repo)
 	if err != nil {
 		return nil, false, fmt.Errorf("检查更新失败: %w", err)
@@ -193,7 +213,7 @@ func (app *App) detectLatestRelease() (*selfupdate.Release, bool, error) {
 }
 
 // CheckUpdateAndRestart 检查并自动更新
-func (app *App) CheckUpdateAndRestart() {
+func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 	ctx := context.Background()
 
 	latest, needUpdate, err := app.detectLatestRelease()
@@ -259,7 +279,6 @@ func (app *App) CheckUpdateAndRestart() {
 	originExePath = exe
 
 	// 更新策略逻辑
-	isSysProxy := utils.GetSysProxy()
 	ghProxyCh := make(chan bool, 1)
 	go func() { ghProxyCh <- utils.GetGhProxy() }()
 

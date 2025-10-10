@@ -7,6 +7,10 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/lmittmann/tint"
@@ -63,6 +67,11 @@ func init() {
 
 	// 设置为全局日志记录器
 	slog.SetDefault(logger)
+
+	// 如存在之前未结束的subs-check进程,应终结
+	if runtime.GOOS == "windows" {
+		killExistProcess()
+	}
 
 	if os.Getenv("SUBS_CHECK_RESTARTED") == "1" {
 		fmt.Println("\033[32m重启成功\033[0m")
@@ -136,5 +145,46 @@ func (h *multiHandler) WithGroup(name string) slog.Handler {
 	return &multiHandler{
 		console: h.console.WithGroup(name),
 		file:    h.file.WithGroup(name),
+	}
+}
+
+func killExistProcess() {
+	exe, err := os.Executable()
+	if err != nil {
+		slog.Error("get executable failed", "err", err)
+		return
+	}
+	name := filepath.Base(exe)
+	self := os.Getpid()
+
+	var out []byte
+	if runtime.GOOS == "windows" {
+		out, err = exec.Command("tasklist", "/FI", "IMAGENAME eq "+name).Output()
+	} else {
+		out, err = exec.Command("pgrep", name).Output()
+	}
+	if err != nil {
+		slog.Error("list process failed", "err", err)
+		return
+	}
+
+	lines := strings.SplitSeq(string(out), "\n")
+	for l := range lines {
+		if strings.Contains(l, name) {
+			fields := strings.Fields(l)
+			if len(fields) < 2 {
+				continue
+			}
+			pidStr := fields[1]
+			pid, _ := strconv.Atoi(pidStr)
+			if pid == self || pid == 0 {
+				continue
+			}
+			proc, err := os.FindProcess(pid)
+			if err == nil {
+				_ = proc.Kill()
+				slog.Info("旧subs-check进程已终结", "pid", pid)
+			}
+		}
 	}
 }

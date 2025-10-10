@@ -139,7 +139,7 @@ func (app *App) Initialize() error {
 	}
 
 	// 检查版本更新
-	// TODO: 定时检查更新,接受配置设置
+	// TODO: 启动时如有新版本,提供是否更新的命令行对话
 	enableSelfUpdate := config.GlobalConfig.EnableSelfUpdate
 	updateOnStartup := config.GlobalConfig.UpdateOnStartup
 	cronCheckUpdate := config.GlobalConfig.CronCheckUpdate
@@ -154,7 +154,7 @@ func (app *App) Initialize() error {
 	if !START_FROM_GUI && enableSelfUpdate && updateOnStartup && !isDocker {
 		updateDone := make(chan struct{})
 		go func() {
-			app.CheckUpdateAndRestart()
+			app.CheckUpdateAndRestart(false)
 			close(updateDone)
 		}()
 		<-updateDone // 等待后台更新完成
@@ -176,7 +176,7 @@ func (app *App) Initialize() error {
 				slog.Info("定时检查版本更新...")
 				updateDone := make(chan struct{})
 				go func() {
-					app.CheckUpdateAndRestart()
+					app.CheckUpdateAndRestart(true)
 					close(updateDone)
 				}()
 				<-updateDone // 等待后台更新完成
@@ -203,7 +203,7 @@ func (app *App) Initialize() error {
 				slog.Info("定时检查版本更新...")
 				updateDone := make(chan struct{})
 				go func() {
-					app.CheckUpdateAndRestart()
+					app.CheckUpdateAndRestart(true)
 					close(updateDone)
 				}()
 				<-updateDone // 等待后台更新完成

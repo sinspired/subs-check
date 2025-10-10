@@ -34,7 +34,9 @@ func GetSysProxy() bool {
 		slog.Info("系统代理", "proxy", proxy)
 		return true
 	}
-
+	for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+		os.Unsetenv(key)
+	}
 	slog.Debug("未找到可用代理，将不设置代理")
 	return false
 }
