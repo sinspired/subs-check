@@ -335,32 +335,51 @@ func killProcess(pid int32) error {
 	return nil
 }
 
-func KillNode() error {
+// getNodePath 返回 node 可执行文件的完整路径
+func getNodePath() (string, error) {
 	saver, err := method.NewLocalSaver()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !filepath.IsAbs(saver.OutputPath) {
-		// 处理用户写相对路径的问题
 		saver.OutputPath = filepath.Join(saver.BasePath, saver.OutputPath)
 	}
+
 	nodeName := "node"
 	if runtime.GOOS == "windows" {
 		nodeName += ".exe"
 	}
+	return filepath.Join(saver.OutputPath, nodeName), nil
+}
 
-	if err := os.MkdirAll(saver.OutputPath, 0755); err != nil {
-		return fmt.Errorf("创建输出目录失败: %w", err)
+// FindNode 查找 Node 进程是否存在
+func FindNode() (bool, error) {
+	nodePath, err := getNodePath()
+	if err != nil {
+		return false, err
 	}
-	nodePath := filepath.Join(saver.OutputPath, nodeName)
 	pid, err := findProcesses(nodePath)
-	if err == nil {
-		err := killProcess(pid)
-		if err != nil {
-			slog.Debug("Sub-store service kill failed", "error", err)
-			return err
-		}
-		slog.Debug("Sub-store service already killed", "pid", pid)
+	if err == nil && pid > 0 {
+		return true, nil
 	}
+	return false, nil
+}
+
+// KillNode 杀掉 Node 进程
+func KillNode() error {
+	nodePath, err := getNodePath()
+	if err != nil {
+		return err
+	}
+	pid, err := findProcesses(nodePath)
+	if err != nil {
+		// 没找到进程，不算错误
+		return nil
+	}
+	if err := killProcess(pid); err != nil {
+		slog.Debug("Sub-store service kill failed", "error", err)
+		return err
+	}
+	slog.Debug("Sub-store service killed", "pid", pid)
 	return nil
 }

@@ -9,14 +9,12 @@ import (
 	"time"
 )
 
-// 内部状态跟踪
 var ctrlCOccurred atomic.Bool
 
-// SetupSignalHandler 设置信号处理
-// 同时支持两种信号处理模式：
-// - HUB 信号(SIGHUP): 只设置 check.ForceClose 为 true，不退出程序
-// - Ctrl+C 信号(SIGINT/SIGTERM): 第一次设置 ForceClose，第二次退出程序
-// SetupSignalHandler 设置信号处理，返回一个退出信号通道
+// BeforeExitHook 在 os.Exit 前调用的清理函数
+var BeforeExitHook func()
+var ShutdownHook func()
+
 func SetupSignalHandler(forceClose *atomic.Bool, checking *atomic.Bool) <-chan struct{} {
 	slog.Debug("设置信号处理器")
 
@@ -32,7 +30,6 @@ func SetupSignalHandler(forceClose *atomic.Bool, checking *atomic.Bool) <-chan s
 		for sig := range ctrlCSigChan {
 			slog.Debug("收到中断信号", "sig", sig)
 
-			// 如果正在检测中
 			if checking.Load() {
 				if ctrlCOccurred.CompareAndSwap(false, true) {
 					forceClose.Store(true)
@@ -41,17 +38,21 @@ func SetupSignalHandler(forceClose *atomic.Bool, checking *atomic.Bool) <-chan s
 				}
 			}
 
-			// 否则（空闲状态，或第二次 Ctrl+C）
-			slog.Info("收到退出信号，立即退出程序")
+			// 立即调用 ShutdownHook
+			if ShutdownHook != nil {
+				ShutdownHook()
+			}
 			select {
-			case <-stop: // 已经关闭过
+			case <-stop:
 			default:
-				close(stop) // 通知 app.Run() 退出
+				close(stop)
 			}
 
 			// 保险：5s 后强制退出
 			time.AfterFunc(5*time.Second, func() {
-				slog.Error("程序未能正常退出，强制终止")
+				if BeforeExitHook != nil {
+					BeforeExitHook() // 调用 app 注册的清理逻辑
+				}
 				os.Exit(0)
 			})
 		}

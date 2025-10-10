@@ -69,6 +69,10 @@ type Config struct {
 	SystemProxy          string   `yaml:"system-proxy"`
 	GithubProxy          string   `yaml:"github-proxy"`
 	GithubProxyGroup     []string `yaml:"ghproxy-group"`
+	EnableSelfUpdate     bool     `yaml:"update"`
+	UpdateOnStartup      bool     `yaml:"update-on-startup"`
+	CronCheckUpdate      string   `yaml:"cron-chek-update"`
+	Prerelease           bool     `yaml:"prerelease"`
 }
 
 var GlobalConfig = &Config{
