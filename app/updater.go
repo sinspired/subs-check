@@ -110,7 +110,8 @@ func tryUpdateOnce(ctx context.Context, updater *selfupdate.Updater, latest *sel
 func (app *App) updateSuccess(current string, latest string, silentUpdate bool) {
 	slog.Info("更新成功，准备重启...")
 	app.Shutdown()
-	// TODO: 使用通知渠道发送通知
+	// 如配置了通知渠道,发送通知
+	utils.SendNotify_self_update(current, latest)
 	if err := restartSelf(silentUpdate); err != nil {
 		slog.Error("重启失败", "err", err)
 	}
