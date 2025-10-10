@@ -1,8 +1,19 @@
 # 是否显示进度
 print-progress: false
 
-# 进度条显示模式: 
-# "auto": 根据测活-测速-媒体检测的阶段权重自动显示 
+# 是否开启自动检查更新 subs-check 版本
+# true: 自动更新; false: 不更新
+update: false
+# 启动时检查更新版本
+update-on-startup: true
+# 定时检查更新
+# "0 0 * * *" 默认每天0点检查更新
+cron-chek-update: "0 0 * * *"
+# 使用预发布版本
+prerelease: false
+
+# 进度条显示模式:
+# "auto": 根据测活-测速-媒体检测的阶段权重自动显示
 # "stage": 每个阶段完成,显示下一阶段剩余任务
 progress-mode: "auto"
 
@@ -28,7 +39,7 @@ check-interval: 720
 # "*/30 * * * *" 表示每30分钟执行一次
 # cron-expression: "*/30 * * * *"
 
-# 保存几个成功的节点，为0代表不限制 
+# 保存几个成功的节点，为0代表不限制
 # 如果你的并发数量超过这个参数，那么成功的结果可能会大于这个数值
 # success-limit <= success <= success-limit+concurrent
 success-limit: 200
@@ -58,7 +69,7 @@ total-speed-limit: 0
 # 0.50 /16（前两段相同）
 # 0.25 /8（第一段相同）
 # 以下设置仅能 [减少] 节点被测速测死的概率, 无法避免被 "反代机房" 中断节点
-threshold:  0.75
+threshold: 0.75
 
 # 监听端口，用于直接返回节点信息，方便订阅转换
 # http://127.0.0.1:8199/all.yaml
@@ -135,7 +146,7 @@ callback-script: ""
 apprise-api-server: ""
 # 填写通知目标
 # 支持100+ 个通知渠道，详细格式请参照 https://github.com/caronc/apprise
-recipient-url: 
+recipient-url:
   # telegram格式：tgram://{bot_token}/{chat_id}
   # - tgram://xxxxxx/-1002149239223
   # 钉钉格式：dingtalk://{Secret}@{ApiKey}
@@ -217,11 +228,11 @@ system-proxy: ""
 github-proxy: ""
 # GitHub 代理列表：程序会自动筛选可用的 GitHub 代理
 ghproxy-group:
-- https://ghp.yeye.f5.si/
-- https://git.llvho.com/
-- https://hub.885666.xyz/
-- https://p.jackyu.cn/
-- https://github.cnxiaobai.com/
+  - https://ghp.yeye.f5.si/
+  - https://git.llvho.com/
+  - https://hub.885666.xyz/
+  - https://p.jackyu.cn/
+  - https://github.cnxiaobai.com/
 
 # 重试次数(获取订阅失败后重试次数)
 sub-urls-retry: 3

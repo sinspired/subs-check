@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -136,14 +138,88 @@ func (app *App) Initialize() error {
 
 	// 检查版本更新
 	// TODO: 定时检查更新,接受配置设置
-	START_FROM_GUI := os.Getenv("START_FROM_GUI")
-	if START_FROM_GUI == "" {
+	enableSelfUpdate := config.GlobalConfig.EnableSelfUpdate
+	updateOnStartup := config.GlobalConfig.UpdateOnStartup
+	cronCheckUpdate := config.GlobalConfig.CronCheckUpdate
+
+	// 是否从GUI发出的调用
+	START_FROM_GUI := (os.Getenv("START_FROM_GUI") != "")
+
+	// 是否运行在docker
+	isDocker := isDocker()
+
+	// 程序启动时更新
+	if !START_FROM_GUI && enableSelfUpdate && updateOnStartup && !isDocker {
 		updateDone := make(chan struct{})
 		go func() {
-			app.CheckUpdateAndRestart(false)
+			app.CheckUpdateAndRestart()
 			close(updateDone)
 		}()
 		<-updateDone // 等待后台更新完成
+	} else {
+		// 启动时总是检查版本号,提示手动更新
+		detectDone := make(chan struct{})
+		go func() {
+			app.detectLatestRelease()
+			close(detectDone)
+		}()
+		<-detectDone // 等待后台版本检查完成
+	}
+
+	//设置定时更新任务
+	updateCron := cron.New()
+	if cronCheckUpdate != "" {
+		_, err = updateCron.AddFunc(cronCheckUpdate, func() {
+			if !START_FROM_GUI && enableSelfUpdate && !app.checking.Load() && !isDocker{
+				slog.Info("定时检查版本更新...")
+				updateDone := make(chan struct{})
+				go func() {
+					app.CheckUpdateAndRestart()
+					close(updateDone)
+				}()
+				<-updateDone // 等待后台更新完成
+			} else if !app.checking.Load() {
+				// 不在检测代理期间,检查版本号,提示手动更新
+				detectDone := make(chan struct{})
+				go func() {
+					app.detectLatestRelease()
+					close(detectDone)
+				}()
+				<-detectDone // 等待后台版本检查完成
+			}
+		})
+		if err != nil {
+			slog.Error(fmt.Sprintf("注册 定时检查版本更新 定时任务失败: %v", err))
+		} else {
+			updateCron.Start()
+		}
+	} else {
+		// 未设置cronCheckUpdate的情况下,给出一个默认值
+		// 每周日 0 点自动检查版本更新
+		_, err = updateCron.AddFunc("0 0 * * 0", func() {
+			if !START_FROM_GUI && enableSelfUpdate && !app.checking.Load() && !isDocker{
+				slog.Info("定时检查版本更新...")
+				updateDone := make(chan struct{})
+				go func() {
+					app.CheckUpdateAndRestart()
+					close(updateDone)
+				}()
+				<-updateDone // 等待后台更新完成
+			} else if !app.checking.Load() {
+				// 不在检测代理期间,检查版本号,提示手动更新
+				detectDone := make(chan struct{})
+				go func() {
+					app.detectLatestRelease()
+					close(detectDone)
+				}()
+				<-detectDone // 等待后台版本检查完成
+			}
+		})
+		if err != nil {
+			slog.Error(fmt.Sprintf("注册 定时检查版本更新 定时任务失败: %v", err))
+		} else {
+			updateCron.Start()
+		}
 	}
 
 	return nil
@@ -355,4 +431,21 @@ func (app *App) Shutdown() {
 	slog.Info("应用已关闭")
 	// fmt.Println("")
 	// os.Exit(0)
+}
+
+// 判断是否运行在 Docker 容器中
+func isDocker() bool {
+    file, err := os.Open("/proc/1/cgroup")
+    if err != nil {
+        return false
+    }
+    defer file.Close()
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        line := scanner.Text()
+        if strings.Contains(line, "docker") || strings.Contains(line, "kubepods") {
+            return true
+        }
+    }
+    return false
 }
