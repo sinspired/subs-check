@@ -38,6 +38,7 @@ RUN echo "Building commit: ${GITHUB_SHA:0:7}" && \
     go build -ldflags="-s -w -X main.Version=${VERSION} -X main.CurrentCommit=${GITHUB_SHA:0:7}" -trimpath -o subs-check .
 
 FROM alpine
+WORKDIR /app
 ENV TZ=Asia/Shanghai
 # 👇 显式标记运行在 Docker 中
 ENV RUNNING_IN_DOCKER=true
