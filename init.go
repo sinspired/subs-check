@@ -45,7 +45,7 @@ func init() {
 
 	// 创建两个单独的handler
 	// 1. 终端输出 - 带颜色
-	consoleHandler := tint.NewHandler(os.Stdout, &tint.Options{
+	consoleHandler := tint.NewHandler(getStdout(), &tint.Options{
 		Level:      logLevel,
 		TimeFormat: "2006-01-02 15:04:05",
 	})

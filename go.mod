@@ -25,6 +25,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/reedsolomon v1.12.5 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/metacubex/ascon v0.1.0 // indirect
 	github.com/metacubex/bart v0.24.0 // indirect
 	github.com/metacubex/blake3 v0.1.0 // indirect
