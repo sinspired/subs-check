@@ -1,21 +1,22 @@
-# 是否显示进度
+# 是否显示检测进度
 print-progress: false
+# 进度条显示模式:
+# "auto": 根据测活-测速-媒体检测的阶段权重自动显示
+# "stage": 每个阶段完成,显示下一阶段剩余任务
+progress-mode: "auto"
 
-# 是否开启自动检查更新 subs-check 版本
+# 是否开启新版本更新
+# 支持启动时检查更新及定时更新任务,无缝升级新版本
+# 支持apprise API通知渠道
 # true: 自动更新; false: 不更新
 update: false
 # 启动时检查更新版本
 update-on-startup: true
 # 定时检查更新
-# "0 0 * * *" 默认每天0点检查更新
-cron-chek-update: "0 0 * * *"
+# "0 0,9,21 * * *" 默认每天0点,9点,21点检查更新
+cron-chek-update: "0 0,9,21 * * *"
 # 使用预发布版本
 prerelease: false
-
-# 进度条显示模式:
-# "auto": 根据测活-测速-媒体检测的阶段权重自动显示
-# "stage": 每个阶段完成,显示下一阶段剩余任务
-progress-mode: "auto"
 
 # 并发线程数
 concurrent: 20
