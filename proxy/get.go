@@ -38,8 +38,17 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	IsSysProxyAvailable = utils.GetSysProxy()
 	IsGhProxyAvailable = utils.GetGhProxy()
 
-	slog.Info("", "-system-proxy", config.GlobalConfig.SystemProxy)
-	slog.Info("", "-github-proxy", config.GlobalConfig.GithubProxy)
+	// 仅在有值时打印
+	if IsSysProxyAvailable {
+		slog.Info("", "-system-proxy", config.GlobalConfig.SystemProxy)
+	}
+	if IsGhProxyAvailable {
+		slog.Info("", "-github-proxy", config.GlobalConfig.GithubProxy)
+	}
+
+	if len(config.GlobalConfig.NodeType) > 0 {
+		slog.Info("只筛选用户设置的协议", "type", config.GlobalConfig.NodeType)
+	}
 
 	if len(config.GlobalConfig.NodeType) > 0 {
 		slog.Info("只筛选用户设置的协议", "type", config.GlobalConfig.NodeType)
