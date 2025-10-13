@@ -73,26 +73,49 @@ func (app *App) InitUpdateInfo() {
 
 // detectSuccessNotify 发送新版本通知
 func detectSuccessNotify(currentVersion string, latest *selfupdate.Release) {
-	// 是否从GUI发出的调用
-	START_FROM_GUI := (os.Getenv("START_FROM_GUI") != "")
-	if !START_FROM_GUI && !isDocker() && !config.GlobalConfig.EnableSelfUpdate {
-		fmt.Println("\033[32m✨ 建议开启自动更新，请编辑config.yaml", "update: true\033[0m")
-	}
-	if !config.GlobalConfig.EnableSelfUpdate || isDocker() || START_FROM_GUI {
-		fmt.Println("\033[32m🔎 详情查看: https://github.com/sinspired/subs-check")
-		fmt.Println("🔗 手动更新:", latest.AssetURL, "\033[0m")
+    isGUI := os.Getenv("START_FROM_GUI") != ""
+    isDockerEnv := isDocker()
+    autoUpdate := config.GlobalConfig.EnableSelfUpdate
 
-		downloadUrl := latest.AssetURL
-		if isDocker() {
-			downloadUrl = "docker: ghcr.io/sinspired/subs-check:" + latest.Version()
-		} else if START_FROM_GUI {
-			downloadUrl = "GUI内核: " + latest.AssetURL
-		}
+    // 是否需要提示（任一条件满足）
+    needNotify := !autoUpdate || isDockerEnv || isGUI
 
-		// 发送更新成功通知
-		utils.SendNotify_detectLatestRelease(currentVersion, latest.Version(), isDocker() || START_FROM_GUI, downloadUrl)
-	}
+    if needNotify {
+        slog.Warn("发现新版本",
+            "当前版本", currentVersion,
+            slog.String("最新版本", latest.Version()),
+        )
+    }
+
+    // 提示用户开启自动更新（仅 CLI 且未开启自动更新）
+    if !isGUI && !isDockerEnv && !autoUpdate {
+        fmt.Println("\033[32m✨ 建议开启自动更新，请编辑 config.yaml: update: true\033[0m")
+    }
+
+    if needNotify {
+        fmt.Println("\033[32m🔎 详情查看: https://github.com/sinspired/subs-check")
+        fmt.Println("🔗 手动更新:", latest.AssetURL, "\033[0m")
+
+        var downloadURL string
+        switch {
+        case isDockerEnv:
+            downloadURL = "docker: ghcr.io/sinspired/subs-check:" + latest.Version()
+        case isGUI:
+            downloadURL = "GUI内核: " + latest.AssetURL
+        default:
+            downloadURL = latest.AssetURL
+        }
+
+        // 发送更新成功通知
+        utils.SendNotify_detectLatestRelease(
+            currentVersion,
+            latest.Version(),
+            isDockerEnv || isGUI,
+            downloadURL,
+        )
+    }
 }
+
 
 // updateSuccess 更新成功处理
 func (app *App) updateSuccess(current string, latest string, silentUpdate bool) {
@@ -222,8 +245,6 @@ func (app *App) detectLatestRelease() (*selfupdate.Release, bool, error) {
 		return nil, false, nil
 	}
 
-	slog.Warn("发现新版本", slog.String("当前版本", curVer.String()), slog.String("最新版本", latest.Version()))
-
 	// 发送新版本通知
 	detectSuccessNotify(currentVersion, latest)
 
@@ -287,7 +308,7 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 		return
 	}
 
-	slog.Info("准备更新", slog.String("当前版本", curVer.String()), slog.String("最新版本", latest.Version()))
+	slog.Warn(fmt.Sprintf("检测到新版本，自动更新重启：%s -> %s", curVer.String(),latest.Version()))
 
 	exe, err := os.Executable()
 	if err != nil {
