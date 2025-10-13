@@ -71,10 +71,12 @@ func (app *App) InitUpdateInfo() {
 	}
 }
 
-// 更新成功处理
+// updateSuccess 更新成功处理
 func (app *App) updateSuccess(current string, latest string, silentUpdate bool) {
 	slog.Info("更新成功，清理进程后重启...")
 	app.Shutdown()
+
+	// 发送更新成功通知
 	utils.SendNotify_self_update(current, latest)
 	if err := restartSelf(silentUpdate); err != nil {
 		slog.Error("重启失败", "err", err)
@@ -197,17 +199,6 @@ func (app *App) detectLatestRelease() (*selfupdate.Release, bool, error) {
 	}
 
 	slog.Warn("发现新版本", slog.String("当前版本", curVer.String()), slog.String("最新版本", latest.Version()))
-	// 是否从GUI发出的调用
-	START_FROM_GUI := (os.Getenv("START_FROM_GUI") != "")
-	if !config.GlobalConfig.EnableSelfUpdate {
-		// fmt.Println("\033[90m========================================================")
-		if !START_FROM_GUI {
-			fmt.Println("\033[32m✨ 建议开启自动更新，请编辑config.yaml", "update: true")
-		}
-		fmt.Println("🔎 详情查看: https://github.com/sinspired/subs-check")
-		fmt.Println("🔗 手动更新:", latest.AssetURL, "\033[0m")
-		// fmt.Println("========================================================\033[0m")
-	}
 
 	return latest, true, nil
 }
@@ -284,7 +275,7 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 
 	if isSysProxy {
 		if err := tryUpdateOnce(ctx, updater, latest, exe, latest.AssetURL, latest.ValidationAssetURL, false, "使用系统代理"); err == nil {
-			app.updateSuccess(currentVersion, latest.Version())
+			app.updateSuccess(currentVersion, latest.Version(), silentUpdate)
 			return
 		}
 		var isGhProxy bool
@@ -296,12 +287,12 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 		if isGhProxy {
 			ghProxy := config.GlobalConfig.GithubProxy
 			if err := tryUpdateOnce(ctx, updater, latest, exe, ghProxy+latest.AssetURL, ghProxy+latest.ValidationAssetURL, true, "使用 GitHub 代理"); err == nil {
-				app.updateSuccess(currentVersion, latest.Version())
+				app.updateSuccess(currentVersion, latest.Version(), silentUpdate)
 				return
 			}
 		}
 		if err := tryUpdateOnce(ctx, updater, latest, exe, latest.AssetURL, latest.ValidationAssetURL, true, "使用原始链接"); err == nil {
-			app.updateSuccess(currentVersion, latest.Version())
+			app.updateSuccess(currentVersion, latest.Version(), silentUpdate)
 			return
 		}
 	} else {
@@ -309,12 +300,12 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 		if isGhProxy {
 			ghProxy := config.GlobalConfig.GithubProxy
 			if err := tryUpdateOnce(ctx, updater, latest, exe, ghProxy+latest.AssetURL, ghProxy+latest.ValidationAssetURL, true, "使用 GitHub 代理"); err == nil {
-				app.updateSuccess(currentVersion, latest.Version())
+				app.updateSuccess(currentVersion, latest.Version(), silentUpdate)
 				return
 			}
 		}
 		if err := tryUpdateOnce(ctx, updater, latest, exe, latest.AssetURL, latest.ValidationAssetURL, true, "使用原始链接"); err == nil {
-			app.updateSuccess(currentVersion, latest.Version())
+			app.updateSuccess(currentVersion, latest.Version(), silentUpdate)
 			return
 		}
 	}

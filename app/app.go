@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
@@ -22,6 +21,7 @@ import (
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save"
 	"github.com/sinspired/subs-check/utils"
+
 )
 
 // App 结构体用于管理应用程序状态
@@ -149,6 +149,10 @@ func (app *App) Initialize() error {
 
 	// 是否运行在docker
 	isDocker := isDocker()
+
+	if isDocker {
+		slog.Info("检测到运行在 Docker 容器中,不执行自动更新")
+	}
 
 	// 程序启动时更新
 	if !START_FROM_GUI && enableSelfUpdate && updateOnStartup && !isDocker {
@@ -436,18 +440,27 @@ func (app *App) Shutdown() {
 }
 
 // 判断是否运行在 Docker 容器中
+// isDocker 判断当前进程是否运行在 Docker / 容器环境中
 func isDocker() bool {
-    file, err := os.Open("/proc/1/cgroup")
-    if err != nil {
-        return false
+    // 1. 优先检查环境变量
+    if os.Getenv("RUNNING_IN_DOCKER") == "true" {
+        return true
     }
-    defer file.Close()
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        line := scanner.Text()
-        if strings.Contains(line, "docker") || strings.Contains(line, "kubepods") {
+
+    // 2. 检查 /.dockerenv 文件
+    if _, err := os.Stat("/.dockerenv"); err == nil {
+        return true
+    }
+
+    // 3. 检查 /proc/1/cgroup 内容
+    if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
+        content := string(data)
+        if strings.Contains(content, "docker") ||
+            strings.Contains(content, "kubepods") ||
+            strings.Contains(content, "containerd") {
             return true
         }
     }
+
     return false
 }

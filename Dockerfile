@@ -39,6 +39,8 @@ RUN echo "Building commit: ${GITHUB_SHA:0:7}" && \
 
 FROM alpine
 ENV TZ=Asia/Shanghai
+# 👇 显式标记运行在 Docker 中
+ENV RUNNING_IN_DOCKER=true
 RUN apk add --no-cache alpine-conf ca-certificates nodejs &&\
     /usr/sbin/setup-timezone -z Asia/Shanghai && \
     apk del alpine-conf && \

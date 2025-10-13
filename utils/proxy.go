@@ -8,10 +8,10 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"log/slog"
 
 	"github.com/sinspired/subs-check/config"
+
 )
 
 // GetSysProxy 检测系统代理是否可用，并设置环境变量
@@ -172,7 +172,7 @@ func isSysProxyAvailable(proxy string) bool {
 	}
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   3 * time.Second,
+		Timeout:   5 * time.Second,
 	}
 
 	// 检测目标列表

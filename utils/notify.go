@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sinspired/subs-check/config"
+
 )
 
 // NotifyRequest 定义发送通知的请求结构
@@ -135,6 +136,50 @@ func SendNotify_self_update(current string, lastest string) {
 		}
 		if err != nil {
 			slog.Error(fmt.Sprintf("%s 版本更新 发送通知失败: %v", strings.SplitN(url, "://", 2)[0], err))
+		}
+	}
+}
+
+// 版本更新通知
+func SendNotify_detectLatestRelease(current string, lastest string, isDockerOrGui bool,downloadUrl string) {
+	if config.GlobalConfig.AppriseApiServer == "" {
+		return
+	} else if len(config.GlobalConfig.RecipientUrl) == 0 {
+		slog.Error("没有配置通知目标")
+		return
+	}
+
+	for _, url := range config.GlobalConfig.RecipientUrl {
+		var request NotifyRequest
+		if isDockerOrGui {
+
+			request = NotifyRequest{
+				URLs: url,
+				Body: fmt.Sprintf("🏷 %s\n🔗 请及时更新%s\n🕒 %s",
+					lastest, downloadUrl,
+					GetCurrentTime()),
+				Title: "📦 subs-check 发现新版本",
+			}
+		} else {
+			request = NotifyRequest{
+				URLs: url,
+				Body: fmt.Sprintf("🏷 %s\n✏️ 请编辑config.yaml，开启更新\n📄 update: true\n🕒 %s",
+					lastest,
+					GetCurrentTime()),
+				Title: "📦 subs-check 发现新版本",
+			}
+		}
+
+		var err error
+		for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
+			err = Notify(request)
+			if err == nil {
+				slog.Info(fmt.Sprintf("%s 版本检测 通知发送成功", strings.SplitN(url, "://", 2)[0]))
+				break
+			}
+		}
+		if err != nil {
+			slog.Error(fmt.Sprintf("%s 版本检测 发送通知失败: %v", strings.SplitN(url, "://", 2)[0], err))
 		}
 	}
 }
