@@ -71,6 +71,29 @@ func (app *App) InitUpdateInfo() {
 	}
 }
 
+// detectSuccessNotify 发送新版本通知
+func detectSuccessNotify(currentVersion string, latest *selfupdate.Release) {
+	// 是否从GUI发出的调用
+	START_FROM_GUI := (os.Getenv("START_FROM_GUI") != "")
+	if !START_FROM_GUI && !isDocker() && !config.GlobalConfig.EnableSelfUpdate {
+		fmt.Println("\033[32m✨ 建议开启自动更新，请编辑config.yaml", "update: true\033[0m")
+	}
+	if !config.GlobalConfig.EnableSelfUpdate || isDocker() || START_FROM_GUI {
+		fmt.Println("\033[32m🔎 详情查看: https://github.com/sinspired/subs-check")
+		fmt.Println("🔗 手动更新:", latest.AssetURL, "\033[0m")
+
+		downloadUrl := latest.AssetURL
+		if isDocker() {
+			downloadUrl = "docker: ghcr.io/sinspired/subs-check:" + latest.Version()
+		} else if START_FROM_GUI {
+			downloadUrl = "GUI内核: " + latest.AssetURL
+		}
+
+		// 发送更新成功通知
+		utils.SendNotify_detectLatestRelease(currentVersion, latest.Version(), isDocker() || START_FROM_GUI, downloadUrl)
+	}
+}
+
 // updateSuccess 更新成功处理
 func (app *App) updateSuccess(current string, latest string, silentUpdate bool) {
 	slog.Info("更新成功，清理进程后重启...")
@@ -154,6 +177,7 @@ func tryUpdateOnce(ctx context.Context, updater *selfupdate.Updater, latest *sel
 	latest.AssetURL = assetURL
 	latest.ValidationAssetURL = validationURL
 	slog.Info("正在更新", slog.String("策略", label))
+	// TODO: 添加超时机制，避免系统代理活github代理质量不佳,下载速度慢时策略阻塞进程
 	return updater.UpdateTo(ctx, latest, exe)
 }
 
@@ -199,6 +223,9 @@ func (app *App) detectLatestRelease() (*selfupdate.Release, bool, error) {
 	}
 
 	slog.Warn("发现新版本", slog.String("当前版本", curVer.String()), slog.String("最新版本", latest.Version()))
+
+	// 发送新版本通知
+	detectSuccessNotify(currentVersion, latest)
 
 	return latest, true, nil
 }

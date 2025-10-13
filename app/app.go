@@ -119,6 +119,8 @@ func (app *App) Initialize() error {
 	utils.ShutdownHook = func() {
 		slog.Warn("立即退出程序")
 		app.Shutdown()
+		// TODO: 测试是否需要5秒超时,前面的阻塞已经可以确保结束关闭应用了
+		// os.Exit(0)
 	}
 
 	// 设置信号处理器

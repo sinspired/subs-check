@@ -48,6 +48,7 @@ func SetupSignalHandler(forceClose *atomic.Bool, checking *atomic.Bool) <-chan s
 				close(stop)
 			}
 
+			// TODO: 测试是否需要5秒超时,前面的阻塞已经可以确保结束关闭应用了
 			// 保险：5s 后强制退出
 			time.AfterFunc(5*time.Second, func() {
 				if BeforeExitHook != nil {
