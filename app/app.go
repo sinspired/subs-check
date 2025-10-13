@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -21,25 +22,24 @@ import (
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save"
 	"github.com/sinspired/subs-check/utils"
-
 )
 
 // App 结构体用于管理应用程序状态
 type App struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	configPath string
-	interval   int
-	watcher    *fsnotify.Watcher
-	checkChan  chan struct{} // 触发检测的通道
-	checking   atomic.Bool   // 检测状态标志
-	ticker     *time.Ticker
-	done       chan struct{} // 用于结束ticker goroutine的信号
-	cron       *cron.Cron    // crontab调度器
-	version    string
+	ctx           context.Context
+	cancel        context.CancelFunc
+	configPath    string
+	interval      int
+	watcher       *fsnotify.Watcher
+	checkChan     chan struct{} // 触发检测的通道
+	checking      atomic.Bool   // 检测状态标志
+	ticker        *time.Ticker
+	done          chan struct{} // 用于结束ticker goroutine的信号
+	cron          *cron.Cron    // crontab调度器
+	version       string
 	originVersion string
-	httpServer *http.Server
-	stopCh     <-chan struct{}
+	httpServer    *http.Server
+	stopCh        <-chan struct{}
 }
 
 // New 创建新的应用实例
@@ -118,9 +118,13 @@ func (app *App) Initialize() error {
 	// 注册 ShutdownHook（第二次 Ctrl+C 立即调用）
 	utils.ShutdownHook = func() {
 		slog.Warn("立即退出程序")
-		app.Shutdown()
-		// TODO: 测试是否需要5秒超时,前面的阻塞已经可以确保结束关闭应用了
-		// os.Exit(0)
+		err := app.Shutdown()
+		if err != nil {
+			slog.Error("关闭应用失败", "err", err)
+		} else {
+			os.Exit(0)
+		}
+
 	}
 
 	// 设置信号处理器
@@ -178,7 +182,7 @@ func (app *App) Initialize() error {
 	updateCron := cron.New()
 	if cronCheckUpdate != "" {
 		_, err = updateCron.AddFunc(cronCheckUpdate, func() {
-			if !START_FROM_GUI && enableSelfUpdate && !app.checking.Load() && !isDocker{
+			if !START_FROM_GUI && enableSelfUpdate && !app.checking.Load() && !isDocker {
 				slog.Info("定时检查版本更新...")
 				updateDone := make(chan struct{})
 				go func() {
@@ -205,7 +209,7 @@ func (app *App) Initialize() error {
 		// 未设置cronCheckUpdate的情况下,给出一个默认值
 		// 每周日 0 点自动检查版本更新
 		_, err = updateCron.AddFunc("0 0 * * 0", func() {
-			if !START_FROM_GUI && enableSelfUpdate && !app.checking.Load() && !isDocker{
+			if !START_FROM_GUI && enableSelfUpdate && !app.checking.Load() && !isDocker {
 				slog.Info("定时检查版本更新...")
 				updateDone := make(chan struct{})
 				go func() {
@@ -264,7 +268,10 @@ func (app *App) Run() {
 
 	// 阻塞等待 stopCh 被关闭
 	<-app.stopCh
-	app.Shutdown()
+	err := app.Shutdown()
+	if err != nil {
+		slog.Error("关闭应用失败", "err", err)
+	}
 }
 
 // setTimer 根据配置设置定时器
@@ -391,8 +398,10 @@ func TempLog() string {
 }
 
 // Shutdown 尝试优雅关闭所有子服务与资源
-func (app *App) Shutdown() {
+func (app *App) Shutdown() error {
 	slog.Debug("开始关闭应用...")
+
+	var lastErr error
 
 	// 取消上下文，通知各子服务退出（sub-store 等）
 	if app.cancel != nil {
@@ -407,7 +416,7 @@ func (app *App) Shutdown() {
 		app.cron.Stop()
 	}
 	if app.watcher != nil {
-		_ = app.watcher.Close()
+		lastErr = app.watcher.Close()
 	}
 
 	// 优雅关闭 HTTP 服务
@@ -415,6 +424,7 @@ func (app *App) Shutdown() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := app.httpServer.Shutdown(ctx); err != nil {
+			lastErr = errors.New("关闭 HTTP 服务器失败: " + err.Error())
 			slog.Error("关闭 HTTP 服务器失败", "err", err)
 		} else {
 			slog.Info("HTTP 服务器关闭", "port", config.GlobalConfig.ListenPort)
@@ -437,32 +447,31 @@ func (app *App) Shutdown() {
 	// 或 WaitGroup 等待所有 goroutine 结束。
 
 	slog.Info("应用已关闭")
-	// fmt.Println("")
-	// os.Exit(0)
+	return lastErr
 }
 
 // 判断是否运行在 Docker 容器中
 // isDocker 判断当前进程是否运行在 Docker / 容器环境中
 func isDocker() bool {
-    // 1. 优先检查环境变量
-    if os.Getenv("RUNNING_IN_DOCKER") == "true" {
-        return true
-    }
+	// 1. 优先检查环境变量
+	if os.Getenv("RUNNING_IN_DOCKER") == "true" {
+		return true
+	}
 
-    // 2. 检查 /.dockerenv 文件
-    if _, err := os.Stat("/.dockerenv"); err == nil {
-        return true
-    }
+	// 2. 检查 /.dockerenv 文件
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
 
-    // 3. 检查 /proc/1/cgroup 内容
-    if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
-        content := string(data)
-        if strings.Contains(content, "docker") ||
-            strings.Contains(content, "kubepods") ||
-            strings.Contains(content, "containerd") {
-            return true
-        }
-    }
+	// 3. 检查 /proc/1/cgroup 内容
+	if data, err := os.ReadFile("/proc/1/cgroup"); err == nil {
+		content := string(data)
+		if strings.Contains(content, "docker") ||
+			strings.Contains(content, "kubepods") ||
+			strings.Contains(content, "containerd") {
+			return true
+		}
+	}
 
-    return false
+	return false
 }
