@@ -159,7 +159,7 @@ func restartSelfWindows(exe string) error {
 		return fmt.Errorf("启动重启脚本失败: %w", err)
 	}
 
-	slog.Info("\033[32m🚀 已在新窗口重启...\033[0m")
+	slog.Warn("\033[32m🚀 已在新窗口重启...\033[0m")
 
 	os.Exit(0)
 	return nil

@@ -145,94 +145,7 @@ func (app *App) Initialize() error {
 	}
 
 	// 检查版本更新
-	// TODO: 启动时如有新版本,提供是否更新的命令行对话
-	enableSelfUpdate := config.GlobalConfig.EnableSelfUpdate
-	updateOnStartup := config.GlobalConfig.UpdateOnStartup
-	cronCheckUpdate := config.GlobalConfig.CronCheckUpdate
-
-	// 是否从GUI发出的调用
-	START_FROM_GUI := (os.Getenv("START_FROM_GUI") != "")
-
-	// 是否运行在docker
-	isDocker := isDocker()
-
-	if isDocker {
-		slog.Info("检测到运行在 Docker 容器中,不执行自动更新")
-	}
-
-	// 程序启动时更新
-	if !START_FROM_GUI && enableSelfUpdate && updateOnStartup && !isDocker {
-		updateDone := make(chan struct{})
-		go func() {
-			app.CheckUpdateAndRestart(false)
-			close(updateDone)
-		}()
-		<-updateDone // 等待后台更新完成
-	} else {
-		// 启动时总是检查版本号,提示手动更新
-		detectDone := make(chan struct{})
-		go func() {
-			app.detectLatestRelease()
-			close(detectDone)
-		}()
-		<-detectDone // 等待后台版本检查完成
-	}
-
-	//设置定时更新任务
-	updateCron := cron.New()
-	if cronCheckUpdate != "" {
-		_, err = updateCron.AddFunc(cronCheckUpdate, func() {
-			if !START_FROM_GUI && enableSelfUpdate && !app.checking.Load() && !isDocker {
-				slog.Info("定时检查版本更新...")
-				updateDone := make(chan struct{})
-				go func() {
-					app.CheckUpdateAndRestart(true)
-					close(updateDone)
-				}()
-				<-updateDone // 等待后台更新完成
-			} else if !app.checking.Load() {
-				// 不在检测代理期间,检查版本号,提示手动更新
-				detectDone := make(chan struct{})
-				go func() {
-					app.detectLatestRelease()
-					close(detectDone)
-				}()
-				<-detectDone // 等待后台版本检查完成
-			}
-		})
-		if err != nil {
-			slog.Error(fmt.Sprintf("注册 定时检查版本更新 定时任务失败: %v", err))
-		} else {
-			updateCron.Start()
-		}
-	} else {
-		// 未设置cronCheckUpdate的情况下,给出一个默认值
-		// 每周日 0 点自动检查版本更新
-		_, err = updateCron.AddFunc("0 0 * * 0", func() {
-			if !START_FROM_GUI && enableSelfUpdate && !app.checking.Load() && !isDocker {
-				slog.Info("定时检查版本更新...")
-				updateDone := make(chan struct{})
-				go func() {
-					app.CheckUpdateAndRestart(true)
-					close(updateDone)
-				}()
-				<-updateDone // 等待后台更新完成
-			} else if !app.checking.Load() {
-				// 不在检测代理期间,检查版本号,提示手动更新
-				detectDone := make(chan struct{})
-				go func() {
-					app.detectLatestRelease()
-					close(detectDone)
-				}()
-				<-detectDone // 等待后台版本检查完成
-			}
-		})
-		if err != nil {
-			slog.Error(fmt.Sprintf("注册 定时检查版本更新 定时任务失败: %v", err))
-		} else {
-			updateCron.Start()
-		}
-	}
+	app.SetupUpdateTasks()
 
 	return nil
 }
@@ -474,4 +387,70 @@ func isDocker() bool {
 	}
 
 	return false
+}
+
+// SetupUpdateTasks 自动判断运行环境和配置，自动检查更新并创建定时任务
+func (app *App) SetupUpdateTasks() {
+	enableSelfUpdate := config.GlobalConfig.EnableSelfUpdate
+	updateOnStartup := config.GlobalConfig.UpdateOnStartup
+	cronCheckUpdate := config.GlobalConfig.CronCheckUpdate
+
+	START_FROM_GUI := os.Getenv("START_FROM_GUI") != ""
+	isDocker := isDocker()
+
+	if isDocker {
+		slog.Info("检测到运行在 Docker 容器中,不执行自动更新")
+	}
+
+	// 程序启动时更新
+	if !START_FROM_GUI && enableSelfUpdate && updateOnStartup && !isDocker {
+		updateDone := make(chan struct{})
+		go func() {
+			app.CheckUpdateAndRestart(false) // 启动时使用 false
+			close(updateDone)
+		}()
+		<-updateDone
+	} else {
+		detectDone := make(chan struct{})
+		go func() {
+			app.detectLatestRelease()
+			close(detectDone)
+		}()
+		<-detectDone
+	}
+
+	// 设置定时更新任务
+	updateCron := cron.New()
+	schedule := cronCheckUpdate
+	if schedule == "" {
+		// 默认每周日 0 点
+		schedule = "0 0 * * 0"
+	}
+
+	_, err := updateCron.AddFunc(schedule, func() {
+		if !app.checking.Load() {
+			if !START_FROM_GUI && enableSelfUpdate && !isDocker {
+				slog.Info("定时检查版本更新并自动升级新版本...")
+				updateDone := make(chan struct{})
+				go func() {
+					app.CheckUpdateAndRestart(true) // 定时任务使用 true
+					close(updateDone)
+				}()
+				<-updateDone
+			} else {
+				slog.Info("定时检查新版本...")
+				detectDone := make(chan struct{})
+				go func() {
+					app.detectLatestRelease()
+					close(detectDone)
+				}()
+				<-detectDone
+			}
+		}
+	})
+	if err != nil {
+		slog.Error(fmt.Sprintf("注册 定时检查版本更新 定时任务失败: %v", err))
+	} else {
+		updateCron.Start()
+	}
 }
