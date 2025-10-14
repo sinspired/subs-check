@@ -5,6 +5,8 @@ version: 2
 before:
   hooks:
     - go mod tidy
+    - go install github.com/tc-hib/go-winres@latest
+    - go generate ./...
 
 release:
   # 自动检测是否为预发布版本（例如，tag 中包含 -rc, -beta 等）
@@ -50,7 +52,7 @@ builds:
 # 归档配置（用于创建 .tar.gz 和 .zip 文件）
 archives:
   - ids:
-    - subs-check
+      - subs-check
     # 归档文件的打包
     formats:
       - tar.gz

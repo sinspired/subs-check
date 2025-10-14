@@ -1,3 +1,4 @@
+//go:generate go-winres make --in winres/winres.json --product-version=git-tag --file-version=git-tag --arch=amd64,386,arm64
 package main
 
 import (
