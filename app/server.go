@@ -43,6 +43,11 @@ func (app *App) initHttpServer() error {
 
 	// 静态文件路由 - 订阅服务相关，始终启用
 	// 最初不应该不带路径，现在保持兼容
+	router.StaticFile("/icon/favicon-96x96.png", saver.OutputPath+"/icon/favicon-96x96.png")
+	router.StaticFile("/icon/favicon.svg", saver.OutputPath+"/icon/favicon.svg")
+	router.StaticFile("/icon/apple-touch-icon.png", saver.OutputPath+"/icon/apple-touch-icon.png")
+	router.StaticFile("/icon/site.webmanifest", saver.OutputPath+"/icon/site.webmanifest")
+
 	router.StaticFile("/all.yaml", saver.OutputPath+"/all.yaml")
 	router.StaticFile("/history.yaml", saver.OutputPath+"/history.yaml")
 	router.StaticFile("/all.txt", saver.OutputPath+"/all.txt")
