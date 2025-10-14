@@ -17,6 +17,10 @@ update-on-startup: true
 cron-chek-update: "0 0,9,21 * * *"
 # 使用预发布版本
 prerelease: false
+# 下载新版本超时时间(分钟)(默认2分钟)
+# 如系统代理和github代理不稳定,可适当调大即可
+# 请输入整数
+update-timeout: 2
 
 # 并发线程数
 concurrent: 20

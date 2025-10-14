@@ -73,6 +73,7 @@ type Config struct {
 	UpdateOnStartup      bool     `yaml:"update-on-startup"`
 	CronCheckUpdate      string   `yaml:"cron-chek-update"`
 	Prerelease           bool     `yaml:"prerelease"`
+	UpdateTimeout        int      `yaml:"update-timeout"`
 }
 
 var GlobalConfig = &Config{

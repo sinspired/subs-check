@@ -356,9 +356,6 @@ func (app *App) Shutdown() error {
 	// 等待短时间，给子 goroutine 清理时间（作为最小可行方案）
 	time.Sleep(500 * time.Millisecond)
 
-	// TODO：尝试调用 assets 提供的清理接口
-	// 或 WaitGroup 等待所有 goroutine 结束。
-
 	slog.Info("应用已关闭")
 	return lastErr
 }

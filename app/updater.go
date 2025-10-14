@@ -73,49 +73,48 @@ func (app *App) InitUpdateInfo() {
 
 // detectSuccessNotify 发送新版本通知
 func detectSuccessNotify(currentVersion string, latest *selfupdate.Release) {
-    isGUI := os.Getenv("START_FROM_GUI") != ""
-    isDockerEnv := isDocker()
-    autoUpdate := config.GlobalConfig.EnableSelfUpdate
+	isGUI := os.Getenv("START_FROM_GUI") != ""
+	isDockerEnv := isDocker()
+	autoUpdate := config.GlobalConfig.EnableSelfUpdate
 
-    // 是否需要提示（任一条件满足）
-    needNotify := !autoUpdate || isDockerEnv || isGUI
+	// 是否需要提示（任一条件满足）
+	needNotify := !autoUpdate || isDockerEnv || isGUI
 
-    if needNotify {
-        slog.Warn("发现新版本",
-            "当前版本", currentVersion,
-            slog.String("最新版本", latest.Version()),
-        )
-    }
+	if needNotify {
+		slog.Warn("发现新版本",
+			"当前版本", currentVersion,
+			slog.String("最新版本", latest.Version()),
+		)
+	}
 
-    // 提示用户开启自动更新（仅 CLI 且未开启自动更新）
-    if !isGUI && !isDockerEnv && !autoUpdate {
-        fmt.Println("\033[32m✨ 建议开启自动更新，请编辑 config.yaml: update: true\033[0m")
-    }
+	// 提示用户开启自动更新（仅 CLI 且未开启自动更新）
+	if !isGUI && !isDockerEnv && !autoUpdate {
+		fmt.Println("\033[32m✨ 建议开启自动更新，请编辑 config.yaml: update: true\033[0m")
+	}
 
-    if needNotify {
-        fmt.Println("\033[32m🔎 详情查看: https://github.com/sinspired/subs-check")
-        fmt.Println("🔗 手动更新:", latest.AssetURL, "\033[0m")
+	if needNotify {
+		fmt.Println("\033[32m🔎 详情查看: https://github.com/sinspired/subs-check")
+		fmt.Println("🔗 手动更新:", latest.AssetURL, "\033[0m")
 
-        var downloadURL string
-        switch {
-        case isDockerEnv:
-            downloadURL = "docker: ghcr.io/sinspired/subs-check:" + latest.Version()
-        case isGUI:
-            downloadURL = "GUI内核: " + latest.AssetURL
-        default:
-            downloadURL = latest.AssetURL
-        }
+		var downloadURL string
+		switch {
+		case isDockerEnv:
+			downloadURL = "docker: ghcr.io/sinspired/subs-check:" + latest.Version()
+		case isGUI:
+			downloadURL = "GUI内核: " + latest.AssetURL
+		default:
+			downloadURL = latest.AssetURL
+		}
 
-        // 发送更新成功通知
-        utils.SendNotify_detectLatestRelease(
-            currentVersion,
-            latest.Version(),
-            isDockerEnv || isGUI,
-            downloadURL,
-        )
-    }
+		// 发送更新成功通知
+		utils.SendNotify_detectLatestRelease(
+			currentVersion,
+			latest.Version(),
+			isDockerEnv || isGUI,
+			downloadURL,
+		)
+	}
 }
-
 
 // updateSuccess 更新成功处理
 func (app *App) updateSuccess(current string, latest string, silentUpdate bool) {
@@ -191,17 +190,44 @@ func clearProxyEnv() {
 	}
 }
 
-// 单次尝试更新
-func tryUpdateOnce(ctx context.Context, updater *selfupdate.Updater, latest *selfupdate.Release, exe string, assetURL, validationURL string, clearProxy bool, label string) error {
+// 单次尝试更新（带超时）
+func tryUpdateOnce(parentCtx context.Context, updater *selfupdate.Updater, latest *selfupdate.Release,
+	exe string, assetURL, validationURL string, clearProxy bool, label string) error {
+
 	if clearProxy {
 		slog.Info("清理系统代理", slog.String("strategy", label))
 		clearProxyEnv()
 	}
+
 	latest.AssetURL = assetURL
 	latest.ValidationAssetURL = validationURL
 	slog.Info("正在更新", slog.String("策略", label))
-	// TODO: 添加超时机制，避免系统代理活github代理质量不佳,下载速度慢时策略阻塞进程
-	return updater.UpdateTo(ctx, latest, exe)
+
+	// 设置下载新版本单个策略超时,如未在配置文件内设置,默认为2分钟
+	updateTimeout := 2 * time.Minute
+	if config.GlobalConfig.UpdateTimeout > 0 {
+		slog.Debug("设置更新超时", slog.Int("分钟", config.GlobalConfig.UpdateTimeout))
+		updateTimeout = time.Duration(config.GlobalConfig.UpdateTimeout) * time.Minute
+	}
+
+	ctx, cancel := context.WithTimeout(parentCtx, updateTimeout)
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- updater.UpdateTo(ctx, latest, exe)
+	}()
+
+	select {
+	case <-ctx.Done():
+		if ctx.Err() == context.DeadlineExceeded {
+			slog.Error("更新超时，切换下一个策略", slog.String("strategy", label))
+			return ctx.Err()
+		}
+		return ctx.Err()
+	case err := <-errCh:
+		return err
+	}
 }
 
 // detectLatestRelease 探测最新版本并判断是否需要更新
@@ -308,7 +334,7 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 		return
 	}
 
-	slog.Warn(fmt.Sprintf("检测到新版本，自动更新重启：%s -> %s", curVer.String(),latest.Version()))
+	slog.Warn(fmt.Sprintf("检测到新版本，自动更新重启：%s -> %s", curVer.String(), latest.Version()))
 
 	exe, err := os.Executable()
 	if err != nil {
@@ -322,10 +348,12 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 	go func() { ghProxyCh <- utils.GetGhProxy() }()
 
 	if isSysProxy {
+		// 策略 1：系统代理
 		if err := tryUpdateOnce(ctx, updater, latest, exe, latest.AssetURL, latest.ValidationAssetURL, false, "使用系统代理"); err == nil {
 			app.updateSuccess(currentVersion, latest.Version(), silentUpdate)
 			return
 		}
+		// 策略 2：GitHub 代理
 		var isGhProxy bool
 		select {
 		case isGhProxy = <-ghProxyCh:
@@ -339,11 +367,14 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 				return
 			}
 		}
+		// 策略 3：原始链接
 		if err := tryUpdateOnce(ctx, updater, latest, exe, latest.AssetURL, latest.ValidationAssetURL, true, "使用原始链接"); err == nil {
 			app.updateSuccess(currentVersion, latest.Version(), silentUpdate)
 			return
 		}
 	} else {
+		// 无系统代理，直接使用 GitHub 代理和原始链接
+		// 策略 1：GitHub 代理
 		isGhProxy := <-ghProxyCh
 		if isGhProxy {
 			ghProxy := config.GlobalConfig.GithubProxy
@@ -352,6 +383,7 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 				return
 			}
 		}
+		// 策略 2：原始链接
 		if err := tryUpdateOnce(ctx, updater, latest, exe, latest.AssetURL, latest.ValidationAssetURL, true, "使用原始链接"); err == nil {
 			app.updateSuccess(currentVersion, latest.Version(), silentUpdate)
 			return
