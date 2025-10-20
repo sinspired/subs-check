@@ -366,16 +366,16 @@ padding-bottom: 8px;
 /* 进度信息 */
 .progress-info { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 
-.progress-wrapper { display: flex; justify-content: space-between; align-items: center; }
+.progress-wrapper { display: flex; justify-content: space-between; align-items: center; font-size:14px;font-weight: 600;}
 
 .progress-bar-wrap { display: flex; align-items: center; gap: 8px}
 
 /* 进度条优化 */
 .progress-bar-wrap progress {
   flex: 1;
-  height: 6px;
+  height: 4px;
   width: 100%;
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
   background-color: var(--border);
   border: none;
@@ -383,20 +383,24 @@ padding-bottom: 8px;
 
 .progress-bar-wrap progress::-webkit-progress-bar {
   background-color: var(--border);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .progress-bar-wrap progress::-webkit-progress-value {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.3s ease;
   animation: progressShimmer 2s ease-in-out infinite;
 }
 
 .progress-bar-wrap progress::-moz-progress-bar {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.3s ease;
+}
+
+#progressText{
+  font-size: 12px;
 }
 
 /* 闪烁效果 */
