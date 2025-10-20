@@ -336,8 +336,8 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 24px;  /* 匹配原font-size */
-  height: 24px;
+  width: 30px;  /* 匹配原font-size */
+  height: 30px;
   color: white;  /* currentColor继承此色 */
   transition: color .2s ease;
 }
