@@ -72,7 +72,7 @@ type Config struct {
 	GithubProxyGroup     []string `yaml:"ghproxy-group"`
 	EnableSelfUpdate     bool     `yaml:"update"`
 	UpdateOnStartup      bool     `yaml:"update-on-startup"`
-	CronCheckUpdate      string   `yaml:"cron-chek-update"`
+	CronCheckUpdate      string   `yaml:"cron-check-update"`
 	Prerelease           bool     `yaml:"prerelease"`
 	UpdateTimeout        int      `yaml:"update-timeout"`
 }
