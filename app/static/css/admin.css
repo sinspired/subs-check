@@ -1,4 +1,5 @@
 :root {
+  -webkit-text-size-adjust: 100%;
     --bg: #f6f7f9;
     --fg: #111;
     --card: #fff;
@@ -196,6 +197,8 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
 padding-bottom: 8px;
   text-align: center;      /* 文字居中 */
   width: 100%;             /* 不要强制 100%，避免撑满 */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* .sidebar .title { font-weight: 600; margin-bottom: 6px; } */
@@ -512,6 +515,7 @@ padding: 4px 0 8px 0; }
     white-space: pre-wrap;
     word-break: break-word;
     cursor: pointer;
+    -webkit-user-select: text;
     user-select: text;
 }
 

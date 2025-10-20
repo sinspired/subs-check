@@ -46,7 +46,7 @@ High-performance proxy subscription checker.
 ## 📸 预览
 
 ![preview](./doc/images/preview.png)  
-![result](./doc/images/results.png) 
+![result](./doc/images/results.png)
 
 ### ✨ 重新设计的 WebUI管理界面
 
