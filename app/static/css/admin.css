@@ -5,6 +5,7 @@
     --card: #fff;
     --border: rgba(0, 0, 0, 0.06);
     --accent: #0ea5a0;
+    --accent-light: rgba(14,165,160,0.6);
     --accent-2: #09c7c1;
     --muted: #646971;
     --muted-hard: rgba(144, 141, 141, 0.8);
@@ -680,7 +681,7 @@ padding: 4px 0 8px 0; }
 /* 获取焦点时 */
 #configEditor:focus {
     /* border-color: var(--accent-2); */
-    box-shadow: inset 0 0 10px var(--accent); /* 水平/垂直偏移0，模糊10px，浅黑阴影 */
+    box-shadow: inset 0 0 10px var(--accent-light); /* 水平/垂直偏移0，模糊10px，浅黑阴影 */
 }
 
 /* 语法高亮 */
@@ -1008,6 +1009,7 @@ padding: 4px 0 8px 0; }
     /* 保证 16px 以避免 iOS 放大 */
     font-size: 16px;
     line-height: 1.3;
+    box-shadow: inset 0 0 8px var(--accent-light); 
   }
 
   /* 指定移动设备高度 */
