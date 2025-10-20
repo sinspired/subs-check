@@ -185,18 +185,63 @@
     const iconEl = toggleBtn.querySelector('.btn-icon');
 
     const config = {
-      idle: { icon: '▶', disabled: false, title: '开始检测', pressed: 'false' },
-      starting: { icon: '⌛︎', disabled: true, title: '正在开始', pressed: 'true' },
-      checking: { icon: '▇', disabled: false, title: '检测中 - 点击停止', pressed: 'true' },
-      stopping: { icon: '⌛︎', disabled: true, title: '正在结束', pressed: 'true' },
-      disabled: { icon: '—', disabled: true, title: '请先登录', pressed: 'false' }
+      idle: {
+        icon: `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      `,
+        disabled: false,
+        title: '开始检测',
+        pressed: 'false'
+      },
+      starting: {
+        icon: `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 12h-2.25c0 5.5 4.25 10 9.75 10s9.75-4.5 9.75-10-4.25-10-9.75-10-9.75 4.5-9.75 10zM12 7.5v9"/>
+        </svg>
+      `,
+        disabled: true,
+        title: '正在开始',
+        pressed: 'true'
+      },
+      checking: {
+        icon: `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 6h12v12H6z"/>
+        </svg>
+      `,
+        disabled: false,
+        title: '检测中 - 点击停止',
+        pressed: 'true'
+      },
+      stopping: {
+        icon: `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 12h-2.25c0 5.5 4.25 10 9.75 10s9.75-4.5 9.75-10-4.25-10-9.75-10-9.75 4.5-9.75 10zM12 7.5v9"/>
+        </svg>
+      `,
+        disabled: true,
+        title: '正在结束',
+        pressed: 'true'
+      },
+      disabled: {
+        icon: `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5 12h14"/>
+        </svg>
+      `,
+        disabled: true,
+        title: '请先登录',
+        pressed: 'false'
+      }
     };
 
     const cfg = config[state] || config.disabled;
     toggleBtn.disabled = cfg.disabled;
     toggleBtn.title = cfg.title;
     toggleBtn.setAttribute('aria-pressed', cfg.pressed);
-    if (iconEl) iconEl.textContent = cfg.icon;
+    if (iconEl) iconEl.innerHTML = cfg.icon;  // 改为innerHTML，支持SVG
   }
 
   function setAuthUI(ok) {

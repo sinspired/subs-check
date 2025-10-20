@@ -128,8 +128,13 @@
           <div class="progress-row">
             <div class="progress-actions">
               <button id="btnToggleCheck" class="toggle-btn" aria-label="检测开关" title="开始检测">
-                <!-- TODO: 使用svg图标,解决变形问题 -->
-                <span class="btn-icon" aria-hidden="true">▶</span>
+                <!-- 内联SVG：初始idle状态 -->
+                <span class="btn-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
               </button>
             </div>
 

@@ -315,30 +315,37 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
   border-top: 1px solid var(--border);
 }
 /* 圆形图标按钮 */
+/* 圆形图标按钮 */
 .toggle-btn {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: transparent;
-    cursor: pointer;
-    transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  cursor: pointer;
+  transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* icon 样式 */
+/* icon 样式：适配SVG */
 .toggle-btn .btn-icon {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 18px;
-  line-height: 1;
-  color: white;
+  width: 24px;  /* 匹配原font-size */
+  height: 24px;
+  color: white;  /* currentColor继承此色 */
   transition: color .2s ease;
+}
+
+.toggle-btn .btn-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;  /* 防止inline间隙 */
 }
 
 /* 状态样式 */
@@ -348,7 +355,7 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
 }
 
 .toggle-btn.state-idle:hover:not(:disabled) .btn-icon {
-  color: var(--success);
+  color: var(--success);  /* SVG继承，hover高亮 */
 }
 
 .toggle-btn.state-checking {
