@@ -497,6 +497,8 @@
           formatted = '<span class="hl-null">' + esc(itemContent) + '</span>';
         } else if (/^https?:\/\//i.test(val)) {
           formatted = '<span class="hl-url">' + esc(itemContent) + '</span>';
+        }else{
+          formatted = '<span class="hl-string">' + esc(itemContent) + '</span>';
         }
 
         return leading + '<span class="hl-hyphen">-</span> ' + formatted;
@@ -518,6 +520,8 @@
           formatted = '<span class="hl-url">' + esc(valRaw) + '</span>';
         } else if (/^(null|~)$/.test(val)) {
           formatted = '<span class="hl-null">' + esc(valRaw) + '</span>';
+        }else{
+          formatted = '<span class="hl-string">' + esc(valRaw) + '</span>';
         }
 
         return indent + '<span class="hl-key">' + esc(key) + '</span>:' + sep + formatted;
