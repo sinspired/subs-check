@@ -14,7 +14,7 @@
   const POLL_INTERVAL_MS = 500;
   const MAX_LOG_LINES = 1000;
   const MAX_FAILURE_DURATION_MS = 5000;
-  const ACTION_CONFIRM_TIMEOUT_MS = 20000;
+  const ACTION_CONFIRM_TIMEOUT_MS = 30000;
 
   // 页面元素
   const $ = s => document.querySelector(s);

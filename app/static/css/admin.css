@@ -13,9 +13,12 @@
     --warning: #d97706;
     --danger: #ed1717;
     
+    /* 密码输入框背景 */
     --input-bg: rgba(236, 232, 224, 0.2);
-    --logs-bg: rgba(236, 232, 224, 0.2);
-    --editor-bg: white;
+
+    /* --logs-bg: rgba(236, 232, 224, 0.2); */
+    --logs-bg: rgba(241, 237, 226, 0.2);
+    --editor-bg: rgba(241, 237, 226, 0.2);
 
 
     /* 玻璃效果 */
