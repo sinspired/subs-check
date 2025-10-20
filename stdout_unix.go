@@ -3,10 +3,10 @@
 package main
 
 import (
-    "io"
-    "os"
+	"io"
+	"os"
 )
 
 func getStdout() io.Writer {
-    return os.Stdout
+	return os.Stdout
 }

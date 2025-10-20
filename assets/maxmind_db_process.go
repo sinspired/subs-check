@@ -1,3 +1,5 @@
+
+// Package assets 处理 MaxMind 数据库
 package assets
 
 import (
@@ -121,7 +123,7 @@ func openFromBytes(path string) (*maxminddb.Reader, error) {
 		return nil, fmt.Errorf("读取文件到内存失败: %w", err)
 	}
 
-	reader, err := maxminddb.FromBytes(data)
+	reader, err := maxminddb.OpenBytes(data)
 	if err != nil {
 		return nil, fmt.Errorf("从字节数组创建reader失败: %w", err)
 	}
