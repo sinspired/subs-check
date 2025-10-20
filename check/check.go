@@ -332,6 +332,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 		for {
 			select {
 			case <-ctx.Done():
+				slog.Warn("用户手动结束检测,等待收集结果")
 				return
 			case <-ticker.C:
 				if ForceClose.Load() {

@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -68,6 +69,13 @@ func (app *App) initHttpServer() error {
 
 		// 设置模板加载 - 只有在启用Web控制面板时才加载
 		router.SetHTMLTemplate(template.Must(template.New("").ParseFS(configFS, "templates/*.html")))
+
+		// 挂载嵌入的 static 目录
+		staticSub, _ := fs.Sub(staticFS, "static")
+		router.StaticFS("/static", http.FS(staticSub))
+
+		// 暴露版本号
+		router.GET("/version", app.getOriginVersion)
 
 		// API路由
 		api := router.Group("/api")
@@ -209,6 +217,11 @@ func (app *App) getLogs(c *gin.Context) {
 // getLogs 获取最近日志
 func (app *App) getVersion(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"version": app.version})
+}
+
+// getLogs 获取最近日志
+func (app *App) getOriginVersion(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"version": app.originVersion})
 }
 
 func ReadLastNLines(filePath string, n int) ([]string, error) {

@@ -3,7 +3,7 @@ print-progress: false
 # 进度条显示模式:
 # "auto": 根据测活-测速-媒体检测的阶段权重自动显示
 # "stage": 每个阶段完成,显示下一阶段剩余任务
-progress-mode: "auto"
+progress-mode: auto
 
 # 是否开启新版本更新
 # 支持启动时检查更新及定时更新任务,无缝升级新版本
@@ -14,7 +14,7 @@ update: false
 update-on-startup: true
 # 定时检查更新
 # "0 0,9,21 * * *" 默认每天0点,9点,21点检查更新
-cron-chek-update: "0 0,9,21 * * *"
+cron-chek-update: 0 0,9,21 * * *
 # 使用预发布版本
 prerelease: false
 # 下载新版本超时时间(分钟)(默认2分钟)
@@ -42,7 +42,7 @@ check-interval: 720
 # "0 0 */2 * *" 表示每2天的0点执行
 # "0 0 1 * *" 表示每月1日0点执行
 # "*/30 * * * *" 表示每30分钟执行一次
-# cron-expression: "*/30 * * * *"
+cron-expression: 0 */6 * * *
 
 # 保存几个成功的节点，为0代表不限制
 # 如果你的并发数量超过这个参数，那么成功的结果可能会大于这个数值
@@ -54,7 +54,8 @@ timeout: 5000
 # 测速地址(注意 并发数*节点速度<最大网速 否则测速结果不准确)
 # 尽量不要使用Speedtest，Cloudflare提供的下载链接，因为很多节点屏蔽测速网站
 # 如果找不到稳定的测速地址，可以自建测速地址
-speed-test-url: https://github.com/AaronFeng753/Waifu2x-Extension-GUI/releases/download/v2.21.12/Waifu2x-Extension-GUI-v2.21.12-Portable.7z
+speed-test-url: >-
+  https://github.com/AaronFeng753/Waifu2x-Extension-GUI/releases/download/v2.21.12/Waifu2x-Extension-GUI-v2.21.12-Portable.7z
 
 # 注意: 节点可能被测速测死(暂时或永久), 经过多次测试, 不用怀疑!
 # 强烈建议设置较低的 min-speed, 强烈建议保留 download-timeout 和 download-mb
@@ -80,16 +81,16 @@ threshold: 0.75
 # http://127.0.0.1:8199/all.yaml
 # 注意：为方便小白默认监听0.0.0.0:8199，请自行修改
 # 更新需重启程序
-listen-port: ":8199"
+listen-port: ':8199'
 
 # 以节点IP查询位置重命名节点
 # 质量差的节点可能造成IP查询失败，造成整体检查速度稍微变慢，默认true
 rename-node: true
 # 节点前缀，依赖rename-node为true才生效
-node-prefix: ""
+node-prefix: ''
 
 # 只测试指定协议的节点
-node-type:
+node-type: 
   # - ss
   # - vmess
   # - vless
@@ -120,11 +121,11 @@ enhanced-tag: false
 # MaxMind 地理数据库路径
 # 如果为空，则使用内置的数据库文件（解压到output目录）
 # 可以指定本地数据库文件路径，如：/path/to/GeoLite2-Country.mmdb
-maxmind-db-path: ""
+maxmind-db-path: ''
 
 # 输出目录
 # 如果为空，则为程序所在目录的config目录
-output-dir: ""
+output-dir: ''
 
 # 保留之前测试成功的节点
 # 如果为true，则保留之前测试成功的节点，这样就不会因为上游链接更新，导致可用的节点被清除掉
@@ -137,49 +138,51 @@ keep-success-proxies: true
 enable-web-ui: true
 # 填写Web控制面板的api-key，如果为空，则自动生成
 # 配置文件为空时，支持使用环境变量设置 API_KEY
-api-key: ""
+api-key: ''
 
 # 检测完成后执行的回调脚本路径
 # 脚本将在检测完成后执行，可用于自定义通知或其他操作
 # 例如: "/path/to/your/script.sh" 或 'C:\path\to\your\script.bat'
 # Linux请在脚本开头添加对应的：#!/bin/bash、#!/bin/sh、#!/usr/bin/env bash 等，编写标准的脚本
 # 注意如果使用docker，目前docker使用的alpine，只有sh，不支持bash
-callback-script: ""
+callback-script: ''
 
 # 填写搭建的apprise API server 地址
 # https://notify.xxxx.us.kg/notify
-apprise-api-server: ""
+apprise-api-server: ''
 # 填写通知目标
 # 支持100+ 个通知渠道，详细格式请参照 https://github.com/caronc/apprise
-recipient-url:
+recipient-url: 
+  # - 渠道1
+  # - 渠道2
   # telegram格式：tgram://{bot_token}/{chat_id}
   # - tgram://xxxxxx/-1002149239223
   # 钉钉格式：dingtalk://{Secret}@{ApiKey}
   # - dingtalk://xxxxxx@xxxxxxx
 # 自定义通知标题
-notify-title: "🔔 节点状态更新"
+notify-title: 🔔 节点状态更新
 
 # sub-store的启动端口，为空则不启动sub-store
 # 更新需重启程序，不可监听局域网IP，只有三种写法 :8299, 127.0.0.1:8299, 0.0.0.0:8299
 # sub-store-port: ":8299"
-sub-store-port: ":8299"
+sub-store-port: ':8299'
 # sub-store自定义访问路径，必须以/开头，后续访问订阅也要带上此路径
 # 设置path之后，还可以开启订阅分享功能，无需暴露真实的path
 # sub-store-path: "/path"
-sub-store-path: ""
+sub-store-path: ''
 # 以下配置去查看sub-store相关的教程：https://hub.docker.com/r/xream/sub-store
 # sub-store同步gist定时任务
 # 定时任务指定时将订阅/文件上传到私有 Gist. 在前端, 叫做 同步 或 同步配置.
 # 55 23 * * * 每天 23 点 55 分(避开部分机场后端每天0点定时重启)
-sub-store-sync-cron: ""
+sub-store-sync-cron: ''
 # 定时更新订阅
 # SUB_STORE_PRODUCE_CRON 在后台定时处理订阅. 格式为 0 */2 * * *,sub,a;0 */3 * * *,col,b
 # 即每 2 小时处理一次单条订阅 a, 每 3 小时处理一次组合订阅 b.
-sub-store-produce-cron: ""
+sub-store-produce-cron: ''
 # sub-store推送服务地址
 # 例如：Brak: "SUB_STORE_PUSH_SERVICE=https://api.day.app/XXXXXXXXXXXX/[推送标题]/[推送内容]"
 # 注意：仅需修改 XXXXXXXXXXXX 为自己的 token，[推送标题]/[推送内容] 会被sub-store自动替换为对应的内容
-sub-store-push-service: ""
+sub-store-push-service: ''
 
 # 覆写订阅的url，这个的作用是生成带指定规则的mihomo/clash.meta订阅链接
 # 防止网络不好，所以现在内置，依赖:8199端口
@@ -192,15 +195,15 @@ save-method: local
 
 # webdav
 webdav-url: https://example.com/dav/
-webdav-username: "admin"
-webdav-password: "admin"
+webdav-username: admin
+webdav-password: admin
 
 # gist id
-github-gist-id: ""
+github-gist-id: ''
 # github token
-github-token: ""
+github-token: ''
 # github api mirror
-github-api-mirror: ""
+github-api-mirror: ''
 
 # 将测速结果推送到Worker的地址
 worker-url: https://example.worker.dev
@@ -208,17 +211,17 @@ worker-url: https://example.worker.dev
 worker-token: 1234567890
 
 # 将测速结果推送到S3/Minio的地址
-s3-endpoint: "127.0.0.1:9000"
+s3-endpoint: 127.0.0.1:9000
 # S3的访问凭证
-s3-access-id: "ak"
-s3-secret-key: "sk"
+s3-access-id: ak
+s3-secret-key: sk
 # S3的Bucket名称
-s3-bucket: "public"
+s3-bucket: public
 # 是否使用SSL
 s3-use-ssl: false
 # 默认自动判断dns还是path，但一些云厂商不遵循规范，所以有时需要手动设置
 # 可选值：auto, path, dns
-s3-bucket-lookup: "auto"
+s3-bucket-lookup: auto
 
 # 优先级 1.system-proxy;2.github-proxy;3.ghproxy-group
 # 即使未设置,也会检测常见端口(v2ray\clash)的系统代理自动设置
@@ -227,10 +230,10 @@ s3-bucket-lookup: "auto"
 # 写法跟环境变量一样，修改需重启生效
 # system-proxy: "http://username:password@192.168.1.1:7890"
 # system-proxy: "socks5://username:password@192.168.1.1:7890"
-system-proxy: ""
+system-proxy: ''
 # Github 代理：获取订阅使用
 # github-proxy: "https://ghfast.top/"
-github-proxy: ""
+github-proxy: ''
 # GitHub 代理列表：程序会自动筛选可用的 GitHub 代理
 ghproxy-group:
   - https://ghp.yeye.f5.si/
