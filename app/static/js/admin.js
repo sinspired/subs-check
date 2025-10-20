@@ -1030,7 +1030,7 @@
         const isPassword = apiKeyInput.type === 'password';
         apiKeyInput.type = isPassword ? 'text' : 'password';
         showApikeyBtn.textContent = isPassword ? '隐藏' : '显示';
-        showApikeyBtn.classList.toggle('active', !isPassword);
+        showApikeyBtn.classList.toggle('active', isPassword);
       });
     }
 
