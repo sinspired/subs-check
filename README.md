@@ -18,7 +18,7 @@ High-performance proxy subscription checker.
 
 新增：[**自适应流水线高并发模式**](#1-测活-测速-媒体检测分阶段流水线自适应高并发)、[增强位置标签](#2-增强位置标签)、[优化内存](#3-优化内存)、[智能节点乱序](#4-智能节点乱序减少节点被测速-测死-的概率)、[历次检测可用节点](#5-保存并加载-历次-检测可用节点)、[自动检测代理](#-优化系统代理和github代理设置可选)。**大幅优化性能，减少数倍检测时间。**
 
-💡从版本 `v1.9.0` 开始，支持 [自动检查更新，无缝升级新版本](#6-自动检查更新无缝升级新版本)
+💡从版本 `v1.9.0` 开始，支持 [自动检查更新，无缝升级新版本](#6-自动检查更新无缝升级新版本)；自版本 `v1.9.3` 开始，重新设计了 [全新的 WebUI管理界面](#-重新设计的-webui管理界面)。
 
 🐳 支持多平台构建和容器化部署：[Docker 部署](#-docker-运行)
 
@@ -46,8 +46,12 @@ High-performance proxy subscription checker.
 ## 📸 预览
 
 ![preview](./doc/images/preview.png)  
-![result](./doc/images/results.png)  
-![admin](./doc/images/admin.png)
+![result](./doc/images/results.png) 
+
+### ✨ 重新设计的 WebUI管理界面
+
+![login](./doc/images/login.png)
+![WebUI](./doc/images/WebUI.png)
 
 |                                  |                                        |
 | -------------------------------- | -------------------------------------- |
