@@ -186,7 +186,7 @@
     const iconEl = toggleBtn.querySelector('.btn-icon');
 
     const config = {
-       idle: {
+      idle: {
         icon: `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path d="M8 5v14l11-7z"/>
@@ -333,6 +333,7 @@
   }
 
 
+  // 鼠标进入/离开监听
   let isMouseInsideLog = false;
 
   if (logContainer) {
@@ -344,40 +345,42 @@
     });
   }
 
+  // 检查选中 + 鼠标位置
   function isUserSelectingOrHovering() {
     const sel = window.getSelection();
     const hasSelection = sel && sel.toString().length > 0;
-    return isMouseInsideLog;
+    return hasSelection || isMouseInsideLog;  // 如果有选中或鼠标在容器内，返回 true（暂停/不强制）
   }
 
   function renderLogLines(lines, IntervalRun) {
     if (!logContainer) return;
+
     if (isUserSelectingOrHovering() && IntervalRun) {
       logContainer.title = "暂停自动刷新";
-      return; // 暂停刷新
-    } else {
-      // 移动到最底
-      logContainer.scrollTop = logContainer.scrollHeight;
+      return;  // 暂停刷新
     }
 
+    logContainer.title = "";  // 清空提示
+
+    // 更新内容
     logContainer.innerHTML = lines.map(l => '<div>' + colorize(l) + '</div>').join('');
 
     requestAnimationFrame(() => {
-      // 记录当前滚动位置
-      const isScrolledToBottom = logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 1;
-      // 只有当用户在底部时才自动滚动
-      if (isScrolledToBottom) {
+      // - 如果鼠标不在容器内，直接强制到底部
+      // - 如果在容器内，只在接近底部时滚动
+      if (!isMouseInsideLog) {
         logContainer.scrollTop = logContainer.scrollHeight;
+      } else {
+        const isScrolledToBottom = logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 1;
+        if (isScrolledToBottom) {
+          logContainer.scrollTop = logContainer.scrollHeight;
+        }
       }
     });
   }
 
   function appendLogLines(linesToAdd) {
     if (!logContainer || !linesToAdd?.length) return;
-    // if (isUserSelectingOrHovering()){
-    //     logContainer.title="暂停自动刷新";
-    //     return; // 暂停刷新
-    // } 
 
     const frag = document.createDocumentFragment();
     linesToAdd.forEach(l => {
@@ -392,15 +395,16 @@
     }
 
     requestAnimationFrame(() => {
-      // 记录当前滚动位置
-      const isScrolledToBottom = logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 1;
-      // 只有当用户在底部时才自动滚动
-      if (isScrolledToBottom) {
+      if (!isMouseInsideLog) {
         logContainer.scrollTop = logContainer.scrollHeight;
+      } else {
+        const isScrolledToBottom = logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 1;
+        if (isScrolledToBottom) {
+          logContainer.scrollTop = logContainer.scrollHeight;
+        }
       }
     });
   }
-
 
   async function loadLogsIncremental(IntervalRun) {
     if (!sessionKey || logsPollRunning) return;
