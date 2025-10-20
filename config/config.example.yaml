@@ -9,7 +9,7 @@ progress-mode: auto
 # 支持启动时检查更新及定时更新任务,无缝升级新版本
 # 支持apprise API通知渠道
 # true: 自动更新; false: 不更新
-update: false
+update: true
 # 启动时检查更新版本
 update-on-startup: true
 # 定时检查更新
