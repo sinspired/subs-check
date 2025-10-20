@@ -686,15 +686,28 @@ async function saveConfigWithValidation() {
             try {
               const dt = info.lastCheckTime ? new Date(String(info.lastCheckTime).replace(' ', 'T')) : null;
               return dt && !isNaN(dt) ? dt.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : (info.lastCheckTime || '-');
-            } catch (e) { return info.lastCheckTime || '-'; }
+            } catch (e) { return info.lastCheckTime || '未知'; }
           })();
 
           const prettyDuration = (typeof info.duration === 'number')
             ? (info.duration >= 60 ? Math.floor(info.duration / 60) + '分' + (info.duration % 60) + '秒' : info.duration + '秒')
-            : (info.duration || '-');
+            : (info.duration || '0');
 
-          const prettyTotal = info.total != null ? String(info.total) : '-';
-          const prettyAvailable = info.available != null ? String(info.available) : '-';
+          const prettyTotal = (() => {
+            if (typeof info.total === 'number') {
+              if (info.total >= 1000000) {
+                return Math.floor(info.total / 10000) + '万';
+              } else if (info.total >= 10000) {
+                return (info.total / 10000).toFixed(1) + '万';
+              } else {
+                // 小于1万，直接显示
+                return String(info.total);
+              }
+            }
+            return info.total != null ? String(info.total) : '0';
+          })();
+
+          const prettyAvailable = info.available != null ? String(info.available) : '0';
 
           // 仅写入 span 的文本，不改 innerHTML
           if (histTimeEl) histTimeEl.textContent = prettyTime;
