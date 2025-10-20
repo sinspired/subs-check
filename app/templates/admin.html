@@ -120,6 +120,7 @@
           <div class="progress-row">
             <div class="progress-actions">
               <button id="btnToggleCheck" class="toggle-btn" aria-label="检测开关" title="开始检测">
+                <!-- TODO: 使用svg图标,解决变形问题 -->
                 <span class="btn-icon" aria-hidden="true">▶</span>
               </button>
             </div>
@@ -157,10 +158,10 @@
                   style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px">
                   <div id="history-line" class="history-line muted"
                     style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    <span id="historyLastTime"></span> |
-                    用时：<span id="historyLastDuration"></span> |
-                    总数：<span id="historyLastTotal"></span> |
-                    可用：<span id="historyLastAvailable" style="color:var(--success);font-weight:700">-</span>
+                    <span id="historyLastTime"></span> 
+                    用时 <span id="historyLastDuration"></span> |
+                    总数 <span id="historyLastTotal"></span> |
+                    可用 <span id="historyLastAvailable" style="color:var(--success);font-weight:700">-</span>
                   </div>
                 </div>
               </div>
@@ -186,7 +187,7 @@
                 <div class="title">最近日志</div>
                 <div id="status" class="muted status-label status-idle">状态：未登录</div>
               </div>
-              <div class="muted">点击日志窗切换自动滚动</div>
+              <div class="muted">点击日志窗暂停滚动和刷新</div>
             </div>
             <div>
               <button id="refreshLogs" class="btn" disabled>刷新</button>

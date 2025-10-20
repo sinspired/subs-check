@@ -291,9 +291,9 @@
     return isMouseInsideLog;
   }
 
-  function renderLogLines(lines) {
+  function renderLogLines(lines,IntervalRun) {
     if (!logContainer) return;
-    if (isUserSelectingOrHovering()){
+    if (isUserSelectingOrHovering() && IntervalRun){
         logContainer.title="暂停自动刷新";
         return; // 暂停刷新
     } else{
@@ -343,7 +343,7 @@
   }
 
 
-  async function loadLogsIncremental() {
+  async function loadLogsIncremental( IntervalRun) {
     if (!sessionKey || logsPollRunning) return;
     logsPollRunning = true;
     try {
@@ -361,7 +361,7 @@
 
       if (lastLogLines.length === 0) {
         lastLogLines = newTail;
-        renderLogLines(lastLogLines);
+        renderLogLines(lastLogLines,IntervalRun);
 
         if (!lastCheckInfo) {
           const parsed = parseCheckResultFromLogs(newTail);
@@ -393,7 +393,7 @@
         lastLogLines = newTail;
       } else {
         lastLogLines = newTail;
-        renderLogLines(lastLogLines);
+        renderLogLines(lastLogLines,IntervalRun);
       }
     } finally {
       logsPollRunning = false;
@@ -963,7 +963,7 @@ async function saveConfigWithValidation() {
           const confirm = await waitForBackendChecking(true);
           if (confirm.ok) {
             updateToggleUI('checking');
-            await loadLogsIncremental().catch(() => { });
+            await loadLogsIncremental(true).catch(() => { });
             showToast('检测已开始', 'success');
           } else {
             updateToggleUI('idle');
@@ -985,7 +985,7 @@ async function saveConfigWithValidation() {
     });
     refreshLogsBtn?.addEventListener('click', () => {
       showToast('正在刷新日志...', 'info');
-      loadLogsIncremental();
+      loadLogsIncremental(false);
     });
     openEditorBtn?.addEventListener('click', () => {
       editorContainer?.scrollIntoView({ behavior: 'smooth' });
@@ -1046,10 +1046,10 @@ async function saveConfigWithValidation() {
   function startPollers() {
     if (!sessionKey) return;
     stopPollers();
-    loadLogsIncremental().catch(() => { });
+    loadLogsIncremental(true).catch(() => { });
     loadStatus().catch(() => { });
     pollers.logs = setInterval(() => {
-      if (!logsPollRunning) loadLogsIncremental().catch(() => { });
+      if (!logsPollRunning) loadLogsIncremental(true).catch(() => { });
     }, POLL_INTERVAL_MS);
     pollers.status = setInterval(() => {
       if (!statusPollRunning) loadStatus().catch(() => { });
@@ -1093,7 +1093,7 @@ async function saveConfigWithValidation() {
     }
     await Promise.all([
       loadConfigValidated().catch(() => { }),
-      loadLogsIncremental().catch(() => { }),
+      loadLogsIncremental(false).catch(() => { }),
       loadStatus().catch(() => { }),
       getVersion()
     ]);
