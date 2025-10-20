@@ -157,7 +157,7 @@ header {
     border-radius: 8px;
     border: 1px solid var(--border);
     padding: 12px;
-    overflow: auto;
+    overflow: hidden;
 }
 
 /* 主体布局 */
@@ -176,8 +176,23 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
 /* 父容器必须有min-height:0 否则日志会撑破容器 */
 .content { display: flex; flex-direction: column; gap: var(--gap); height: 100%; min-width: 0; min-height: 0;}
 
+.sidebar.card{
+  /* padding: auto 6px; */
+}
+
 /* 侧边栏 */
-.sidebar { height: 100%; }
+.sidebar {
+  height: 100%;  
+  width: 100%;  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-top, .sidebar-bottom{
+  width: 100%;
+}
 
 .sidebar .title-wrap {
   display: flex;
@@ -193,8 +208,8 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
   pointer-events: none;
   /* opacity: 0.5; */
   cursor: not-allowed;
- border-bottom: 1px solid rgba(108, 108, 108, 0.2);
-padding-bottom: 8px;
+  border-bottom: 1px solid rgba(108, 108, 108, 0.2);
+  padding-bottom: 8px;
   text-align: center;      /* 文字居中 */
   width: 100%;             /* 不要强制 100%，避免撑满 */
   -webkit-user-select: none;
