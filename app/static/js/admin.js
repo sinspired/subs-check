@@ -263,16 +263,29 @@
   function colorize(line) {
     const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
     let out = escapeHtml(line);
+
     if (tsMatch) {
       const ts = tsMatch[0];
       out = '<span class="log-time">' + ts + '</span>' + escapeHtml(line.slice(ts.length));
     }
+
+    // 关键字高亮
     out = out.replace(/\b(INF|INFO)\b/g, '<span class="log-info">INF</span>');
     out = out.replace(/\b(ERR|ERROR)\b/g, '<span class="log-error">ERR</span>');
     out = out.replace(/\b(WRN|WARN)\b/g, '<span class="log-warn">WRN</span>');
     out = out.replace(/\b(DBG|DEBUG)\b/g, '<span class="log-debug">DBG</span>');
+
+    // 如果包含“发现新版本”
+    if (/发现新版本/.test(out)) {
+      // 给最新版本号加样式
+      out = out.replace(/最新版本=([^\s]+)/, '最新版本=<span class="success-highlight">$1</span>');
+      // 给整行加样式容器
+      out = '<div class="log-new-version">' + out + '</div>';
+    }
+
     return out;
   }
+
 
   let isMouseInsideLog = false;
 

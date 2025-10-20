@@ -430,6 +430,10 @@ padding-bottom: 8px;
     background-color: rgba(40, 167, 69, 0.1);
 }
 
+.log-new-version{
+  border-bottom: 1px solid var(--accent);
+}
+
 @keyframes progressShimmer {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }

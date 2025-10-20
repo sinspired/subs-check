@@ -89,7 +89,7 @@ func detectSuccessNotify(currentVersion string, latest *selfupdate.Release) {
 
 	// 提示用户开启自动更新（仅 CLI 且未开启自动更新）
 	if !isGUI && !isDockerEnv && !autoUpdate {
-		fmt.Println("\033[32m✨ 建议开启自动更新，请编辑 config.yaml: update: true\033[0m")
+		slog.Info("建议开启更新，在配置文件添加 update: true")
 	}
 
 	if needNotify {
