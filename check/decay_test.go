@@ -42,7 +42,9 @@ func TestDecayComparison(t *testing.T) {
 		for _, f := range funcs {
 			fmt.Printf(" %-8d", RoundInt(f.fn(x)))
 			if RoundInt(f.fn(x)) > 1000 {
-				// t.Error("自适应并发数不在预期范围")
+				t.Error("自适应并发数不在预期范围")
+			} else {
+				t.Log("测试通过")
 			}
 		}
 		fmt.Println()

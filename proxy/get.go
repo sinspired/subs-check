@@ -1,3 +1,4 @@
+// Package proxies 处理订阅获取、去重及随机乱序，处理节点重命名
 package proxies
 
 import (
@@ -79,15 +80,15 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	}()
 
 	// 启动工作协程
-	for _, subUrl := range subUrls {
+	for _, subURL := range subUrls {
 		wg.Add(1)
 		concurrentLimit <- struct{}{} // 获取令牌
 
 		// 精确判断：必须是回环地址，且 URL 明确包含端口，端口等于 config.GlobalConfig.ListenPort，且 path 以 /all.yaml 或 /all.yml 结尾
-		isSuccedProxiesUrl := false
-		isHistoryProxiesUrl := false
+		isSuccedProxiesURL := false
+		isHistoryProxiesURL := false
 
-		if d, err := u.Parse(subUrl); err == nil {
+		if d, err := u.Parse(subURL); err == nil {
 			host := d.Hostname()
 			port := d.Port() // 如果 URL 没有显式端口，这里会是空字符串
 
@@ -98,10 +99,10 @@ func GetProxies() ([]map[string]any, int, int, error) {
 			if (host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1") &&
 				port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
 				if strings.HasSuffix(d.Path, "/all.yaml") || strings.HasSuffix(d.Path, "/all.yml") {
-					isSuccedProxiesUrl = true
+					isSuccedProxiesURL = true
 				}
 				if strings.HasSuffix(d.Path, "/history.yaml") || strings.HasSuffix(d.Path, "/history.yml") {
-					isHistoryProxiesUrl = true
+					isHistoryProxiesURL = true
 				}
 			}
 		}
@@ -145,9 +146,6 @@ func GetProxies() ([]map[string]any, int, int, error) {
 					proxy["sub_from_history"] = wasHistory
 					proxyChan <- proxy
 				}
-				// 释放运行时内存
-				data = nil
-				proxyList = nil
 
 				return
 			}
@@ -188,11 +186,8 @@ func GetProxies() ([]map[string]any, int, int, error) {
 					proxyChan <- proxyMap
 				}
 			}
-			// 释放运行时内存
-			data = nil
-			proxyList = nil
 
-		}(subUrl, isSuccedProxiesUrl, isHistoryProxiesUrl)
+		}(subURL, isSuccedProxiesURL, isHistoryProxiesURL)
 	}
 
 	// 等待所有工作协程完成
@@ -229,9 +224,6 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	// 拼接最终节点列表（保持顺序）
 	mihomoProxies := append(append(succedProxies, historyProxies...), syncProxies...)
 
-	// 释放不再需要的内存
-	proxyChan = nil
-	succedSet = nil
 	succedProxies = nil
 	historyProxies = nil
 	for i := range syncProxies {
@@ -252,8 +244,8 @@ func resolveSubUrls() []string {
 	urls = append(urls, config.GlobalConfig.SubUrls...)
 
 	if len(config.GlobalConfig.SubUrlsRemote) != 0 {
-		for _, subUrlRemote := range config.GlobalConfig.SubUrlsRemote {
-			if remote, err := fetchRemoteSubUrls(subUrlRemote); err != nil {
+		for _, subURLRemote := range config.GlobalConfig.SubUrlsRemote {
+			if remote, err := fetchRemoteSubUrls(subURLRemote); err != nil {
 				slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
 			} else {
 				urls = append(urls, remote...)
@@ -354,7 +346,7 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 // 逻辑：
 // 1. 如果配置了代理，优先使用代理请求原始 URL（默认行为，无需显式设置）
 // 2. 如果失败，再尝试 githubproxy，但明确禁用代理直连
-func GetDateFromSubs(subUrl string) ([]byte, error) {
+func GetDateFromSubs(subURL string) ([]byte, error) {
 	maxRetries := config.GlobalConfig.SubUrlsReTry
 	retryInterval := config.GlobalConfig.SubUrlsRetryInterval
 	if retryInterval == 0 {
@@ -385,16 +377,16 @@ func GetDateFromSubs(subUrl string) ([]byte, error) {
 	// 如果配置了系统代理，优先尝试使用系统代理请求原始 URL
 	if useProxy {
 		slog.Debug("优先使用系统代理请求原始链接")
-		tryUrls = append(tryUrls, tryURL{subUrl, true})
+		tryUrls = append(tryUrls, tryURL{subURL, true})
 	}
 
 	// utils.WarpUrl 会自动添加 / 以及 http(s)://,并且根据 IsGhProxyAvailable 决定是否添加 githubproxy
-	tryUrls = append(tryUrls, tryURL{utils.WarpUrl(subUrl, IsGhProxyAvailable), false})
+	tryUrls = append(tryUrls, tryURL{utils.WarpURL(subURL, IsGhProxyAvailable), false})
 
 	// 如果配置了 githubproxy，如果失败,则尝试一次 原始url
 	if IsGhProxyAvailable {
 		slog.Debug("添加原始链接到重试列表作为最后直连尝试")
-		tryUrls = append(tryUrls, tryURL{subUrl, false})
+		tryUrls = append(tryUrls, tryURL{subURL, false})
 	}
 
 	// 重试逻辑

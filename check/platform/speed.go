@@ -9,9 +9,9 @@ import (
 
 	"log/slog"
 
-	"github.com/sinspired/subs-check/config"
 	"github.com/juju/ratelimit"
 	"github.com/metacubex/mihomo/common/convert"
+	"github.com/sinspired/subs-check/config"
 )
 
 func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket) (int, int64, error) {
@@ -23,7 +23,7 @@ func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket) (int, int64, 
 		Transport: httpClient.Transport,
 	}
 
-	req, err := http.NewRequest("GET", config.GlobalConfig.SpeedTestUrl, nil)
+	req, err := http.NewRequest("GET", config.GlobalConfig.SpeedTestURL, nil)
 	if err != nil {
 		return 0, 0, err
 	}

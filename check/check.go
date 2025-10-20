@@ -1,3 +1,4 @@
+// Package check 订阅检测主逻辑
 package check
 
 import (
@@ -16,14 +17,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/sinspired/subs-check/assets"
-	"github.com/sinspired/subs-check/check/platform"
-	"github.com/sinspired/subs-check/config"
-	proxyutils "github.com/sinspired/subs-check/proxy"
 	"github.com/juju/ratelimit"
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/constant"
 	"github.com/oschwald/maxminddb-golang/v2"
+	"github.com/sinspired/subs-check/assets"
+	"github.com/sinspired/subs-check/check/platform"
+	"github.com/sinspired/subs-check/config"
+	proxyutils "github.com/sinspired/subs-check/proxy"
 )
 
 // 对外暴露变量，兼容GUI调用
@@ -83,7 +84,7 @@ type ProxyChecker struct {
 	pt *ProgressTracker
 }
 
-// 在测活-测速-流媒体检测任务间传输信息
+// ProxyJob 在测活-测速-流媒体检测任务间传输信息
 type ProxyJob struct {
 	Proxy  map[string]any
 	Client *ProxyClient
@@ -137,7 +138,8 @@ func NewProxyChecker(proxyCount int) *ProxyChecker {
 	cSpeed := config.GlobalConfig.SpeedConcurrent
 	cMedia := config.GlobalConfig.MediaConcurrent
 
-	// 简单的防呆设计
+	// 分别设置测活\测速\媒体检测阶段并发数
+	// 使用衰减算法,简单防呆设计
 	aliveConc := 0
 	speedConc := 0
 	mediaConc := 0
@@ -200,7 +202,7 @@ func Check() ([]Result, error) {
 	TotalBytes.Store(0)
 
 	// 初始化测速和流媒体检测开关
-	speedON = config.GlobalConfig.SpeedTestUrl != ""
+	speedON = config.GlobalConfig.SpeedTestURL != ""
 	mediaON = config.GlobalConfig.MediaCheck
 
 	// 获取订阅节点和之前成功的节点数量(已前置)
@@ -385,7 +387,6 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	for i := range proxies {
 		proxies[i] = nil
 	}
-	proxies = nil
 	runtime.GC() // 提示 GC 回收
 
 	return pc.results, nil
@@ -464,9 +465,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 	pc.pt.currentStage.Store(0)
 
 	for range concurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for job := range pc.aliveChan {
 				if checkCtxDone(ctx) {
 					job.Close()
@@ -519,7 +518,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 					}
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -541,9 +540,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 	concurrency := pc.speedConcurrent
 
 	for range concurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for job := range pc.speedChan {
 				if checkCtxDone(ctx) {
 					job.Close()
@@ -582,7 +579,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 					job.Close()
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -757,7 +754,7 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 
 	var tags []string
 	// 速度标签
-	if config.GlobalConfig.SpeedTestUrl != "" && speed > 0 {
+	if config.GlobalConfig.SpeedTestURL != "" && speed > 0 {
 		var speedStr string
 		if speed < 100 {
 			speedStr = fmt.Sprintf("%dKB/s", speed)
@@ -838,20 +835,20 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 
 	// 统计所有节点的订阅来源
 	for _, proxy := range allProxies {
-		if subUrl, ok := proxy["sub_url"].(string); ok {
-			stats := subStats[subUrl]
+		if subURL, ok := proxy["sub_url"].(string); ok {
+			stats := subStats[subURL]
 			stats.total++
-			subStats[subUrl] = stats
+			subStats[subURL] = stats
 		}
 	}
 
 	// 统计成功节点的订阅来源
 	for _, result := range pc.results {
 		if result.Proxy != nil {
-			if subUrl, ok := result.Proxy["sub_url"].(string); ok {
-				stats := subStats[subUrl]
+			if subURL, ok := result.Proxy["sub_url"].(string); ok {
+				stats := subStats[subURL]
 				stats.success++
-				subStats[subUrl] = stats
+				subStats[subURL] = stats
 			}
 			delete(result.Proxy, "sub_url")
 			delete(result.Proxy, "sub_tag")
@@ -859,18 +856,18 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 	}
 
 	// 检查成功率并发出警告
-	for subUrl, stats := range subStats {
+	for subURL, stats := range subStats {
 		if stats.total > 0 {
 			successRate := float32(stats.success) / float32(stats.total)
 
 			// 如果成功率低于x，发出警告
 			if successRate < config.GlobalConfig.SuccessRate {
-				slog.Warn(fmt.Sprintf("订阅成功率过低: %s", subUrl),
+				slog.Warn(fmt.Sprintf("订阅成功率过低: %s", subURL),
 					"总节点数", stats.total,
 					"成功节点数", stats.success,
 					"成功占比", fmt.Sprintf("%.2f%%", successRate*100))
 			} else {
-				slog.Debug(fmt.Sprintf("订阅节点统计: %s", subUrl),
+				slog.Debug(fmt.Sprintf("订阅节点统计: %s", subURL),
 					"总节点数", stats.total,
 					"成功节点数", stats.success,
 					"成功占比", fmt.Sprintf("%.2f%%", successRate*100))
@@ -879,7 +876,6 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 	}
 }
 
-// 网络客户端
 // ProxyClient 定义 http.client
 type ProxyClient struct {
 	*http.Client

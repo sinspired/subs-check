@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"testing"
 	"time"
-
 )
 
 func TestFetchCFTrace(t *testing.T) {
@@ -13,7 +12,7 @@ func TestFetchCFTrace(t *testing.T) {
 	defer cancel()
 	httpClient := &http.Client{}
 	success := false
-	for _, url := range CF_CDN_APIS {
+	for _, url := range CfCdnApis {
 		loc, ip := FetchCFTrace(httpClient, ctx, url)
 		if loc == "" || ip == "" {
 			t.Logf("%s GetCFProxy 失败: loc=%s, ip=%s", url, loc, ip)
@@ -47,7 +46,7 @@ func TestCheckCloudflare(t *testing.T) {
 		} else {
 			t.Log("cloudflare.com 成功访问, 未获取 loc 和 ip")
 		}
-	}else{
+	} else {
 		if loc == "" && ip == "" {
 			t.Log("cloudflare.com 成功访问, 未获取 loc 和 ip")
 		} else {

@@ -1,3 +1,4 @@
+// Package platform 解锁检测平台
 package platform
 
 import (
@@ -12,11 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sinspired/subs-check/config"
 	"github.com/metacubex/mihomo/common/convert"
+	"github.com/sinspired/subs-check/config"
 )
 
-var CF_CDN_APIS = []string{
+var CfCdnApis = []string{
 	"https://4.ipw.cn",
 	"https://www.cloudflare.com",
 	"https://api.ipify.org",
@@ -32,7 +33,7 @@ var CF_CDN_APIS = []string{
 	"https://api.ipquery.io",
 }
 
-// 请求头，避免被 ban
+// cfCommonHeaders 请求头，避免被 ban
 func cfCommonHeaders() map[string]string {
 	return map[string]string{
 		"User-Agent":      convert.RandUserAgent(),
@@ -91,7 +92,7 @@ func FetchCFTraceFirstConcurrent(httpClient *http.Client, ctx context.Context, c
 	}
 
 	// 乱序 + 截取前5, 减轻网络负载
-	apis := shuffle(CF_CDN_APIS)
+	apis := shuffle(CfCdnApis)
 	if len(apis) > 5 {
 		apis = apis[:5]
 	}

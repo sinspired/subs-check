@@ -1,3 +1,4 @@
+// Package app 应用程序主入口
 package app
 
 import (
@@ -43,7 +44,7 @@ type App struct {
 }
 
 // New 创建新的应用实例
-// 注意：不再在这里调用 flag.Parse() 或定义 flags，全部由 main 负责。
+// 不再在这里调用 flag.Parse() 或定义 flags，全部由 main 负责。
 func New(originVersion string, version string, configPath string) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -84,7 +85,7 @@ func (app *App) Initialize() error {
 	app.interval = config.GlobalConfig.CheckInterval
 
 	if config.GlobalConfig.ListenPort != "" {
-		if err := app.initHttpServer(); err != nil {
+		if err := app.initHTTPServer(); err != nil {
 			return fmt.Errorf("初始化HTTP服务器失败: %w", err)
 		}
 	}
@@ -392,7 +393,7 @@ func (app *App) SetupUpdateTasks() {
 	updateOnStartup := config.GlobalConfig.UpdateOnStartup
 	cronCheckUpdate := config.GlobalConfig.CronCheckUpdate
 
-	START_FROM_GUI := os.Getenv("START_FROM_GUI") != ""
+	StartFromGUI := os.Getenv("START_FROM_GUI") != ""
 	isDocker := isDocker()
 
 	if isDocker {
@@ -400,7 +401,7 @@ func (app *App) SetupUpdateTasks() {
 	}
 
 	// 程序启动时更新
-	if !START_FROM_GUI && enableSelfUpdate && updateOnStartup && !isDocker {
+	if !StartFromGUI && enableSelfUpdate && updateOnStartup && !isDocker {
 		updateDone := make(chan struct{})
 		go func() {
 			app.CheckUpdateAndRestart(false) // 启动时使用 false
@@ -426,7 +427,7 @@ func (app *App) SetupUpdateTasks() {
 
 	_, err := updateCron.AddFunc(schedule, func() {
 		if !app.checking.Load() {
-			if !START_FROM_GUI && enableSelfUpdate && !isDocker {
+			if !StartFromGUI && enableSelfUpdate && !isDocker {
 				slog.Info("定时检查版本更新并自动升级新版本...")
 				updateDone := make(chan struct{})
 				go func() {

@@ -14,14 +14,14 @@ import (
 var progressAlgorithm ProgressAlgorithm
 
 func init() {
-    if config.GlobalConfig.ProgressMode == "stage" {
-        progressAlgorithm = StagePriorityProgress
-    } else {
-        progressAlgorithm = DynamicWeightProgress
-    }
+	if config.GlobalConfig.ProgressMode == "stage" {
+		progressAlgorithm = StagePriorityProgress
+	} else {
+		progressAlgorithm = DynamicWeightProgress
+	}
 }
 
-// 切换进度显示
+// ProgressAlgorithm 切换进度显示
 type ProgressAlgorithm int
 
 const (
@@ -29,14 +29,14 @@ const (
 	StagePriorityProgress                          // 阶段优先：显示当前阶段完成/阶段总
 )
 
-// 不同检测阶段的进度权重
+// ProgressWeight 不同检测阶段的进度权重
 type ProgressWeight struct {
 	alive float64
 	speed float64
 	media float64
 }
 
-// 存储每个阶段的检测进度信息
+// ProgressTracker 存储每个阶段的检测进度信息
 type ProgressTracker struct {
 	// 总任务数
 	totalJobs atomic.Int32

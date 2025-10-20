@@ -6,14 +6,18 @@ import (
 	"strings"
 )
 
+// CheckOpenAI 检测OpenAI可用性
+//
 // 1.如果全部通过，ChatGPT客户端可正常使用，res.Openai = true，tag为"GPT⁺"
+//
 // 2.如果只通过cookies检测 或 client检测，res.OpenaiWeb = true，tag为"GPT"
+//
 // 经在Windows和ios客户端测试，如果仅通过一项检测，客户端很大概率不能使用，但web端很大概率可以使用。所以如果全部通过添加了一个角标"⁺",保留仅通过一项检测的tag为"GPT",web端用户几乎不需要发现标签变化。
 func CheckOpenAI(httpClient *http.Client) (bool, bool) {
 	return CheckCookies(httpClient), CheckClient(httpClient)
 }
 
-// 通过检查cookies判断网络访问
+// CheckCookies 通过检查cookies判断网络访问
 func CheckCookies(httpClient *http.Client) bool {
 	req, err := http.NewRequest("GET", "https://api.openai.com/compliance/cookie_requirements", nil)
 	if err != nil {
@@ -38,7 +42,7 @@ func CheckCookies(httpClient *http.Client) bool {
 	return false
 }
 
-// 通过模拟客户端访问检查app可用性
+// CheckClient 通过模拟客户端访问检查app可用性
 func CheckClient(httpClient *http.Client) bool {
 	req, err := http.NewRequest("GET", "https://ios.chat.openai.com", nil)
 	if err != nil {

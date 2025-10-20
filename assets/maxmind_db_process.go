@@ -1,5 +1,4 @@
-
-// Package assets 处理 MaxMind 数据库
+// Package assets 嵌入的node、sub-store、MaxMind数据库等资产
 package assets
 
 import (
@@ -201,7 +200,7 @@ func UpdateGeoLite2DB() error {
 	_ = os.Remove(bakPath)
 	slog.Info("GeoLite2-Country.mmdb 更新完成")
 	version := rel.TagName
-	utils.SendNotify_geoDB_update(version)
+	utils.SendNotifyGeoDBUpdate(version)
 	return nil
 }
 

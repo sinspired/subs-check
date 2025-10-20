@@ -5,9 +5,9 @@ import (
 )
 
 // DecayFunc 定义衰减函数签名
- type DecayFunc func(x float64) float64
+type DecayFunc func(x float64) float64
 
- // 各种衰减构造器：返回 DecayFunc，最后计算为 base + amp * kernel(x)
+// 各种衰减构造器：返回 DecayFunc，最后计算为 base + amp * kernel(x)
 // kernel(x) 要满足：kernel(0)=0，kernel(∞)=1
 
 // NewExpDecay 指数衰减: kernel = 1 - exp(-b*x)

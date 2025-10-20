@@ -1,3 +1,4 @@
+// Package save 保存检测结果
 package save
 
 import (
@@ -273,9 +274,6 @@ func mergeUniqueProxies(existing, newProxies []map[string]any) []map[string]any 
 			result = append(result, p)
 		}
 	}
-
-	existing = nil // 移除切片引用，帮助 GC
-	newProxies = nil
 
 	return result
 }

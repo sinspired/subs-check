@@ -1,3 +1,4 @@
+// Package config 解析配置文件
 package config
 
 import _ "embed"
@@ -11,7 +12,7 @@ type Config struct {
 	MediaConcurrent      int      `yaml:"media-concurrent"`
 	CheckInterval        int      `yaml:"check-interval"`
 	CronExpression       string   `yaml:"cron-expression"`
-	SpeedTestUrl         string   `yaml:"speed-test-url"`
+	SpeedTestURL         string   `yaml:"speed-test-url"`
 	DownloadTimeout      int      `yaml:"download-timeout"`
 	DownloadMB           int      `yaml:"download-mb"`
 	TotalSpeedLimit      int      `yaml:"total-speed-limit"`
@@ -40,21 +41,21 @@ type Config struct {
 	SubUrlsRemote        []string `yaml:"sub-urls-remote"`
 	SubUrls              []string `yaml:"sub-urls"`
 	SuccessRate          float32  `yaml:"success-rate"`
-	MihomoApiUrl         string   `yaml:"mihomo-api-url"`
-	MihomoApiSecret      string   `yaml:"mihomo-api-secret"`
+	MihomoAPIURL         string   `yaml:"mihomo-api-url"`
+	MihomoAPISecret      string   `yaml:"mihomo-api-secret"`
 	ListenPort           string   `yaml:"listen-port"`
 	RenameNode           bool     `yaml:"rename-node"`
 	KeepSuccessProxies   bool     `yaml:"keep-success-proxies"`
 	OutputDir            string   `yaml:"output-dir"`
-	AppriseApiServer     string   `yaml:"apprise-api-server"`
-	RecipientUrl         []string `yaml:"recipient-url"`
+	AppriseAPIServer     string   `yaml:"apprise-api-server"`
+	RecipientURL         []string `yaml:"recipient-url"`
 	NotifyTitle          string   `yaml:"notify-title"`
 	SubStorePort         string   `yaml:"sub-store-port"`
 	SubStorePath         string   `yaml:"sub-store-path"`
 	SubStoreSyncCron     string   `yaml:"sub-store-sync-cron"`
 	SubStorePushService  string   `yaml:"sub-store-push-service"`
 	SubStoreProduceCron  string   `yaml:"sub-store-produce-cron"`
-	MihomoOverwriteUrl   string   `yaml:"mihomo-overwrite-url"`
+	MihomoOverwriteURL   string   `yaml:"mihomo-overwrite-url"`
 	MediaCheck           bool     `yaml:"media-check"`
 	Platforms            []string `yaml:"platforms"`
 	MaxMindDBPath        string   `yaml:"maxmind-db-path"`
@@ -80,7 +81,7 @@ var GlobalConfig = &Config{
 	// 新增配置，给未更改配置文件的用户一个默认值
 	ListenPort:         ":8199",
 	NotifyTitle:        "🔔 节点状态更新",
-	MihomoOverwriteUrl: "http://127.0.0.1:8199/sub/ACL4SSR_Online_Full.yaml",
+	MihomoOverwriteURL: "http://127.0.0.1:8199/sub/ACL4SSR_Online_Full.yaml",
 	Platforms:          []string{"openai", "youtube", "netflix", "disney", "gemini", "iprisk"},
 	DownloadMB:         20,
 }

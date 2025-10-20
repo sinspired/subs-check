@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/sinspired/subs-check/config"
-
 )
 
 // NotifyRequest 定义发送通知的请求结构
@@ -30,7 +29,7 @@ func Notify(request NotifyRequest) error {
 	}
 
 	// 发送请求
-	resp, err := http.Post(config.GlobalConfig.AppriseApiServer, "application/json", bytes.NewBuffer(body))
+	resp, err := http.Post(config.GlobalConfig.AppriseAPIServer, "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("发送请求失败: %w", err)
 	}
@@ -46,14 +45,14 @@ func Notify(request NotifyRequest) error {
 }
 
 func SendNotify(length int) {
-	if config.GlobalConfig.AppriseApiServer == "" {
+	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
-	} else if len(config.GlobalConfig.RecipientUrl) == 0 {
+	} else if len(config.GlobalConfig.RecipientURL) == 0 {
 		slog.Error("没有配置通知目标")
 		return
 	}
 
-	for _, url := range config.GlobalConfig.RecipientUrl {
+	for _, url := range config.GlobalConfig.RecipientURL {
 		request := NotifyRequest{
 			URLs: url,
 			Body: fmt.Sprintf("✅ 可用节点：%d\n🕒 %s",
@@ -79,15 +78,15 @@ func GetCurrentTime() string {
 	return time.Now().Format("2006-01-02 15:04:05")
 }
 
-func SendNotify_geoDB_update(version string) {
-	if config.GlobalConfig.AppriseApiServer == "" {
+func SendNotifyGeoDBUpdate(version string) {
+	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
-	} else if len(config.GlobalConfig.RecipientUrl) == 0 {
+	} else if len(config.GlobalConfig.RecipientURL) == 0 {
 		slog.Error("没有配置通知目标")
 		return
 	}
 
-	for _, url := range config.GlobalConfig.RecipientUrl {
+	for _, url := range config.GlobalConfig.RecipientURL {
 		request := NotifyRequest{
 			URLs: url,
 			Body: fmt.Sprintf("✅ 已更新到：%s\n🕒 %s",
@@ -109,16 +108,16 @@ func SendNotify_geoDB_update(version string) {
 	}
 }
 
-// 版本更新通知
-func SendNotify_self_update(current string, lastest string) {
-	if config.GlobalConfig.AppriseApiServer == "" {
+// SendNotifySelfUpdate 版本更新通知
+func SendNotifySelfUpdate(current string, lastest string) {
+	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
-	} else if len(config.GlobalConfig.RecipientUrl) == 0 {
+	} else if len(config.GlobalConfig.RecipientURL) == 0 {
 		slog.Error("没有配置通知目标")
 		return
 	}
 
-	for _, url := range config.GlobalConfig.RecipientUrl {
+	for _, url := range config.GlobalConfig.RecipientURL {
 		request := NotifyRequest{
 			URLs: url,
 			Body: fmt.Sprintf("✅ %s\n🕒 %s",
@@ -140,23 +139,23 @@ func SendNotify_self_update(current string, lastest string) {
 	}
 }
 
-// 版本更新通知
-func SendNotify_detectLatestRelease(current string, lastest string, isDockerOrGui bool,downloadUrl string) {
-	if config.GlobalConfig.AppriseApiServer == "" {
+// SendNotifyDetectLatestRelease 版本更新通知
+func SendNotifyDetectLatestRelease(current string, lastest string, isDockerOrGui bool, downloadURL string) {
+	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
-	} else if len(config.GlobalConfig.RecipientUrl) == 0 {
+	} else if len(config.GlobalConfig.RecipientURL) == 0 {
 		slog.Error("没有配置通知目标")
 		return
 	}
 
-	for _, url := range config.GlobalConfig.RecipientUrl {
+	for _, url := range config.GlobalConfig.RecipientURL {
 		var request NotifyRequest
 		if isDockerOrGui {
 
 			request = NotifyRequest{
 				URLs: url,
 				Body: fmt.Sprintf("🏷 %s\n🔗 请及时更新%s\n🕒 %s",
-					lastest, downloadUrl,
+					lastest, downloadURL,
 					GetCurrentTime()),
 				Title: "📦 subs-check 发现新版本",
 			}

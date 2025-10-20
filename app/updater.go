@@ -107,7 +107,7 @@ func detectSuccessNotify(currentVersion string, latest *selfupdate.Release) {
 		}
 
 		// 发送更新成功通知
-		utils.SendNotify_detectLatestRelease(
+		utils.SendNotifyDetectLatestRelease(
 			currentVersion,
 			latest.Version(),
 			isDockerEnv || isGUI,
@@ -122,7 +122,7 @@ func (app *App) updateSuccess(current string, latest string, silentUpdate bool) 
 	app.Shutdown()
 
 	// 发送更新成功通知
-	utils.SendNotify_self_update(current, latest)
+	utils.SendNotifySelfUpdate(current, latest)
 	if err := restartSelf(silentUpdate); err != nil {
 		slog.Error("重启失败", "err", err)
 	}
@@ -133,7 +133,7 @@ func restartSelf(silentUpdate bool) error {
 	exe := originExePath
 	if runtime.GOOS == "windows" {
 		if silentUpdate {
-			return restartSelfWindows_silent(exe)
+			return restartSelfWindowsSilent(exe)
 		}
 		return restartSelfWindows(exe)
 	}
@@ -165,7 +165,7 @@ func restartSelfWindows(exe string) error {
 }
 
 // Windows 平台重启方案,会在当前窗口,但无法接收ctrl+c信号
-func restartSelfWindows_silent(exe string) error {
+func restartSelfWindowsSilent(exe string) error {
 	args := strings.Join(os.Args[1:], " ")
 
 	cmd := exec.Command(exe, args)

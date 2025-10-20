@@ -1,3 +1,4 @@
+// Package utils 工具类包
 package utils
 
 import (
@@ -54,9 +55,9 @@ const (
 )
 
 // 用来判断用户是否在运行时更改了覆写订阅的url
-var mihomoOverwriteUrl string
+var mihomoOverwriteURL string
 
-// 基础URL配置
+// BaseURL 基础URL配置
 var BaseURL string
 
 func UpdateSubStore(yamlData []byte) {
@@ -79,7 +80,7 @@ func UpdateSubStore(yamlData []byte) {
 			return
 		}
 	}
-	if config.GlobalConfig.MihomoOverwriteUrl == "" {
+	if config.GlobalConfig.MihomoOverwriteURL == "" {
 		slog.Error("mihomo覆写订阅url未设置")
 		return
 	}
@@ -89,18 +90,18 @@ func UpdateSubStore(yamlData []byte) {
 			slog.Error(fmt.Sprintf("创建mihomo配置文件失败: %v", err))
 			return
 		}
-		mihomoOverwriteUrl = config.GlobalConfig.MihomoOverwriteUrl
+		mihomoOverwriteURL = config.GlobalConfig.MihomoOverwriteURL
 	}
 	if err := updateSub(yamlData); err != nil {
 		slog.Error(fmt.Sprintf("更新sub配置文件失败: %v", err))
 		return
 	}
-	if config.GlobalConfig.MihomoOverwriteUrl != mihomoOverwriteUrl {
+	if config.GlobalConfig.MihomoOverwriteURL != mihomoOverwriteURL {
 		if err := updatefile(); err != nil {
 			slog.Error(fmt.Sprintf("更新mihomo配置文件失败: %v", err))
 			return
 		}
-		mihomoOverwriteUrl = config.GlobalConfig.MihomoOverwriteUrl
+		mihomoOverwriteURL = config.GlobalConfig.MihomoOverwriteURL
 		slog.Debug("mihomo覆写订阅url已更新")
 	}
 	slog.Info("substore更新完成")
@@ -214,7 +215,7 @@ func createfile() error {
 		Process: []Operator{
 			{
 				Args: args{
-					Content: WarpUrl(config.GlobalConfig.MihomoOverwriteUrl, GetGhProxy()),
+					Content: WarpURL(config.GlobalConfig.MihomoOverwriteURL, GetGhProxy()),
 					Mode:    "link",
 				},
 				Disabled: false,
@@ -248,7 +249,7 @@ func updatefile() error {
 		Process: []Operator{
 			{
 				Args: args{
-					Content: WarpUrl(config.GlobalConfig.MihomoOverwriteUrl, GetGhProxy()),
+					Content: WarpURL(config.GlobalConfig.MihomoOverwriteURL, GetGhProxy()),
 					Mode:    "link",
 				},
 				Disabled: false,
@@ -292,7 +293,8 @@ func formatPort(port string) string {
 	return ":" + port
 }
 
-func WarpUrl(url string, isGhProxyAvailable bool) string {
+// WarpURL 添加github代理前缀
+func WarpURL(url string, isGhProxyAvailable bool) string {
 	url = formatTimePlaceholders(url, time.Now())
 
 	// 如果url中以https://raw.githubusercontent.com开头，那么就使用github代理

@@ -1,3 +1,4 @@
+// Package method 保存检测结果的方法
 package method
 
 import (
@@ -46,7 +47,7 @@ func UploadToR2Storage(yamlData []byte, filename string) error {
 	return uploader.Upload(yamlData, filename)
 }
 
-// valiR2Config 验证R2配置
+// ValiR2Config 验证R2配置
 func ValiR2Config() error {
 	if config.GlobalConfig.WorkerURL == "" {
 		return fmt.Errorf("worker url未配置")

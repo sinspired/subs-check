@@ -10,10 +10,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sinspired/subs-check/config"
 	"github.com/metacubex/mihomo/common/convert"
 	"github.com/oschwald/maxminddb-golang/v2"
 	"github.com/sinspired/checkip/pkg/ipinfo"
+	"github.com/sinspired/subs-check/config"
 )
 
 var ipAPIs = []string{
@@ -42,7 +42,7 @@ var geoAPIsMe = []string{
 	"https://ip.122911.xyz/api/ipinfo",
 }
 
-// 创建 ipinfo 检测客户端
+// NewIPInfoClient 创建 ipinfo 检测客户端
 func NewIPInfoClient(httpClient *http.Client, db *maxminddb.Reader, ipList, geoList []string) (*ipinfo.Client, error) {
 	return ipinfo.New(
 		ipinfo.WithHttpClient(httpClient),
@@ -52,16 +52,18 @@ func NewIPInfoClient(httpClient *http.Client, db *maxminddb.Reader, ipList, geoL
 	)
 }
 
-// 使用 github.com/sinspired/checkip/pkg/ipinfo API 获取 Analyzed 结果
-// GetAnalyzedCtx 可以安全设置,收到停止信号依然会检测乱序后的前三个api
-// 由于从多个API检测结果,接收到停止信号需要等待更长时间
-
+// GetProxyCountry 获取代理节点的位置代码，使用 github.com/sinspired/checkip/pkg/ipinfo API 获取 Analyzed 结果：
+//
 // - BadCFNode: HK⁻¹
+//
 // - CFNodeWithSameCountry: HK¹⁺
+//
 // - CFNodeWithDifferentCountry: HK¹-US⁰
+//
 // - NodeWithoutCF: HK²
+//
 // - 前两位字母是实际浏览网站识别的位置, -US⁰为使用CF CDN服务的网站识别的位置, 比如GPT, X等
-func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedCtx context.Context, cfLoc string, cfIP string) (loc string, ip string, countryCode_tag string, err error) {
+func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedCtx context.Context, cfLoc string, cfIP string) (loc string, ip string, countryCodeTag string, err error) {
 	// 设置一个临时环境变量，以排除部分api因数据库更新不及时返回的 CN
 	os.Setenv("SUBS-CHECK-CALL", "true")
 	defer os.Unsetenv("SUBS-CHECK-CALL")
@@ -74,10 +76,10 @@ func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedC
 	}
 
 	for range config.GlobalConfig.SubUrlsReTry {
-		loc, ip, countryCode_tag, _ = cliMe.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
-		if loc != "" && countryCode_tag != "" {
+		loc, ip, countryCodeTag, _ = cliMe.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+		if loc != "" && countryCodeTag != "" {
 			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置成功: %s", loc))
-			return loc, ip, countryCode_tag, nil
+			return loc, ip, countryCodeTag, nil
 		} else {
 			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置失败: %s", loc))
 		}
@@ -89,10 +91,10 @@ func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedC
 		slog.Debug(fmt.Sprintf("创建 ipinfo 主客户端失败: %s", err))
 	} else {
 		defer cli.Close()
-		loc, ip, countryCode_tag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
-		if loc != "" && countryCode_tag != "" {
-			slog.Debug(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCode_tag))
-			return loc, ip, countryCode_tag, nil
+		loc, ip, countryCodeTag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+		if loc != "" && countryCodeTag != "" {
+			slog.Debug(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCodeTag))
+			return loc, ip, countryCodeTag, nil
 		}
 	}
 	return "", "", "", nil
@@ -104,7 +106,7 @@ func GetEdgeOneProxy(httpClient *http.Client) (loc string, ip string) {
 			Geo struct {
 				CountryCodeAlpha2 string `json:"countryCodeAlpha2"`
 			} `json:"geo"`
-			ClientIp string `json:"clientIp"`
+			ClientIP string `json:"clientIp"`
 		} `json:"eo"`
 	}
 
@@ -140,7 +142,7 @@ func GetEdgeOneProxy(httpClient *http.Client) (loc string, ip string) {
 		return
 	}
 
-	return eo.Eo.Geo.CountryCodeAlpha2, eo.Eo.ClientIp
+	return eo.Eo.Geo.CountryCodeAlpha2, eo.Eo.ClientIP
 }
 
 func GetCFProxy(httpClient *http.Client) (loc string, ip string) {

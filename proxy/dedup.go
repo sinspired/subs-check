@@ -35,7 +35,6 @@ func DeduplicateProxies(proxies []map[string]any) []map[string]any {
 	for i := range proxies {
 		proxies[i] = nil // 移除 map 引用
 	}
-	proxies = nil // 移除切片引用
 	runtime.GC()  // 提示 GC 回收
 
 	return result

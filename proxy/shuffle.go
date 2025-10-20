@@ -176,7 +176,7 @@ func swap(items []map[string]any, metas []serverMeta, i, j int) {
 	metas[i], metas[j] = metas[j], metas[i]
 }
 
-// 根据 Threshold 计算 CIDR 文本
+// ThresholdToCIDR 根据 Threshold 计算 CIDR 文本
 func ThresholdToCIDR(th float64) string {
 	switch th {
 	case 1.0:

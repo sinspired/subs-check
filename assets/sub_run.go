@@ -115,8 +115,8 @@ func startSubStore(ctx context.Context) error {
 
 	// 检查MihomoOverwriteUrl是否包含本地IP，如果是则移除代理环境变量
 	cleanProxyEnv := false
-	if config.GlobalConfig.MihomoOverwriteUrl != "" {
-		parsedURL, err := url.Parse(config.GlobalConfig.MihomoOverwriteUrl)
+	if config.GlobalConfig.MihomoOverwriteURL != "" {
+		parsedURL, err := url.Parse(config.GlobalConfig.MihomoOverwriteURL)
 		if err == nil {
 			host := parsedURL.Hostname()
 			if isLocalIP(host) {

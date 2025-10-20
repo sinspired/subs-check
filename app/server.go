@@ -19,8 +19,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// initHttpServer 初始化HTTP服务器
-func (app *App) initHttpServer() error {
+// initHTTPServer 初始化HTTP服务器
+func (app *App) initHTTPServer() error {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery()) // 必要的 recovery
