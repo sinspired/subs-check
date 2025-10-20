@@ -509,7 +509,7 @@ padding: 4px 0 8px 0; }
     flex: 1 1 auto;
     min-height: 0;
     padding: 12px;
-    border-radius: 10px;
+    border-radius: 8px;
     border: 1px solid var(--border);
     overflow-y: auto;
     overflow-x: hidden;
@@ -605,26 +605,32 @@ padding: 4px 0 8px 0; }
     line-height: 1.2;
     white-space: pre-wrap;
     word-break: break-word;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    outline: none;
+    border: 1px solid var(--border);
+    resize: none;
+    transition: border-color .2s ease, box-shadow .2s ease;
 }
 
 
 #highlightOverlay {
     z-index: 0;
-    pointer-events: none;
+    pointer-events:none;
     color: inherit;
     background: var(--editor-bg);
+    -webkit-user-select:none;
+    user-select:none;  
 }
 
 #configEditor {
+    z-index: 1;
     background: transparent;
     color: transparent;
+    /* 光标颜色 */
     caret-color: var(--fg);
-    resize: none;
-    z-index: 1;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    transition: border-color .2s ease, box-shadow .2s ease;
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 /* 鼠标移上去时 */
@@ -635,8 +641,7 @@ padding: 4px 0 8px 0; }
 /* 获取焦点时 */
 #configEditor:focus {
     border-color: var(--accent-2);
-    box-shadow: 0 0 0 1px rgba(14, 165, 160, 0.3); /* 可选：增加外发光效果 */
-    outline: none; /* 去掉默认 outline */
+    box-shadow: 0 0 0 1px rgba(14, 165, 160, 0.3); /* 增加外发光效果 */
 }
 
 

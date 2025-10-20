@@ -474,7 +474,7 @@
   function highlightYAML(text) {
     const esc = s => escapeHtml(s);
     return (text + '\n').split('\n').map(line => {
-      if (/^\s*$/.test(line)) return ' ';
+      if (/^\s*$/.test(line)) return '';
       const leading = line.match(/^\s*/)[0];
       const trimmed = line.trim();
 
@@ -497,7 +497,7 @@
           formatted = '<span class="hl-null">' + esc(itemContent) + '</span>';
         } else if (/^https?:\/\//i.test(val)) {
           formatted = '<span class="hl-url">' + esc(itemContent) + '</span>';
-        }else{
+        } else {
           formatted = '<span class="hl-string">' + esc(itemContent) + '</span>';
         }
 
@@ -520,7 +520,7 @@
           formatted = '<span class="hl-url">' + esc(valRaw) + '</span>';
         } else if (/^(null|~)$/.test(val)) {
           formatted = '<span class="hl-null">' + esc(valRaw) + '</span>';
-        }else{
+        } else {
           formatted = '<span class="hl-string">' + esc(valRaw) + '</span>';
         }
 
