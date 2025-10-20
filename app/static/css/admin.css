@@ -680,7 +680,7 @@ padding: 4px 0 8px 0; }
 /* 获取焦点时 */
 #configEditor:focus {
     /* border-color: var(--accent-2); */
-    box-shadow: inset 0 0 15px var(--accent); /* 水平/垂直偏移0，模糊10px，浅黑阴影 */
+    box-shadow: inset 0 0 10px var(--accent); /* 水平/垂直偏移0，模糊10px，浅黑阴影 */
 }
 
 /* 语法高亮 */
