@@ -291,12 +291,12 @@
     return isMouseInsideLog;
   }
 
-  function renderLogLines(lines,IntervalRun) {
+  function renderLogLines(lines, IntervalRun) {
     if (!logContainer) return;
-    if (isUserSelectingOrHovering() && IntervalRun){
-        logContainer.title="暂停自动刷新";
-        return; // 暂停刷新
-    } else{
+    if (isUserSelectingOrHovering() && IntervalRun) {
+      logContainer.title = "暂停自动刷新";
+      return; // 暂停刷新
+    } else {
       // 移动到最底
       logContainer.scrollTop = logContainer.scrollHeight;
     }
@@ -343,7 +343,7 @@
   }
 
 
-  async function loadLogsIncremental( IntervalRun) {
+  async function loadLogsIncremental(IntervalRun) {
     if (!sessionKey || logsPollRunning) return;
     logsPollRunning = true;
     try {
@@ -361,7 +361,7 @@
 
       if (lastLogLines.length === 0) {
         lastLogLines = newTail;
-        renderLogLines(lastLogLines,IntervalRun);
+        renderLogLines(lastLogLines, IntervalRun);
 
         if (!lastCheckInfo) {
           const parsed = parseCheckResultFromLogs(newTail);
@@ -393,7 +393,7 @@
         lastLogLines = newTail;
       } else {
         lastLogLines = newTail;
-        renderLogLines(lastLogLines,IntervalRun);
+        renderLogLines(lastLogLines, IntervalRun);
       }
     } finally {
       logsPollRunning = false;
@@ -537,80 +537,80 @@
   }
 
   // 配置加载保存
-async function loadConfigValidated() {
-  if (!sessionKey) return;
-  const r = await sfetch(API.config);
-  if (!r.ok) {
-    showToast('读取配置失败', 'warn');
-    return;
-  }
-
-  const p = r.payload;
-  let raw = '';
-  if (p?.content !== undefined) raw = p.content;
-  else if (typeof p === 'string') raw = p;
-
-  // YAML 校验
-  if (typeof jsyaml !== 'undefined' && jsyaml.load) {
-    try {
-      const config = jsyaml.load(raw);
-      setEditorContent(raw);
-    } catch (e) {
-      setEditorContent(raw);
-      showToast('YAML 解析警告：' + e.message, 'warn', 5000);
-    }
-  } else {
-    console.warn('jsyaml 未加载，跳过 YAML 校验');
-    setEditorContent(raw);
-  }
-}
-
-async function saveConfigWithValidation() {
-  if (!sessionKey) {
-    showLogin(true);
-    showToast('请先登录', 'warn');
-    return;
-  }
-
-  const rawContent = configEditor.value;
-
-  // YAML 校验
-  if (typeof jsyaml !== 'undefined' && jsyaml.load) {
-    try {
-      const parsed = jsyaml.load(rawContent);
-      // 替换编辑器内容为格式化后的
-      configEditor.value = parsed;
-    } catch (e) {
-      showToast('YAML 语法错误：' + e.message, 'error', 6000);
-      console.error('YAML 校验失败:', e);
-      return; // 阻止保存
-    }
-  } else {
-    showToast('警告：无法进行 YAML 校验，js-yaml 库未加载', 'warn', 4000);
-    console.error('jsyaml 未定义，无法校验 YAML');
-    if (!window.confirm('无法进行 YAML 格式校验，是否仍要保存？')) {
+  async function loadConfigValidated() {
+    if (!sessionKey) return;
+    const r = await sfetch(API.config);
+    if (!r.ok) {
+      showToast('读取配置失败', 'warn');
       return;
     }
+
+    const p = r.payload;
+    let raw = '';
+    if (p?.content !== undefined) raw = p.content;
+    else if (typeof p === 'string') raw = p;
+
+    // YAML 校验
+    if (typeof jsyaml !== 'undefined' && jsyaml.load) {
+      try {
+        const config = jsyaml.load(raw);
+        setEditorContent(raw);
+      } catch (e) {
+        setEditorContent(raw);
+        showToast('YAML 解析警告：' + e.message, 'warn', 5000);
+      }
+    } else {
+      console.warn('jsyaml 未加载，跳过 YAML 校验');
+      setEditorContent(raw);
+    }
   }
 
-  const r = await sfetch(API.config, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: rawContent })
-  });
+  async function saveConfigWithValidation() {
+    if (!sessionKey) {
+      showLogin(true);
+      showToast('请先登录', 'warn');
+      return;
+    }
 
-  if (!r.ok) {
-    showToast('保存失败', 'error');
-    return;
-  }
+    const rawContent = configEditor.value;
 
-  if (r.payload?.error) {
-    showToast('保存失败：' + r.payload.error, 'error');
-  } else {
-    showToast(r.payload?.message || '保存成功', 'success');
-    await loadConfigValidated();
+    // YAML 校验
+    if (typeof jsyaml !== 'undefined' && jsyaml.load) {
+      try {
+        const parsed = jsyaml.load(rawContent);
+        // 替换编辑器内容为格式化后的
+        configEditor.value = parsed;
+      } catch (e) {
+        showToast('YAML 语法错误：' + e.message, 'error', 6000);
+        console.error('YAML 校验失败:', e);
+        return; // 阻止保存
+      }
+    } else {
+      showToast('警告：无法进行 YAML 校验，js-yaml 库未加载', 'warn', 4000);
+      console.error('jsyaml 未定义，无法校验 YAML');
+      if (!window.confirm('无法进行 YAML 格式校验，是否仍要保存？')) {
+        return;
+      }
+    }
+
+    const r = await sfetch(API.config, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: rawContent })
+    });
+
+    if (!r.ok) {
+      showToast('保存失败', 'error');
+      return;
+    }
+
+    if (r.payload?.error) {
+      showToast('保存失败：' + r.payload.error, 'error');
+    } else {
+      showToast(r.payload?.message || '保存成功', 'success');
+      await loadConfigValidated();
+    }
   }
-}
 
   // 控制进度容器的显示/隐藏（隐藏: 'none'，显示: 恢复默认）
   function showProgressUI(visible) {
@@ -1180,152 +1180,152 @@ async function saveConfigWithValidation() {
     }
   })();
 
-// 初始化分享按钮
-function setupShareButton(btnId) {
-  const btn = document.getElementById(btnId);
-  if (!btn) return;
+  // 初始化分享按钮
+  function setupShareButton(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
 
-  btn.addEventListener("click", async (e) => {
-    e.stopPropagation();
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
 
-    // 检查是否已经是显示状态：如果是，则直接隐藏
-    if (shareMenu.classList.contains("active")) {
-      shareMenu.classList.remove("active");
-      return; // 提前退出，无需其他逻辑
-    }
-
-    try {
-      // 1. 获取配置
-      if (!sessionKey){showLogin(true);return;};
-      const r = await sfetch(API.config);
-      if (!r.ok) {showToast('读取配置失败', 'warn');return;}
-
-      const p = r.payload;
-      let yamlContent = '';
-      if (p?.content !== undefined) yamlContent = p.content;
-
-      const config = jsyaml.load(yamlContent);
-
-      const port = config["sub-store-port"] || "";
-      const path = config["sub-store-path"] || "";
-
-      // 2. 去掉当前 URL 的端口
-      const url = `${window.location.protocol}//${window.location.hostname}`;
-
-      // 3. 拼接 baseUrl
-      const baseUrl = `${url}${port}${path}`;
-
-      // 4. 设置链接（存储到 data-link 属性）
-      document.getElementById("commonSub-item").dataset.link = baseUrl + "/download/sub";
-      document.getElementById("mihomoSub-item").dataset.link = baseUrl + "/api/file/mihomo";
-
-      // 5. 绑定复制事件（只绑定一次）
-      bindCopyOnClick("commonSub-item");
-      bindCopyOnClick("mihomoSub-item");
-
-      // 6. 定位菜单
-      const shareMenu = document.getElementById("shareMenu");
-      if (window.innerWidth < 768) {
-        // 小屏幕：居中显示
-        const rect = btn.getBoundingClientRect();
-        shareMenu.style.top = `${rect.top}px`;
-        shareMenu.style.left = `${rect.left-160}px`;
-        shareMenu.style.transform = "none";
-      } else {
-        // 大屏幕：跟随按钮
-        const rect = btn.getBoundingClientRect();
-        shareMenu.style.top = `${rect.top}px`;
-        shareMenu.style.left = `${rect.right*0.9}px`;
-        shareMenu.style.transform = "none";
+      // 检查是否已经是显示状态：如果是，则直接隐藏
+      if (shareMenu.classList.contains("active")) {
+        shareMenu.classList.remove("active");
+        return; // 提前退出，无需其他逻辑
       }
 
-      // 7. 显示菜单
-      shareMenu.classList.add("active");
-    } catch (e) {
-      console.error("获取订阅链接失败", e);
+      try {
+        // 1. 获取配置
+        if (!sessionKey) { showLogin(true); return; };
+        const r = await sfetch(API.config);
+        if (!r.ok) { showToast('读取配置失败', 'warn'); return; }
+
+        const p = r.payload;
+        let yamlContent = '';
+        if (p?.content !== undefined) yamlContent = p.content;
+
+        const config = jsyaml.load(yamlContent);
+
+        const port = config["sub-store-port"] || "";
+        const path = config["sub-store-path"] || "";
+
+        // 2. 去掉当前 URL 的端口
+        const url = `${window.location.protocol}//${window.location.hostname}`;
+
+        // 3. 拼接 baseUrl
+        const baseUrl = `${url}${port}${path}`;
+
+        // 4. 设置链接（存储到 data-link 属性）
+        document.getElementById("commonSub-item").dataset.link = baseUrl + "/download/sub";
+        document.getElementById("mihomoSub-item").dataset.link = baseUrl + "/api/file/mihomo";
+
+        // 5. 绑定复制事件（只绑定一次）
+        bindCopyOnClick("commonSub-item");
+        bindCopyOnClick("mihomoSub-item");
+
+        // 6. 定位菜单
+        const shareMenu = document.getElementById("shareMenu");
+        if (window.innerWidth < 768) {
+          // 小屏幕：居中显示
+          const rect = btn.getBoundingClientRect();
+          shareMenu.style.top = `${rect.top}px`;
+          shareMenu.style.left = `${rect.left - 160}px`;
+          shareMenu.style.transform = "none";
+        } else {
+          // 大屏幕：跟随按钮
+          const rect = btn.getBoundingClientRect();
+          shareMenu.style.top = `${rect.top}px`;
+          shareMenu.style.left = `${rect.right * 0.9}px`;
+          shareMenu.style.transform = "none";
+        }
+
+        // 7. 显示菜单
+        shareMenu.classList.add("active");
+      } catch (e) {
+        console.error("获取订阅链接失败", e);
+      }
+    });
+  }
+
+  // 初始化绑定两个按钮
+  setupShareButton("share");
+  setupShareButton("btnShare");
+
+  // 点击空白处关闭菜单
+  document.addEventListener("click", (e) => {
+    const shareMenu = document.getElementById("shareMenu");
+    if (shareMenu.classList.contains("active") &&
+      !shareMenu.contains(e.target) &&
+      e.target.id !== "share" &&
+      e.target.id !== "btnShare") {
+      shareMenu.classList.remove("active");
     }
   });
-}
 
-// 初始化绑定两个按钮
-setupShareButton("share");
-setupShareButton("btnShare");
+  // 复制事件绑定函数（现在绑定到 list-item）
+  function bindCopyOnClick(itemId) {
+    const el = document.getElementById(itemId);
+    if (!el || el.dataset.bound === "true") return;
+    el.dataset.bound = "true";
 
-// 点击空白处关闭菜单
-document.addEventListener("click", (e) => {
-  const shareMenu = document.getElementById("shareMenu");
-  if (shareMenu.classList.contains("active") &&
-    !shareMenu.contains(e.target) &&
-    e.target.id !== "share" &&
-    e.target.id !== "btnShare") {
-    shareMenu.classList.remove("active");
-  }
-});
+    const handler = async (e) => {
+      e.preventDefault();
+      const url = el.dataset.link; // 从 data-link 获取 URL
+      if (!url) return; // 安全检查
 
-// 复制事件绑定函数（现在绑定到 list-item）
-function bindCopyOnClick(itemId) {
-  const el = document.getElementById(itemId);
-  if (!el || el.dataset.bound === "true") return;
-  el.dataset.bound = "true";
-
-  const handler = async (e) => {
-    e.preventDefault();
-    const url = el.dataset.link; // 从 data-link 获取 URL
-    if (!url) return; // 安全检查
-
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(url);
-        showToast("已复制链接到剪贴板", "info", 2000);
-      } else {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(url);
+          showToast("已复制链接到剪贴板", "info", 2000);
+        } else {
+          fallbackCopy(url);
+          return; // fallback 已处理隐藏
+        }
+      } catch (err) {
+        console.error("复制失败", err);
         fallbackCopy(url);
-        return; // fallback 已处理隐藏
+        return;
       }
+
+      // 复制成功：隐藏菜单
+      const shareMenu = document.getElementById("shareMenu");
+      shareMenu.classList.remove("active");
+
+      // 复制后自动打开新标签（如果需要，取消注释下一行）
+      // window.open(url, '_blank');
+    };
+
+    // 绑定多种事件，支持键盘访问（Enter/Space）
+    el.addEventListener("click", handler);
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        handler(e);
+      }
+    });
+    el.addEventListener("touchend", handler, { passive: false }); // 移动端，现代 passive 选项
+  }
+
+  function fallbackCopy(text) {
+    const input = document.createElement("input");
+    input.value = text;
+    input.style.opacity = "0"; // 现代：隐藏 input，提升 UX
+    input.style.position = "absolute";
+    document.body.appendChild(input);
+    input.select();
+    input.setSelectionRange(0, 99999); // 现代：兼容移动端全选
+    try {
+      document.execCommand("copy");
+      showToast("已复制链接到剪贴板", "info", 2000);
     } catch (err) {
-      console.error("复制失败", err);
-      fallbackCopy(url);
-      return;
+      showToast("复制失败，请手动复制", "error", 2000);
     }
+    document.body.removeChild(input);
 
     // 复制成功：隐藏菜单
     const shareMenu = document.getElementById("shareMenu");
     shareMenu.classList.remove("active");
-
-    // 复制后自动打开新标签（如果需要，取消注释下一行）
-    // window.open(url, '_blank');
-  };
-
-  // 绑定多种事件，支持键盘访问（Enter/Space）
-  el.addEventListener("click", handler);
-  el.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      handler(e);
-    }
-  });
-  el.addEventListener("touchend", handler, { passive: false }); // 移动端，现代 passive 选项
-}
-
-function fallbackCopy(text) {
-  const input = document.createElement("input");
-  input.value = text;
-  input.style.opacity = "0"; // 现代：隐藏 input，提升 UX
-  input.style.position = "absolute";
-  document.body.appendChild(input);
-  input.select();
-  input.setSelectionRange(0, 99999); // 现代：兼容移动端全选
-  try {
-    document.execCommand("copy");
-    showToast("已复制链接到剪贴板", "info", 2000);
-  } catch (err) {
-    showToast("复制失败，请手动复制", "error", 2000);
   }
-  document.body.removeChild(input);
-
-  // 复制成功：隐藏菜单
-  const shareMenu = document.getElementById("shareMenu");
-  shareMenu.classList.remove("active");
-}
 
   // ==================== 启动 ====================
   (function bootstrap() {

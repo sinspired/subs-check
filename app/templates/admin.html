@@ -61,6 +61,7 @@
         <div style="display:flex;flex-direction:column">
           <div class="title-row">
             <h3 class="project-name"><strong>Subs Check</strong></h3>
+            <!-- TODO: 有更新时在右上角显示小圆点角标 -->
             <span id="versionInline" class="version btn">-</span>
           </div>
           <small class="slogan">订阅检测 · 配置管理</small>
@@ -106,6 +107,7 @@
           <div class="sidebar-list">
             <div class="list-item" id="share" title="分享订阅" style="cursor:pointer;">分享订阅</div>
             <div class="list-item" id="downloadLogsBtnSide" title="下载日志" style="cursor:pointer;">下载日志</div>
+            <!-- TODO: 添加检查更新按钮 -->
             <div class="list-item" id="logoutBtn" title="退出登录" style="cursor:pointer;">退出登录</div>
           </div>
           <!-- TODO: 添加底部区域 -->
@@ -158,24 +160,13 @@
                   style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px">
                   <div id="history-line" class="history-line muted"
                     style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    <span id="historyLastTime"></span> 
+                    <span id="historyLastTime"></span>
                     用时 <span id="historyLastDuration"></span> |
                     总数 <span id="historyLastTotal"></span> |
                     可用 <span id="historyLastAvailable" style="color:var(--success);font-weight:700">-</span>
                   </div>
                 </div>
               </div>
-
-
-              <!-- 上次检测结果 -->
-              <!-- <div id="lastCheckResult" class="last-check-result" style="display:none;">
-                <span class="muted" style="font-size:12px;margin:0;">
-                  上次检测：<span id="lastCheckTime">-</span> |
-                  用时：<span id="lastCheckDuration">-</span> |
-                  总数：<span id="lastCheckTotal">-</span> |
-                  可用：<span id="lastCheckAvailable" style="color:var(--success)">-</span>
-                </span>
-              </div> -->
             </div>
           </div>
         </div>
