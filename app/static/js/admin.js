@@ -48,6 +48,7 @@
   const shareBtn = document.getElementById("share");
   const shareMenu = document.getElementById("shareMenu");
   const btnShare = document.getElementById("btnShare");;
+  const projectUrlBtn = document.getElementById('project-url');
 
   // 上次检测结果
   const lastCheckResult = $('#lastCheckResult');
@@ -185,7 +186,7 @@
     const iconEl = toggleBtn.querySelector('.btn-icon');
 
     const config = {
-      idle: {
+       idle: {
         icon: `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path d="M8 5v14l11-7z"/>
@@ -960,6 +961,12 @@
 
   // ==================== 控件事件绑定 ====================
   function bindControls() {
+    projectUrlBtn.addEventListener('click', (e) => {
+      e.preventDefault(); // 防止默认行为（如如果有链接）
+      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
+      window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer'); // 新标签打开
+    });
+
     downloadLogsBtnSide?.addEventListener('click', () => {
       const t = logContainer?.innerText || '';
       const blob = new Blob([t], { type: 'text/plain;charset=utf-8' });
