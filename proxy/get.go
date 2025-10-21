@@ -32,8 +32,19 @@ var (
 
 func GetProxies() ([]map[string]any, int, int, error) {
 	// 解析本地与远程订阅清单
-	subUrls, localNum, remoteNum := resolveSubUrls()
-	slog.Info("订阅链接数量", "本地", localNum, "远程", remoteNum, "总计", len(subUrls))
+	subUrls, localNum, remoteNum, historyNum := resolveSubUrls()
+	args := []any{}
+	if localNum > 0 {
+		args = append(args, "本地", localNum)
+	}
+	if remoteNum > 0 {
+		args = append(args, "远程", remoteNum)
+	}
+	if historyNum > 0 {
+		args = append(args, "历史", historyNum)
+	}
+	args = append(args, "总计", len(subUrls))
+	slog.Info("订阅链接数量", args...)
 
 	// 初始化系统代理和 githubproxy
 	IsSysProxyAvailable = utils.GetSysProxy()
@@ -237,11 +248,10 @@ func GetProxies() ([]map[string]any, int, int, error) {
 }
 
 // from 3k
-// resolveSubUrls 合并本地与远程订阅清单并去重
 // resolveSubUrls 合并本地与远程订阅清单并去重（去重时忽略 fragment）
-func resolveSubUrls() ([]string, int, int) {
+func resolveSubUrls() ([]string, int, int, int) {
 	// 计数
-	var localNum, remoteNum int
+	var localNum, remoteNum, historyNum int
 	localNum = len(config.GlobalConfig.SubUrls)
 
 	urls := make([]string, 0, len(config.GlobalConfig.SubUrls))
@@ -274,9 +284,11 @@ func resolveSubUrls() ([]string, int, int) {
 			localHistoryFile := filepath.Join(saver.OutputPath, "history.yaml")
 
 			if _, err := os.Stat(localLastSuccedFile); err == nil {
+				historyNum++
 				urls = append([]string{localLastSucced + "#KeepSucced"}, urls...)
 			}
 			if _, err := os.Stat(localHistoryFile); err == nil {
+				historyNum++
 				urls = append([]string{localHistory + "#KeepHistory"}, urls...)
 			}
 		}
@@ -309,7 +321,7 @@ func resolveSubUrls() ([]string, int, int) {
 		seen[key] = struct{}{}
 		out = append(out, s)
 	}
-	return out, localNum, remoteNum
+	return out, localNum, remoteNum, historyNum
 }
 
 // fetchRemoteSubUrls 从远程地址读取订阅URL清单
