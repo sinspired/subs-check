@@ -223,7 +223,7 @@ func (app *App) getLogs(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"logs": []string{}})
 		return
 	}
-	lines, err := ReadLastNLines(logPath, 100)
+	lines, err := ReadLastNLines(logPath, 200)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志失败: %v", err)})
 		return
