@@ -49,6 +49,7 @@ RUN apk add --no-cache alpine-conf ca-certificates nodejs &&\
     rm -rf /usr/bin/node
 
 COPY --from=builder /app/subs-check /app/subs-check
-CMD /app/subs-check
+# shell form -> exec form
+CMD ["/app/subs-check"]
 EXPOSE 8199
 EXPOSE 8299
