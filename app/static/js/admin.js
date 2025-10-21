@@ -11,10 +11,11 @@
     forceClose: '/api/force-close'
   };
 
-  const POLL_INTERVAL_MS = 500;
+  const REFRESH_STATUS_INTERVAL_MS = 5000;
+  const LOAD_LOGS_INTERVAL_MS = 10000;
   const MAX_LOG_LINES = 1000;
-  const MAX_FAILURE_DURATION_MS = 5000;
-  const ACTION_CONFIRM_TIMEOUT_MS = 30000;
+  const MAX_FAILURE_DURATION_MS = 10000;
+  const ACTION_CONFIRM_TIMEOUT_MS = 600000;
 
   // 页面元素
   const $ = s => document.querySelector(s);
@@ -149,7 +150,7 @@
       apiFailureCount++;
       if (!firstFailureAt) firstFailureAt = Date.now();
       if (firstFailureAt && (Date.now() - firstFailureAt) >= MAX_FAILURE_DURATION_MS) {
-        doLogout('连续无法连接 API 超过 5 秒');
+        doLogout('连续无法连接 API 超过 10 秒');
         return { ok: false, status: r.status, payload };
       }
       return { ok: false, status: r.status, payload };
@@ -157,7 +158,7 @@
       apiFailureCount++;
       if (!firstFailureAt) firstFailureAt = Date.now();
       if (firstFailureAt && (Date.now() - firstFailureAt) >= MAX_FAILURE_DURATION_MS) {
-        doLogout('连续无法连接 API 超过 5 秒');
+        doLogout('连续无法连接 API 超过 10 秒');
       }
       return { ok: false, error: e };
     }
@@ -1123,10 +1124,10 @@
     loadStatus().catch(() => { });
     pollers.logs = setInterval(() => {
       if (!logsPollRunning) loadLogsIncremental(true).catch(() => { });
-    }, POLL_INTERVAL_MS);
+    }, LOAD_LOGS_INTERVAL_MS);
     pollers.status = setInterval(() => {
       if (!statusPollRunning) loadStatus().catch(() => { });
-    }, POLL_INTERVAL_MS);
+    }, REFRESH_STATUS_INTERVAL_MS);
   }
 
   function stopPollers() {
