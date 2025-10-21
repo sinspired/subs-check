@@ -37,6 +37,8 @@
   const editorContainer = $('#editorContainer');
   const progressBar = $('#progress');
   const progressText = $('#progressText');
+  const progressPercentTitle = $(`#progressPercentTitle`)
+  const successTitle = $(`#successTitle`)
   const successText = $('#successText');
   const progressPercent = $('#progressPercent');
   const downloadLogsBtnSide = $('#downloadLogsBtnSide');
@@ -704,6 +706,8 @@
         try { if (progressBar) progressBar.value = 0; } catch (e) { }
         if (progressText) progressText.textContent = '';
         if (progressPercent) progressPercent.textContent = '';
+        if (progressPercentTitle) progressPercentTitle.textContent = '';
+        if (successTitle) successTitle.textContent = '';
         if (successText) {
           successText.classList.remove("success-highlight");
           successText.textContent = '';
@@ -821,6 +825,8 @@
 
     if (progressBar) progressBar.value = pct;
     if (progressText) progressText.textContent = `${processed}/${total}`;
+    if (progressPercentTitle) progressPercentTitle.textContent = '进度';
+    if (successTitle) successTitle.textContent = '可用：';
     if (successText) {
       successText.classList.add("success-highlight")
       successText.textContent = available;

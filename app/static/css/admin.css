@@ -403,7 +403,14 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
 /* 进度信息 */
 .progress-info { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 
-.progress-wrapper { display: flex; justify-content: space-between; align-items: center; font-size:14px;font-weight: 600;}
+.progress-wrapper { 
+  display: flex; justify-content: space-between; align-items: center; 
+  font-size:14px;font-weight: 600;gap: var(--gap);
+}
+
+#progressPercent{
+  color: var(--muted);
+}
 
 .progress-bar-wrap { display: flex; align-items: center; gap: 8px}
 
@@ -438,6 +445,7 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
 
 #progressText{
   font-size: 12px;
+  color: var(--muted);
 }
 
 /* 闪烁效果 */
