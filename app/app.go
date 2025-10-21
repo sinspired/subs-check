@@ -41,6 +41,15 @@ type App struct {
 	originVersion string
 	httpServer    *http.Server
 	stopCh        <-chan struct{}
+
+	lastCheck lastCheckResult
+}
+
+type lastCheckResult struct {
+	time      atomic.Value // 存储 time.Time
+	duration  atomic.Int64
+	Total     atomic.Int64
+	available atomic.Int64
 }
 
 // New 创建新的应用实例
@@ -271,7 +280,6 @@ func (app *App) triggerCheck() {
 
 	if err := app.checkProxies(); err != nil {
 		slog.Error(fmt.Sprintf("检测代理失败: %v", err))
-		// 不在这里直接退出进程，因为在正常运行中检测失败不应结束程序
 	}
 
 	// 检测完成后显示下次检查时间
@@ -295,6 +303,8 @@ func (app *App) triggerCheck() {
 func (app *App) checkProxies() error {
 	slog.Info("开始准备检测代理", "进度展示", config.GlobalConfig.PrintProgress)
 
+	startTime := time.Now()
+
 	results, err := check.Check()
 	if err != nil {
 		return fmt.Errorf("检测代理失败: %w", err)
@@ -307,6 +317,14 @@ func (app *App) checkProxies() error {
 
 	// 执行回调脚本
 	utils.ExecuteCallback(len(results))
+
+	endTime := time.Now()
+
+	// 更新 lastCheck 结果（使用 Store 方法确保原子性）
+	app.lastCheck.time.Store(endTime)
+	app.lastCheck.duration.Store(int64(endTime.Sub(startTime).Seconds()))
+	app.lastCheck.Total.Store(int64(check.ProxyCount.Load()))
+	app.lastCheck.available.Store(int64(len(results)))
 
 	return nil
 }

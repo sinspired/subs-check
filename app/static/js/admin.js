@@ -11,8 +11,8 @@
     forceClose: '/api/force-close'
   };
 
-  const REFRESH_STATUS_INTERVAL_MS = 5000;
-  const LOAD_LOGS_INTERVAL_MS = 10000;
+  const REFRESH_STATUS_INTERVAL_MS = 1000;
+  const LOAD_LOGS_INTERVAL_MS = 1000;
   const MAX_LOG_LINES = 1000;
   const MAX_FAILURE_DURATION_MS = 10000;
   const ACTION_CONFIRM_TIMEOUT_MS = 600000;
@@ -500,7 +500,10 @@
       if (!startTime && (line.includes('手动触发检测') || line.includes('开始准备检测代理'))) {
         const timeMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
         if (timeMatch) startTime = timeMatch[1];
-        break; // 找到开始就停止
+
+        if (startTime && endTime && availableNodes && totalNodes) {
+          break; // 找到开始就停止
+        }
       }
     }
 
@@ -918,7 +921,7 @@
 
         // 检测结束时显示上次检测结果
         // 优先使用后端返回的数据，如果没有则使用前端记录
-        if (d.lastCheck) {
+        if (d.lastCheck && d.lastCheck.duration && d.lastCheck.available) {
           showLastCheckResult({
             lastCheckTime: d.lastCheck.time || d.lastCheck.timestamp,
             duration: d.lastCheck.duration,

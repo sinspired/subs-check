@@ -177,11 +177,28 @@ func (app *App) updateConfig(c *gin.Context) {
 
 // getStatus 获取应用状态
 func (app *App) getStatus(c *gin.Context) {
+	// 准备 lastCheck 数据
+	lastCheckTime := ""
+	if t, ok := app.lastCheck.time.Load().(time.Time); ok && !t.IsZero() {
+		lastCheckTime = t.Format("2006-01-02 15:04:05")
+	}
+
+	lastCheck := gin.H{}
+	if lastCheckTime != "" || app.lastCheck.duration.Load() != 0 || app.lastCheck.Total.Load() != 0 || app.lastCheck.available.Load() != 0 {
+		lastCheck = gin.H{
+			"time":      lastCheckTime,
+			"duration":  app.lastCheck.duration.Load(),
+			"total":     app.lastCheck.Total.Load(),
+			"available": app.lastCheck.available.Load(),
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"checking":   app.checking.Load(),
 		"proxyCount": check.ProxyCount.Load(),
 		"available":  check.Available.Load(),
 		"progress":   check.Progress.Load(),
+		"lastCheck":  lastCheck,
 	})
 }
 
