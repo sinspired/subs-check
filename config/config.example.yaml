@@ -14,7 +14,7 @@ update: true
 update-on-startup: true
 # 定时检查更新
 # "0 0,9,21 * * *" 默认每天0点,9点,21点检查更新
-cron-check-update: '0 0,9,21 * * *'
+cron-check-update: "0 0,9,21 * * *"
 # 使用预发布版本
 prerelease: false
 # 下载新版本超时时间(分钟)(默认2分钟)
@@ -28,11 +28,15 @@ concurrent: 20
 # 流水线任务并发数,为0会自动设置
 # 测活任务受限于CPU和路由器芯片,占用带宽较小,可适当大一点,量力而行
 # 测速阶段占用带宽,如果要设大,建议设置total-speed-limit避免拉满带宽
-# 测速设置了最低两倍缓冲通道,通道占满会阻塞测活任务
+# 测速设置了最低两倍缓冲通道,通道占满会阻塞测活任务。
 # 测活-测速-媒体检测并行,缓冲通道占满后会成为瓶颈
-# alive-concurrent: 200
-# speed-concurrent: 32
-# media-concurrent: 100
+
+# 测活阶段，建议：100-1000
+alive-concurrent: 200
+# 测速阶段，建议：8-32
+speed-concurrent: 16
+# 媒体解锁检测，建议：50-200
+media-concurrent: 100
 
 # 检查间隔(分钟)
 check-interval: 720
@@ -59,7 +63,7 @@ speed-test-url: https://github.com/AaronFeng753/Waifu2x-Extension-GUI/releases/d
 # 注意: 节点可能被测速测死(暂时或永久), 经过多次测试, 不用怀疑!
 # 强烈建议设置较低的 min-speed, 强烈建议保留 download-timeout 和 download-mb
 # 最低测速结果舍弃(KB/s)
-min-speed: 512
+min-speed: 256
 # 下载测试时间(s)(与下载链接大小相关，默认最大测试10s)
 download-timeout: 10
 # 单节点测速下载数据大小(MB)限制，0为不限
@@ -80,13 +84,13 @@ threshold: 0.75
 # http://127.0.0.1:8199/all.yaml
 # 注意：为方便小白默认监听0.0.0.0:8199，请自行修改
 # 更新需重启程序
-listen-port: ':8199'
+listen-port: ":8199"
 
 # 以节点IP查询位置重命名节点
 # 质量差的节点可能造成IP查询失败，造成整体检查速度稍微变慢，默认true
 rename-node: true
 # 节点前缀，依赖rename-node为true才生效
-node-prefix: ''
+node-prefix: ""
 
 # 只测试指定协议的节点
 node-type:
@@ -120,11 +124,11 @@ enhanced-tag: true
 # MaxMind 地理数据库路径
 # 如果为空，则使用内置的数据库文件（解压到output目录）
 # 可以指定本地数据库文件路径，如：/path/to/GeoLite2-Country.mmdb
-maxmind-db-path: ''
+maxmind-db-path: ""
 
 # 输出目录
 # 如果为空，则为程序所在目录的config目录
-output-dir: ''
+output-dir: ""
 
 # 保留之前测试成功的节点
 # 如果为true，则保留之前测试成功的节点，这样就不会因为上游链接更新，导致可用的节点被清除掉
@@ -137,18 +141,18 @@ keep-success-proxies: true
 enable-web-ui: true
 # 填写Web控制面板的api-key，如果为空，则自动生成
 # 配置文件为空时，支持使用环境变量设置 API_KEY
-api-key: ''
+api-key: ""
 
 # 检测完成后执行的回调脚本路径
 # 脚本将在检测完成后执行，可用于自定义通知或其他操作
 # 例如: "/path/to/your/script.sh" 或 'C:\path\to\your\script.bat'
 # Linux请在脚本开头添加对应的：#!/bin/bash、#!/bin/sh、#!/usr/bin/env bash 等，编写标准的脚本
 # 注意如果使用docker，目前docker使用的alpine，只有sh，不支持bash
-callback-script: ''
+callback-script: ""
 
 # 填写搭建的apprise API server 地址
 # https://notify.xxxx.us.kg/notify
-apprise-api-server: ''
+apprise-api-server: ""
 # 填写通知目标
 # 支持100+ 个通知渠道，详细格式请参照 https://github.com/caronc/apprise
 recipient-url:
@@ -160,35 +164,55 @@ recipient-url:
   # - dingtalk://xxxxxx@xxxxxxx
 
 # 自定义通知标题
-notify-title: '🔔 节点状态更新'
+notify-title: "🔔 节点状态更新"
 
 # sub-store的启动端口，为空则不启动sub-store
 # 更新需重启程序，不可监听局域网IP，只有三种写法 :8299, 127.0.0.1:8299, 0.0.0.0:8299
 # sub-store-port: ":8299"
-sub-store-port: ':8299'
+sub-store-port: ":8299"
 # sub-store自定义访问路径，必须以/开头，后续访问订阅也要带上此路径
 # 设置path之后，还可以开启订阅分享功能，无需暴露真实的path
 # sub-store-path: "/path"
-sub-store-path: ''
+sub-store-path: ""
 
 # 覆写订阅的url，这个的作用是生成带指定规则的mihomo/clash.meta订阅链接
 # 防止网络不好，所以现在内置，依赖:8199端口
 # 如果你想替换其他的自定义覆写文件，自己命名后放在output目录，然后更改此URL后缀即可
 mihomo-overwrite-url: http://127.0.0.1:8199/sub/ACL4SSR_Online_Full.yaml
 
+# singbox规则配置
+# json文件为分流规则
+# js脚本用来根据规则对节点进行处理
+# singbox每个版本规则不兼容，须根据客户端版本选择合适的规则
+# singbox latest 版本配置
+singbox-latest:
+  version: 1.12
+  json:
+    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json
+  js:
+    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.js
+
+# singbox 1.11 版本配置（iOS 兼容）
+singbox-old:
+  version: 1.11
+  json:
+    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.json
+  js:
+    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.js
+
 # 以下配置去查看sub-store相关的教程：https://hub.docker.com/r/xream/sub-store
 # sub-store同步gist定时任务
 # 定时任务指定时将订阅/文件上传到私有 Gist. 在前端, 叫做 同步 或 同步配置.
 # 55 23 * * * 每天 23 点 55 分(避开部分机场后端每天0点定时重启)
-sub-store-sync-cron: ''
+sub-store-sync-cron: ""
 # 定时更新订阅
 # SUB_STORE_PRODUCE_CRON 在后台定时处理订阅. 格式为 0 */2 * * *,sub,a;0 */3 * * *,col,b
 # 即每 2 小时处理一次单条订阅 a, 每 3 小时处理一次组合订阅 b.
-sub-store-produce-cron: ''
+sub-store-produce-cron: ""
 # sub-store推送服务地址
 # 例如：Brak: "SUB_STORE_PUSH_SERVICE=https://api.day.app/XXXXXXXXXXXX/[推送标题]/[推送内容]"
 # 注意：仅需修改 XXXXXXXXXXXX 为自己的 token，[推送标题]/[推送内容] 会被sub-store自动替换为对应的内容
-sub-store-push-service: ''
+sub-store-push-service: ""
 
 # 保存方法
 # 目前支持的保存方法: r2, local, gist, webdav, s3
@@ -200,11 +224,11 @@ webdav-username: admin
 webdav-password: admin
 
 # gist id
-github-gist-id: ''
+github-gist-id: ""
 # github token
-github-token: ''
+github-token: ""
 # github api mirror
-github-api-mirror: ''
+github-api-mirror: ""
 
 # 将测速结果推送到Worker的地址
 worker-url: https://example.worker.dev
@@ -231,10 +255,10 @@ s3-bucket-lookup: auto
 # 写法跟环境变量一样，修改需重启生效
 # system-proxy: "http://username:password@192.168.1.1:7890"
 # system-proxy: "socks5://username:password@192.168.1.1:7890"
-system-proxy: ''
+system-proxy: ""
 # Github 代理：获取订阅使用
 # github-proxy: "https://ghfast.top/"
-github-proxy: ''
+github-proxy: ""
 # GitHub 代理列表：程序会自动筛选可用的 GitHub 代理
 ghproxy-group:
   - https://ghp.yeye.f5.si/

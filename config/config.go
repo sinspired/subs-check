@@ -1,7 +1,15 @@
 // Package config 解析配置文件
 package config
 
-import _ "embed"
+import (
+	_ "embed"
+)
+
+type SingBoxConfig struct {
+	Version string   `yaml:"version"`
+	JSON []string `yaml:"json"`
+	JS   []string `yaml:"js"`
+}
 
 type Config struct {
 	PrintProgress        bool     `yaml:"print-progress"`
@@ -75,6 +83,10 @@ type Config struct {
 	CronCheckUpdate      string   `yaml:"cron-check-update"`
 	Prerelease           bool     `yaml:"prerelease"`
 	UpdateTimeout        int      `yaml:"update-timeout"`
+
+	// 新增 singbox的ios版本停留在1.11，这里进行兼容
+	SingboxLatest SingBoxConfig `yaml:"singbox-latest"`
+	SingboxOld SingBoxConfig `yaml:"singbox-old"`
 }
 
 var GlobalConfig = &Config{

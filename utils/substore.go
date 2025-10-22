@@ -16,13 +16,15 @@ import (
 )
 
 type sub struct {
-	Name                   string           `json:"name"`
-	Remark                 string           `json:"remark"`
-	Source                 string           `json:"source"`
-	IgnoreFailedRemoteFile string           `json:"ignoreFailedRemoteFile,omitempty"`
-	Process                []map[string]any `json:"process"`
-	Tag                    []string         `json:"tag,omitempty"`
-	Content                string           `json:"content"`
+	Name                   string     `json:"name"`
+	Remark                 string     `json:"remark"`
+	Source                 string     `json:"source"`
+	IgnoreFailedRemoteFile string     `json:"ignoreFailedRemoteFile,omitempty"`
+	Process                []Operator `json:"process"`
+	Tag                    []string   `json:"tag,omitempty"`
+	Content                string     `json:"content"`
+	Icon                   string     `json:"icon,omitempty"`
+	IsIconColor            bool       `json:"isIconColor,omitempty"`
 }
 
 // Arguments 脚本参数
@@ -33,9 +35,9 @@ type Arguments struct {
 
 // args 支持可选的 arguments
 type args struct {
-	Content   string                 `json:"content"`
-	Mode      string                 `json:"mode"`
-	Arguments map[string]interface{} `json:"arguments,omitempty"`
+	Content   string    `json:"content"`  // 覆写地址，mihomo支持yaml覆写
+	Mode      string    `json:"mode"`
+	Arguments Arguments `json:"arguments,omitempty"`
 }
 
 type Operator struct {
@@ -44,24 +46,23 @@ type Operator struct {
 	Type     string `json:"type"`
 }
 
-// file 结构体扩展，兼容 mihomo 和 singbox
+// file 结构体，兼容 mihomo 和 singbox
 type file struct {
 	Name                   string     `json:"name"`
-	Remark                 string     `json:"remark,omitempty"`
+	Remark                 string     `json:"remark,omitempty"` // 备注信息
 	Icon                   string     `json:"icon,omitempty"`
 	IsIconColor            bool       `json:"isIconColor,omitempty"`
-	Source                 string     `json:"source"`
-	SourceType             string     `json:"sourceType"`
-	SourceName             string     `json:"sourceName"`
+	Source                 string     `json:"source"`     // "local" or "remote"
+	SourceType             string     `json:"sourceType"` // "subscription" or "collection"
+	SourceName             string     `json:"sourceName"` // 单条订阅 或 组合订阅 的名称
 	Process                []Operator `json:"process"`
-	Type                   string     `json:"type"` // "mihomoProfile" or "file"
-	URL                    string     `json:"url,omitempty"`
+	Type                   string     `json:"type"`          // "mihomoProfile" or "file"
+	URL                    string     `json:"url,omitempty"` // 脚本操作链接
 	IgnoreFailedRemoteFile string     `json:"ignoreFailedRemoteFile,omitempty"`
 	Tag                    []string   `json:"tag,omitempty"`
 }
 
-type fileResult struct {
-	Data   file   `json:"data"`
+type resourceResult struct {
 	Status string `json:"status"`
 }
 
@@ -70,8 +71,18 @@ const (
 	MihomoName = "mihomo"
 )
 
-// 用来判断用户是否在运行时更改了覆写订阅的url
-var mihomoOverwriteURL string
+var (
+	LatestSingboxName = "singbox-1.12"
+	OldSingboxName    = "singbox-1.11"
+)
+
+const (
+	latestSingboxJSON = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json"
+	latestSingboxJS   = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.js"
+	// 当前ios支持的最新singbox版本:1.11
+	OldSingboxJSON = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.json"
+	OldSingboxJS   = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.js"
+)
 
 // BaseURL 基础URL配置
 var BaseURL string
@@ -84,16 +95,21 @@ func newDefaultSub(data []byte) sub {
 		Remark:  "默认订阅 (无分流规则)",
 		Tag:     []string{"Subs-Check", "已检测"},
 		Source:  "local",
-		Process: []map[string]any{
+		Process: []Operator{
 			{
-				"type": "Quick Setting Operator",
+				Type:     "Quick Setting Operator",
+				Disabled: false,
 			},
 		},
 	}
 }
 
-// MihomoFile 定义mihomo文件
+// newMihomoFile 定义mihomo文件
 func newMihomoFile() file {
+	overwriteURL := config.GlobalConfig.MihomoOverwriteURL
+	if overwriteURL == "" {
+		overwriteURL = "http://127.0.0.1:8199/sub/ACL4SSR_Online_Full.yaml" // 默认值
+	}
 	return file{
 		Name:        MihomoName,
 		Remark:      "默认 Mihomo 订阅 (带分流规则)",
@@ -107,12 +123,8 @@ func newMihomoFile() file {
 			{
 				Type: "Script Operator",
 				Args: args{
-					Content: WarpURL(config.GlobalConfig.MihomoOverwriteURL, GetGhProxy()),
+					Content: WarpURL(overwriteURL, GetGhProxy()),
 					Mode:    "link",
-					Arguments: map[string]any{
-						"name": "sub",
-						"type": "0",
-					},
 				},
 				Disabled: false,
 			},
@@ -125,11 +137,26 @@ func newMihomoFile() file {
 
 // newSingboxFile 返回singbox文件
 func newSingboxFile(name, jsURL, jsonURL string) file {
+	jsURL = WarpURL(jsURL, GetGhProxy())
+	jsURL += "#name=sub&type=0"
+	jsonURL = WarpURL(jsonURL, GetGhProxy())
+
+	version := strings.Split(name, "-")[1]
+	remark := "默认 Sing-Box 订阅 (带分流规则)"
+	if version != "" {
+		remark = fmt.Sprintf("默认 Sing-Box-%s 订阅 (带分流规则)", version)
+
+	}
+
+	// icon := "https://singbox.app/wp-content/uploads/2025/06/cropped-logo-278x300.webp"
+	icon := WarpURL("https://raw.githubusercontent.com/SagerNet/sing-box/main/docs/assets/icon.svg", GetGhProxy())
+
+	icon = WarpURL(icon, GetGhProxy())
 	return file{
 		Name:        name,
-		Remark:      "默认 Sing-Box 订阅 (带分流规则)",
+		Remark:      remark,
 		Tag:         []string{"Subs-Check", "已检测"},
-		Icon:        "https://singbox.app/wp-content/uploads/2025/06/cropped-logo-278x300.webp",
+		Icon:        icon,
 		IsIconColor: true,
 		Source:      "remote",
 		SourceType:  "subscription",
@@ -140,9 +167,9 @@ func newSingboxFile(name, jsURL, jsonURL string) file {
 				Args: args{
 					Content: jsURL,
 					Mode:    "link",
-					Arguments: map[string]any{
-						"name": "sub",
-						"type": "0",
+					Arguments: Arguments{
+						Name: "sub",
+						Type: "0",
 					},
 				},
 				Disabled: false,
@@ -154,6 +181,7 @@ func newSingboxFile(name, jsURL, jsonURL string) file {
 	}
 }
 
+// UpdateSubStore 更新sub-store
 func UpdateSubStore(yamlData []byte) {
 	// 调试的时候等一等node启动
 	if os.Getenv("SUB_CHECK_SKIP") != "" && config.GlobalConfig.SubStorePort != "" {
@@ -170,49 +198,60 @@ func UpdateSubStore(yamlData []byte) {
 	// 创建默认订阅实例
 	defaultSub := newDefaultSub(yamlData)
 
-	if err := defaultSub.checkSub(); err != nil {
-		slog.Debug(fmt.Sprintf("检查sub配置文件失败: %v, 正在创建中...", err))
-		if err := defaultSub.createSub(); err != nil {
-			slog.Error(fmt.Sprintf("创建sub配置文件失败: %v", err))
+	// 处理 sub 订阅
+	endpoint := "sub"
+	if err := checkResource(endpoint, defaultSub.Name); err != nil {
+		slog.Debug(fmt.Sprintf("检查 %s 配置文件失败: %v, 正在创建中...", defaultSub.Name, err))
+		if err := createResource(endpoint, defaultSub, defaultSub.Name); err != nil {
+			slog.Error(fmt.Sprintf("创建 %s 配置文件失败: %v", defaultSub.Name, err))
 			return
 		}
 	}
-
-	// 创建或更新mihomo文件
-	if config.GlobalConfig.MihomoOverwriteURL == "" {
-		slog.Error("mihomo覆写订阅url未设置")
+	if err := updateResource(endpoint, defaultSub, SubName); err != nil {
+		slog.Error(fmt.Sprintf("更新 %s 配置文件失败: %v", defaultSub.Name, err))
 		return
 	}
 
-	// 定义mihomo文件
+	// 定义 mihomo 文件
 	mihomoFile := newMihomoFile()
-
-	if err := mihomoFile.checkFile(); err != nil {
-		slog.Debug(fmt.Sprintf("检查mihomo配置文件失败: %v, 正在创建中...", err))
-		if err := mihomoFile.createFile(); err != nil {
-			slog.Error(fmt.Sprintf("创建mihomo配置文件失败: %v", err))
-			return
-		}
-		mihomoOverwriteURL = config.GlobalConfig.MihomoOverwriteURL
-	}
-	if err := defaultSub.updateSub(); err != nil {
-		slog.Error(fmt.Sprintf("更新sub配置文件失败: %v", err))
-		return
-	}
-	if config.GlobalConfig.MihomoOverwriteURL != mihomoOverwriteURL {
-		if err := mihomoFile.updateFile(); err != nil {
-			slog.Error(fmt.Sprintf("更新mihomo配置文件失败: %v", err))
-			return
-		}
-		mihomoOverwriteURL = config.GlobalConfig.MihomoOverwriteURL
-		slog.Debug("mihomo覆写订阅url已更新")
+	if err := mihomoFile.updateSubStoreFile(); err != nil {
+		slog.Info("mihomo 订阅更新失败")
 	}
 
-	// TODO: 创建singbox文件
+	// 处理最新版本和旧版本的singbox订阅
+	processSingboxFile(&config.GlobalConfig.SingboxLatest, latestSingboxJS, latestSingboxJSON, LatestSingboxName)
+	processSingboxFile(&config.GlobalConfig.SingboxOld, OldSingboxJS, OldSingboxJSON, OldSingboxName)
+
 	slog.Info("substore更新完成")
 }
-func (sub sub) checkSub() error {
-	resp, err := http.Get(fmt.Sprintf("%s/api/sub/%s", BaseURL, sub.Name))
+
+// processSingboxFile 处理 singbox 订阅
+func processSingboxFile(sbc *config.SingBoxConfig, defaultJS, defaultJSON, defaultName string) {
+	var js, jsonStr string
+	if len(sbc.JS) > 0 && len(sbc.JSON) > 0 {
+		js = sbc.JS[0]
+		jsonStr = sbc.JSON[0]
+	} else {
+		js = defaultJS
+		jsonStr = defaultJSON
+	}
+	name := defaultName
+	if sbc.Version != "" {
+		name = "singbox-" + sbc.Version
+	}
+	file := newSingboxFile(name, js, jsonStr)
+	if err := file.updateSubStoreFile(); err != nil {
+		slog.Info(fmt.Sprintf("%s 订阅更新失败", file.Name))
+	}
+}
+
+// checkResource 检查资源是否存在
+func checkResource(endpoint, name string) error {
+	url := fmt.Sprintf("%s/api/%s/%s", BaseURL, endpoint, name)
+	if endpoint == "wholeFile" {
+		url = fmt.Sprintf("%s/api/%s/%s", BaseURL, endpoint, name)
+	}
+	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
@@ -221,41 +260,42 @@ func (sub sub) checkSub() error {
 	if err != nil {
 		return err
 	}
-	var fileResult fileResult
-	err = json.Unmarshal(body, &fileResult)
-	if err != nil {
-		return err
+	var result resourceResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("解析响应失败: %w", err)
 	}
-	if fileResult.Status != "success" {
-		return fmt.Errorf("获取sub配置文件失败")
+	if result.Status != "success" {
+		return fmt.Errorf("获取 %s 资源失败", name)
 	}
 	return nil
 }
-func (sub sub) createSub() error {
-	// sub-store 上传默认限制1MB
-	json, err := json.Marshal(sub)
+
+// createResource 创建资源
+func createResource(endpoint string, data any, name string) error {
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(fmt.Sprintf("%s/api/subs", BaseURL), "application/json", bytes.NewBuffer(json))
+	url := fmt.Sprintf("%s/api/%ss", BaseURL, endpoint)
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("创建sub配置文件失败,错误码:%d", resp.StatusCode)
+		return fmt.Errorf("创建 %s 资源失败, 错误码: %d", name, resp.StatusCode)
 	}
 	return nil
 }
 
-func (sub sub) updateSub() error {
-	json, err := json.Marshal(sub)
+// updateResource 更新资源
+func updateResource(endpoint string, data any, name string) error {
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPatch,
-		fmt.Sprintf("%s/api/sub/%s", BaseURL, SubName),
-		bytes.NewBuffer(json))
+	url := fmt.Sprintf("%s/api/%s/%s", BaseURL, endpoint, name)
+	req, err := http.NewRequest(http.MethodPatch, url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return err
 	}
@@ -266,8 +306,36 @@ func (sub sub) updateSub() error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("更新sub配置文件失败,错误码:%d", resp.StatusCode)
+		return fmt.Errorf("更新 %s 资源失败, 错误码: %d", name, resp.StatusCode)
 	}
+	return nil
+}
+
+// updateSubStoreFile 检查资源,创建,更新sub-store
+func (f file) updateSubStoreFile() error {
+	if f.Name == MihomoName {
+		if f.Process[0].Args.Content == "" {
+			return fmt.Errorf("未设置覆写文件")
+		}
+	} else if f.Process[0].Args.Content == "" || f.URL == "" {
+		return fmt.Errorf("未设置覆写文件或规则文件")
+	}
+
+	endpoint := "file"
+	if err := checkResource("wholeFile", f.Name); err != nil {
+		slog.Debug(fmt.Sprintf("检查 %s 配置文件失败: %v, 正在创建中...", f.Name, err))
+		if err := createResource(endpoint, f, f.Name); err != nil {
+			slog.Error(fmt.Sprintf("创建 %s 配置文件失败: %v", f.Name, err))
+			return err
+		}
+	}
+
+	if err := updateResource(endpoint, f, f.Name); err != nil {
+		slog.Error(fmt.Sprintf("更新 %s 配置文件失败: %v", f.Name, err))
+		return err
+	}
+
+	slog.Info(fmt.Sprintf("%s 订阅已更新", f.Name))
 	return nil
 }
 
@@ -309,64 +377,4 @@ func formatTimePlaceholders(url string, t time.Time) string {
 		"{Y-m-d}", t.Format("2006-01-02"),
 	)
 	return replacer.Replace(url)
-}
-
-func (f file) checkFile() error {
-	resp, err := http.Get(fmt.Sprintf("%s/api/wholeFile/%s", BaseURL, f.Name))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	var fileResult fileResult
-	err = json.Unmarshal(body, &fileResult)
-	if err != nil {
-		return err
-	}
-	if fileResult.Status != "success" {
-		return fmt.Errorf("获取%s配置文件失败", f.Name)
-	}
-	return nil
-}
-
-func (f file) createFile() error {
-	jsonData, err := json.Marshal(f)
-	if err != nil {
-		return err
-	}
-	resp, err := http.Post(fmt.Sprintf("%s/api/files", BaseURL), "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("创建%s配置文件失败,错误码:%d", f.Name, resp.StatusCode)
-	}
-	return nil
-}
-
-func (f file) updateFile() error {
-	json, err := json.Marshal(f)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPatch,
-		fmt.Sprintf("%s/api/file/%s", BaseURL, f.Name),
-		bytes.NewBuffer(json))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("更新mihomo配置文件失败,错误码:%d", resp.StatusCode)
-	}
-	return nil
 }
