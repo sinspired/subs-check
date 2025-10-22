@@ -35,7 +35,7 @@ type Arguments struct {
 
 // args 支持可选的 arguments
 type args struct {
-	Content   string    `json:"content"`  // 覆写地址，mihomo支持yaml覆写
+	Content   string    `json:"content"` // 覆写地址，mihomo支持yaml覆写
 	Mode      string    `json:"mode"`
 	Arguments Arguments `json:"arguments,omitempty"`
 }
@@ -67,13 +67,14 @@ type resourceResult struct {
 }
 
 const (
-	SubName    = "sub"
-	MihomoName = "mihomo"
+	SubName     = "sub"
+	MihomoName  = "mihomo"
+	SingboxName = "singbox"
 )
 
 var (
-	LatestSingboxName = "singbox-1.12"
-	OldSingboxName    = "singbox-1.11"
+	LatestSingboxVersion = "1.12"
+	OldSingboxVersion    = "1.11"
 )
 
 const (
@@ -219,14 +220,20 @@ func UpdateSubStore(yamlData []byte) {
 	}
 
 	// 处理最新版本和旧版本的singbox订阅
-	processSingboxFile(&config.GlobalConfig.SingboxLatest, latestSingboxJS, latestSingboxJSON, LatestSingboxName)
-	processSingboxFile(&config.GlobalConfig.SingboxOld, OldSingboxJS, OldSingboxJSON, OldSingboxName)
+	if config.GlobalConfig.SingboxLatest.Version != "" {
+		LatestSingboxVersion = config.GlobalConfig.SingboxLatest.Version
+	}
+	if config.GlobalConfig.SingboxOld.Version != "" {
+		OldSingboxVersion = config.GlobalConfig.SingboxOld.Version
+	}
+	processSingboxFile(&config.GlobalConfig.SingboxLatest, latestSingboxJS, latestSingboxJSON, LatestSingboxVersion)
+	processSingboxFile(&config.GlobalConfig.SingboxOld, OldSingboxJS, OldSingboxJSON, OldSingboxVersion)
 
 	slog.Info("substore更新完成")
 }
 
 // processSingboxFile 处理 singbox 订阅
-func processSingboxFile(sbc *config.SingBoxConfig, defaultJS, defaultJSON, defaultName string) {
+func processSingboxFile(sbc *config.SingBoxConfig, defaultJS, defaultJSON, singboxVersion string) {
 	var js, jsonStr string
 	if len(sbc.JS) > 0 && len(sbc.JSON) > 0 {
 		js = sbc.JS[0]
@@ -235,10 +242,8 @@ func processSingboxFile(sbc *config.SingBoxConfig, defaultJS, defaultJSON, defau
 		js = defaultJS
 		jsonStr = defaultJSON
 	}
-	name := defaultName
-	if sbc.Version != "" {
-		name = "singbox-" + sbc.Version
-	}
+	name := SingboxName + "-" + singboxVersion
+
 	file := newSingboxFile(name, js, jsonStr)
 	if err := file.updateSubStoreFile(); err != nil {
 		slog.Info(fmt.Sprintf("%s 订阅更新失败", file.Name))

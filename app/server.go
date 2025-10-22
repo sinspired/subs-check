@@ -16,8 +16,14 @@ import (
 	"github.com/sinspired/subs-check/check"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
+	"github.com/sinspired/subs-check/utils"
 	"gopkg.in/yaml.v3"
 )
+
+type singboxVersions struct {
+	latest string
+	old    string
+}
 
 // initHTTPServer 初始化HTTP服务器
 func (app *App) initHTTPServer() error {
@@ -91,6 +97,7 @@ func (app *App) initHTTPServer() error {
 			api.POST("/force-close", app.forceCloseHandler)
 			// 版本相关API
 			api.GET("/version", app.getVersion)
+			api.GET("/singbox-versions", app.getSingboxVersions)
 
 			// 日志相关API
 			api.GET("/logs", app.getLogs)
@@ -231,14 +238,22 @@ func (app *App) getLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"logs": lines})
 }
 
-// getLogs 获取最近日志
+// getLogs 获取版本号
 func (app *App) getVersion(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"version": app.version})
 }
 
-// getLogs 获取最近日志
+// getOriginVersion 获取原始程序版本
 func (app *App) getOriginVersion(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"version": app.originVersion})
+}
+
+// getSingboxVersions 获取 singbox 版本
+func (app *App) getSingboxVersions(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"latest": utils.LatestSingboxVersion,
+		"old":    utils.OldSingboxVersion,
+	})
 }
 
 func ReadLastNLines(filePath string, n int) ([]string, error) {

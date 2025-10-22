@@ -284,7 +284,7 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
   margin: 0;
   padding: 8px 12px; /* 添加内边距，提升点击区域舒适度 */
   cursor: pointer; /* 明确指针样式 */
-  border-radius: 1em;
+  border-radius: 0;
   transition: background-color 0.2s ease; /* 现代过渡动画 */
 }
 
@@ -292,12 +292,23 @@ main { padding: var(--gap) 0; height: calc(100vh - var(--header-height)); }
   background-color: rgba(255, 255, 255, 0.1); /* 半透明 hover 效果，适配玻璃背景 */
 }
 
-#commonSub-item {
-  border-radius: 1em 1em 0 0 !important;
+
+#shareMenu .menu-content .list-item:first-of-type {
+  border-radius: 1em 1em 0 0;
 }
 
-#mihomoSub-item {
-  border-radius: 0 0 1em 1em !important;
+#shareMenu .menu-content .list-item:last-of-type {
+  border-radius: 0 0 1em 1em;
+}
+
+#shareMenu .menu-content .list-item:only-of-type {
+  border-radius: 1em;
+}
+
+/* 可访问性：键盘聚焦样式 */
+#shareMenu .menu-content .list-item:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.15);
+  outline-offset: 2px;
 }
 
 #shareMenu .menu-header {

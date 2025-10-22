@@ -8,7 +8,8 @@
     config: '/api/config',
     version: '/api/version',
     trigger: '/api/trigger-check',
-    forceClose: '/api/force-close'
+    forceClose: '/api/force-close',
+    singboxVersions: '/api/singbox-versions'
   };
 
   const REFRESH_STATUS_INTERVAL_MS = 1000;
@@ -1271,6 +1272,13 @@
     btn.addEventListener("click", async (e) => {
       e.stopPropagation();
 
+      // 先获取 shareMenu 并做安全检查
+      const shareMenu = document.getElementById("shareMenu");
+      if (!shareMenu) {
+        console.warn("shareMenu 元素不存在");
+        return;
+      }
+
       // 检查是否已经是显示状态：如果是，则直接隐藏
       if (shareMenu.classList.contains("active")) {
         shareMenu.classList.remove("active");
@@ -1283,6 +1291,9 @@
         const r = await sfetch(API.config);
         if (!r.ok) { showToast('读取配置失败', 'warn'); return; }
 
+        const v = await sfetch(API.singboxVersions);
+        if (!v.ok) { showToast('读取singbox版本', 'warn'); return; }
+
         const p = r.payload;
         let yamlContent = '';
         if (p?.content !== undefined) yamlContent = p.content;
@@ -1291,6 +1302,13 @@
 
         const port = config["sub-store-port"] || "";
         const path = config["sub-store-path"] || "";
+
+        const d = v.payload;
+        const latestSingboxVersion = d.latest;
+        const oldSingboxVersion = d.old;
+
+        const latestSingboxName = "singbox" + "-" + latestSingboxVersion;
+        const oldSingboxName = "singbox" + "-" + oldSingboxVersion;
 
         // 2. 去掉当前 URL 的端口
         const url = `${window.location.protocol}//${window.location.hostname}`;
@@ -1301,13 +1319,19 @@
         // 4. 设置链接（存储到 data-link 属性）
         document.getElementById("commonSub-item").dataset.link = baseUrl + "/download/sub";
         document.getElementById("mihomoSub-item").dataset.link = baseUrl + "/api/file/mihomo";
+        document.getElementById("singboxOldSub-item").textContent = oldSingboxName + " 订阅";
+        document.getElementById("singboxLatestSub-item").textContent = latestSingboxName + " 订阅";
+        document.getElementById("singboxLatestSub-item").title = "ios设备当前最高兼容 1.11 版本, 当前为 " + latestSingboxName;
+        document.getElementById("singboxOldSub-item").dataset.link = baseUrl + "/api/file/" + oldSingboxName;
+        document.getElementById("singboxLatestSub-item").dataset.link = baseUrl + "/api/file/" + latestSingboxName;
 
         // 5. 绑定复制事件（只绑定一次）
         bindCopyOnClick("commonSub-item");
         bindCopyOnClick("mihomoSub-item");
+        bindCopyOnClick("singboxOldSub-item");
+        bindCopyOnClick("singboxLatestSub-item");
 
         // 6. 定位菜单
-        const shareMenu = document.getElementById("shareMenu");
         if (window.innerWidth < 768) {
           // 小屏幕：居中显示
           const rect = btn.getBoundingClientRect();
@@ -1329,7 +1353,6 @@
       }
     });
   }
-
   // 初始化绑定两个按钮
   setupShareButton("share");
   setupShareButton("btnShare");
