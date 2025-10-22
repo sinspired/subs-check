@@ -139,8 +139,9 @@ func newMihomoFile() file {
 // newSingboxFile 返回singbox文件
 func newSingboxFile(name, jsURL, jsonURL string) file {
 	jsURL = WarpURL(jsURL, GetGhProxy())
-	jsURL += "#name=sub&type=0"
+	jsURL += "#name=sub&type=0#noCache"
 	jsonURL = WarpURL(jsonURL, GetGhProxy())
+	jsonURL += "#noCache"
 
 	version := strings.Split(name, "-")[1]
 	remark := "默认 Sing-Box 订阅 (带分流规则)"
