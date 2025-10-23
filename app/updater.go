@@ -185,7 +185,11 @@ func restartSelfWindowsSilent(exe string) error {
 
 // 清理系统代理环境变量
 func clearProxyEnv() {
-	for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+	for _, key := range []string{
+		"HTTP_PROXY", "http_proxy",
+		"HTTPS_PROXY", "https_proxy",
+		"ALL_PROXY", "all_proxy",
+		"NO_PROXY", "no_proxy"} {
 		os.Unsetenv(key)
 	}
 }

@@ -20,11 +20,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type singboxVersions struct {
-	latest string
-	old    string
-}
-
 // initHTTPServer 初始化HTTP服务器
 func (app *App) initHTTPServer() error {
 	gin.SetMode(gin.ReleaseMode)

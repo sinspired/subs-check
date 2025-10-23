@@ -85,12 +85,6 @@ func (app *App) Initialize() error {
 		return fmt.Errorf("初始化配置文件监听失败: %w", err)
 	}
 
-	// 从配置文件中读取代理，设置代理
-	if config.GlobalConfig.SystemProxy != "" {
-		os.Setenv("HTTP_PROXY", config.GlobalConfig.SystemProxy)
-		os.Setenv("HTTPS_PROXY", config.GlobalConfig.SystemProxy)
-	}
-
 	app.interval = func() int {
 		if config.GlobalConfig.CheckInterval <= 0 {
 			return 1

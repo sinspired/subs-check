@@ -2,18 +2,18 @@ package utils
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
-	"log/slog"
 
 	"github.com/sinspired/subs-check/config"
-
 )
 
+// GetSysProxy 检测系统代理是否可用，并设置环境变量
 // GetSysProxy 检测系统代理是否可用，并设置环境变量
 func GetSysProxy() bool {
 	commonProxies := []string{
@@ -28,17 +28,37 @@ func GetSysProxy() bool {
 	// 优先使用配置文件中的代理，其次检测常见端口
 	proxy := findAvailableSysProxy(config.GlobalConfig.SystemProxy, commonProxies)
 	if proxy != "" {
+		// 清理所有可能的代理环境变量
+		unsetAllProxyEnvVars()
+
+		// 设置 HTTP 和 HTTPS 代理
 		os.Setenv("HTTP_PROXY", proxy)
 		os.Setenv("HTTPS_PROXY", proxy)
+		os.Setenv("http_proxy", proxy)
+		os.Setenv("https_proxy", proxy)
+		os.Setenv("ALL_PROXY", proxy)
+
+		// 更新配置中的代理
 		config.GlobalConfig.SystemProxy = proxy
 		slog.Info("系统代理", "proxy", proxy)
 		return true
 	}
-	for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
-		os.Unsetenv(key)
-	}
+
+	// 如果没有找到可用代理，清理所有代理环境变量
+	unsetAllProxyEnvVars()
 	slog.Debug("未找到可用代理，将不设置代理")
 	return false
+}
+
+// unsetAllProxyEnvVars 清理所有可能的代理环境变量
+func unsetAllProxyEnvVars() {
+	for _, key := range []string{
+		"HTTP_PROXY", "http_proxy",
+		"HTTPS_PROXY", "https_proxy",
+		"ALL_PROXY", "all_proxy",
+		"NO_PROXY", "no_proxy"} {
+		os.Unsetenv(key)
+	}
 }
 
 // GetGhProxy 检测 github 代理是否可用，并设置可用的 github 代理
