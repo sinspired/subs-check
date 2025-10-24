@@ -235,6 +235,11 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	// 拼接最终节点列表（保持顺序）
 	mihomoProxies := append(append(succedProxies, historyProxies...), syncProxies...)
 
+	for _, p := range mihomoProxies {
+		delete(p, "sub_was_succeed")  // 删除旧的标记
+		delete(p, "sub_from_history") // 删除旧的标记
+	}
+
 	succedProxies = nil
 	historyProxies = nil
 	for i := range syncProxies {
