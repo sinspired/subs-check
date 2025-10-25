@@ -77,6 +77,8 @@ var (
 	OldSingboxVersion    = "1.11"
 )
 
+var IsGithubProxy bool
+
 const (
 	latestSingboxJSON = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json"
 	latestSingboxJS   = "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.js"
@@ -124,7 +126,7 @@ func newMihomoFile() file {
 			{
 				Type: "Script Operator",
 				Args: args{
-					Content: WarpURL(overwriteURL, GetGhProxy()),
+					Content: WarpURL(overwriteURL, IsGithubProxy),
 					Mode:    "link",
 				},
 				Disabled: false,
@@ -138,9 +140,9 @@ func newMihomoFile() file {
 
 // newSingboxFile 返回singbox文件
 func newSingboxFile(name, jsURL, jsonURL string) file {
-	jsURL = WarpURL(jsURL, GetGhProxy())
+	jsURL = WarpURL(jsURL, IsGithubProxy)
 	jsURL += "#name=sub&type=0#noCache"
-	jsonURL = WarpURL(jsonURL, GetGhProxy())
+	jsonURL = WarpURL(jsonURL, IsGithubProxy)
 	jsonURL += "#noCache"
 
 	version := strings.Split(name, "-")[1]
@@ -151,9 +153,9 @@ func newSingboxFile(name, jsURL, jsonURL string) file {
 	}
 
 	// icon := "https://singbox.app/wp-content/uploads/2025/06/cropped-logo-278x300.webp"
-	icon := WarpURL("https://raw.githubusercontent.com/SagerNet/sing-box/main/docs/assets/icon.svg", GetGhProxy())
+	icon := WarpURL("https://raw.githubusercontent.com/SagerNet/sing-box/main/docs/assets/icon.svg", IsGithubProxy)
 
-	icon = WarpURL(icon, GetGhProxy())
+	icon = WarpURL(icon, IsGithubProxy)
 	return file{
 		Name:        name,
 		Remark:      remark,
@@ -185,6 +187,8 @@ func newSingboxFile(name, jsURL, jsonURL string) file {
 
 // UpdateSubStore 更新sub-store
 func UpdateSubStore(yamlData []byte) {
+	IsGithubProxy = GetGhProxy()
+
 	// 调试的时候等一等node启动
 	if os.Getenv("SUB_CHECK_SKIP") != "" && config.GlobalConfig.SubStorePort != "" {
 		time.Sleep(time.Second * 1)
