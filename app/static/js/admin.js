@@ -1310,11 +1310,18 @@
         const latestSingboxName = "singbox" + "-" + latestSingboxVersion;
         const oldSingboxName = "singbox" + "-" + oldSingboxVersion;
 
-        // 2. 去掉当前 URL 的端口
-        const url = `${window.location.protocol}//${window.location.hostname}`;
+        // 2. 基础 URL（协议 + 主机，无端口）
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const baseUrlWithoutPort = `${protocol}//${hostname}`;
 
-        // 3. 拼接 baseUrl
-        const baseUrl = `${url}${port}${path}`;
+        // 3. 拼接 baseUrl：仅在当前有非默认端口时添加 config port
+        // 在代理/隧道下，location.port === ''，不添加 port
+        const currentPort = window.location.port;
+        const shouldAddPort = currentPort && currentPort !== ''; // 非空即有显式端口
+        const portToAdd = shouldAddPort ? port : ''; // 只在本地添加
+
+        const baseUrl = `${baseUrlWithoutPort}${portToAdd}${path}`;
 
         // 4. 设置链接（存储到 data-link 属性）
         document.getElementById("commonSub-item").dataset.link = baseUrl + "/download/sub";
@@ -1325,7 +1332,7 @@
         document.getElementById("singboxOldSub-item").dataset.link = baseUrl + "/api/file/" + oldSingboxName;
         document.getElementById("singboxLatestSub-item").dataset.link = baseUrl + "/api/file/" + latestSingboxName;
 
-        // 5. 绑定复制事件（只绑定一次）
+        // 5. 绑定复制事件
         bindCopyOnClick("commonSub-item");
         bindCopyOnClick("mihomoSub-item");
         bindCopyOnClick("singboxOldSub-item");
@@ -1353,6 +1360,7 @@
       }
     });
   }
+
   // 初始化绑定两个按钮
   setupShareButton("share");
   setupShareButton("btnShare");
