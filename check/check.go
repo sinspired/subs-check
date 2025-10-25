@@ -312,17 +312,22 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	if config.GlobalConfig.SuccessLimit > 0 {
 		args = append(args, "success-limit", config.GlobalConfig.SuccessLimit)
 	}
-	if config.GlobalConfig.TotalSpeedLimit > 0 {
+	if config.GlobalConfig.TotalSpeedLimit > 0 && speedON{
 		args = append(args, "total-speed-limit", config.GlobalConfig.TotalSpeedLimit)
 	}
 
 	// 再追加剩余参数
 	args = append(args,
 		"timeout", config.GlobalConfig.Timeout,
-		"min-speed", config.GlobalConfig.MinSpeed,
-		"download-timeout", config.GlobalConfig.DownloadTimeout,
-		"download-mb", config.GlobalConfig.DownloadMB,
 	)
+
+	if speedON {
+		args = append(args,
+			"min-speed", config.GlobalConfig.MinSpeed,
+			"download-timeout", config.GlobalConfig.DownloadTimeout,
+			"download-mb", config.GlobalConfig.DownloadMB,
+		)
+	}
 
 	// 最终日志调用
 	slog.Info("当前参数", args...)

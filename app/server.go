@@ -44,17 +44,9 @@ func (app *App) initHTTPServer() error {
 	}
 
 	// 静态文件路由 - 订阅服务相关，始终启用
-	// 最初不应该不带路径，现在保持兼容
-	router.StaticFile("/all.yaml", saver.OutputPath+"/all.yaml")
-	router.StaticFile("/history.yaml", saver.OutputPath+"/history.yaml")
-	router.StaticFile("/all.txt", saver.OutputPath+"/all.txt")
-	router.StaticFile("/base64.txt", saver.OutputPath+"/base64.txt")
-	router.StaticFile("/mihomo.yaml", saver.OutputPath+"/mihomo.yaml")
 	router.StaticFile("/ACL4SSR_Online_Full.yaml", saver.OutputPath+"/ACL4SSR_Online_Full.yaml")
 	// CM佬用的布丁狗
 	router.StaticFile("/bdg.yaml", saver.OutputPath+"/bdg.yaml")
-
-	router.Static("/sub/", saver.OutputPath)
 
 	// 根据配置决定是否启用Web控制面板
 	if config.GlobalConfig.EnableWebUI {
@@ -78,6 +70,30 @@ func (app *App) initHTTPServer() error {
 		// 暴露版本号
 		router.GET("/version", app.getOriginVersion)
 
+		// 配置页面
+		router.GET("/admin", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin.html", gin.H{
+				"configPath": app.configPath,
+			})
+		})
+
+		// 整个目录直接挂在根路径
+		router.Use(app.authMiddleware(config.GlobalConfig.APIKey)) // 根路径加认证
+		// router.Static("/", saver.OutputPath)
+
+		router.GET("/all.yaml", func(c *gin.Context) {
+			c.File(saver.OutputPath + "/all.yaml")
+		})
+		router.GET("/history.yaml", func(c *gin.Context) {
+			c.File(saver.OutputPath + "/history.yaml")
+		})
+		router.GET("/base64.yaml", func(c *gin.Context) {
+			c.File(saver.OutputPath + "/base64.yaml")
+		})
+		router.GET("/mihomo.yaml", func(c *gin.Context) {
+			c.File(saver.OutputPath + "/mihomo.yaml")
+		})
+
 		// API路由
 		api := router.Group("/api")
 		api.Use(app.authMiddleware(config.GlobalConfig.APIKey)) // 添加认证中间件
@@ -97,13 +113,6 @@ func (app *App) initHTTPServer() error {
 			// 日志相关API
 			api.GET("/logs", app.getLogs)
 		}
-
-		// 配置页面
-		router.GET("/admin", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin.html", gin.H{
-				"configPath": app.configPath,
-			})
-		})
 	} else {
 		slog.Info("Web控制面板已禁用")
 	}

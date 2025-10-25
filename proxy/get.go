@@ -432,15 +432,20 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 			req.Header.Set("User-Agent", "clash.meta")
 
 			// 根据判断结果添加请求头或查询参数
-			// 只要 fragment 非空, 就认为是保留成功节点的请求
-			isKeepSuccess := u.Fragment != ""
-			if isKeepSuccess {
+			isKeepSuccess := (strings.Contains(u.Fragment, "Success") || strings.Contains(u.Fragment, "Succed") || strings.Contains(u.Fragment, "History"))
+			var isLocal bool
+			host := u.Hostname()
+			if host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1" {
+				isLocal = true
+			}
+			if isLocal && isKeepSuccess {
 				q := req.URL.Query()
 				if q.Get("from_subs_check") == "" {
 					q.Set("from_subs_check", "true")
 					req.URL.RawQuery = q.Encode()
 				}
 				req.Header.Set("X-From-Subs-Check", "true")
+				req.Header.Set("X-API-Key", config.GlobalConfig.APIKey)
 			}
 
 			// 根据是否走代理选择 Client
