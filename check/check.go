@@ -312,7 +312,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	if config.GlobalConfig.SuccessLimit > 0 {
 		args = append(args, "success-limit", config.GlobalConfig.SuccessLimit)
 	}
-	if config.GlobalConfig.TotalSpeedLimit > 0 && speedON{
+	if config.GlobalConfig.TotalSpeedLimit > 0 && speedON {
 		args = append(args, "total-speed-limit", config.GlobalConfig.TotalSpeedLimit)
 	}
 
@@ -339,7 +339,6 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 		for {
 			select {
 			case <-ctx.Done():
-				slog.Warn("用户手动结束检测,等待收集结果")
 				return
 			case <-ticker.C:
 				if ForceClose.Load() {
@@ -417,10 +416,6 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 					return // 所有代理都已处理完毕
 				}
 
-				if ForceClose.Load() {
-					cancel()
-					return
-				}
 				if checkCtxDone(ctx) {
 					return
 				}
