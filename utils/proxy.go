@@ -40,13 +40,13 @@ func GetSysProxy() bool {
 
 		// 更新配置中的代理
 		config.GlobalConfig.SystemProxy = proxy
-		slog.Info("系统代理", "proxy", proxy)
+		slog.Debug("系统代理", "proxy", proxy)
 		return true
 	}
 
 	// 如果没有找到可用代理，清理所有代理环境变量
 	unsetAllProxyEnvVars()
-	slog.Debug("未找到可用代理，将不设置代理")
+	slog.Debug("未找到可用代理，清除代理环境变量")
 	return false
 }
 

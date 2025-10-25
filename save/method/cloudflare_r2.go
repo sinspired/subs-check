@@ -12,6 +12,7 @@ import (
 	"log/slog"
 
 	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/utils"
 )
 
 const (
@@ -34,8 +35,20 @@ type R2Uploader struct {
 
 // NewR2Uploader 创建新的R2上传器
 func NewR2Uploader() *R2Uploader {
+	useProxy := utils.GetSysProxy()
+
+	transport := &http.Transport{}
+	if useProxy {
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   30 * time.Second,
+	}
+
 	return &R2Uploader{
-		client:    &http.Client{Timeout: 30 * time.Second},
+		client:    client,
 		workerURL: config.GlobalConfig.WorkerURL,
 		token:     config.GlobalConfig.WorkerToken,
 	}

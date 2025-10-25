@@ -224,17 +224,29 @@ func chooseSaveMethod() func([]byte, string) error {
 		if err := method.ValiR2Config(); err != nil {
 			return func(b []byte, s string) error { return fmt.Errorf("r2配置不完整: %v", err) }
 		}
-		return method.UploadToR2Storage
+		uploader := method.NewR2Uploader()
+
+		return func(yamlData []byte, filename string) error {
+			return uploader.Upload(yamlData, filename)
+		}
 	case "gist":
 		if err := method.ValiGistConfig(); err != nil {
 			return func(b []byte, s string) error { return fmt.Errorf("gist配置不完整: %v", err) }
 		}
-		return method.UploadToGist
+		uploader := method.NewGistUploader()
+
+		return func(yamlData []byte, filename string) error {
+			return uploader.Upload(yamlData, filename)
+		}
 	case "webdav":
 		if err := method.ValiWebDAVConfig(); err != nil {
 			return func(b []byte, s string) error { return fmt.Errorf("webDAV配置不完整: %v", err) }
 		}
-		return method.UploadToWebDAV
+		// 创建单例 uploader，避免多次调用 NewWebDAVUploader() 和 utils.GetSysProxy()
+		uploader := method.NewWebDAVUploader()
+		return func(yamlData []byte, filename string) error {
+			return uploader.Upload(yamlData, filename)
+		}
 	case "local":
 		return method.SaveToLocal
 	case "s3": // New case for MinIO

@@ -11,6 +11,7 @@ import (
 	"log/slog"
 
 	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/utils"
 )
 
 var (
@@ -44,8 +45,21 @@ func NewGistUploader() *GistUploader {
 	if config.GlobalConfig.GithubAPIMirror != "" {
 		gistAPIURL = config.GlobalConfig.GithubAPIMirror + "/gists"
 	}
+
+	useProxy := utils.GetSysProxy()
+
+	transport := &http.Transport{}
+	if useProxy {
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   30 * time.Second,
+	}
+
 	return &GistUploader{
-		client:   &http.Client{Timeout: 30 * time.Second},
+		client:   client,
 		token:    config.GlobalConfig.GithubToken,
 		id:       config.GlobalConfig.GithubGistID,
 		isPublic: false,

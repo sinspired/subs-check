@@ -10,6 +10,7 @@ import (
 	"log/slog"
 
 	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/utils"
 )
 
 var (
@@ -27,8 +28,20 @@ type WebDAVUploader struct {
 
 // NewWebDAVUploader 创建新的 WebDAV 上传器
 func NewWebDAVUploader() *WebDAVUploader {
+	useProxy := utils.GetSysProxy()
+
+	transport := &http.Transport{}
+	if useProxy {
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   30 * time.Second,
+	}
+
 	return &WebDAVUploader{
-		client:   &http.Client{Timeout: 30 * time.Second},
+		client:   client,
 		baseURL:  config.GlobalConfig.WebDAVURL,
 		username: config.GlobalConfig.WebDAVUsername,
 		password: config.GlobalConfig.WebDAVPassword,
