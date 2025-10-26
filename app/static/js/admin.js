@@ -34,7 +34,7 @@
   const saveCfgBtn = $('#saveCfg');
   const reloadCfgBtn = $('#reloadCfg');
   const configEditor = $('#configEditor');
-  const highlightOverlay = $('#highlightOverlay');
+  let codeMirrorView = null;  // 新增：CodeMirror 实例
   const editorContainer = $('#editorContainer');
   const progressBar = $('#progress');
   const progressText = $('#progressText');
@@ -527,90 +527,46 @@
     return null;
   }
 
-  // 语法高亮
-  function highlightYAML(text) {
-    const esc = s => escapeHtml(s);
-    return (text + '\n').split('\n').map(line => {
-      if (/^\s*$/.test(line)) return '';
-      const leading = line.match(/^\s*/)[0];
-      const trimmed = line.trim();
-
-      if (trimmed.startsWith('#')) {
-        return leading + '<span class="hl-comment">' + esc(trimmed) + '</span>';
-      }
-
-      if (trimmed.startsWith('- ')) {
-        const itemContent = trimmed.slice(2);
-        let formatted = esc(itemContent);
-        const val = itemContent.trim();
-
-        if (/^["'].*["']$/.test(itemContent)) {
-          formatted = '<span class="hl-string">' + esc(itemContent) + '</span>';
-        } else if (/^(true|false|yes|no)$/i.test(val)) {
-          formatted = '<span class="hl-boolean">' + esc(itemContent) + '</span>';
-        } else if (val && /^[0-9eE+\-.]+$/.test(val)) {
-          formatted = '<span class="hl-number">' + esc(itemContent) + '</span>';
-        } else if (/^(null|~)$/.test(val)) {
-          formatted = '<span class="hl-null">' + esc(itemContent) + '</span>';
-        } else if (/^https?:\/\//i.test(val)) {
-          formatted = '<span class="hl-url">' + esc(itemContent) + '</span>';
-        } else {
-          formatted = '<span class="hl-string">' + esc(itemContent) + '</span>';
-        }
-
-        return leading + '<span class="hl-hyphen">-</span> ' + formatted;
-      }
-
-      const m = line.match(/^(\s*)([^:\s][^:]*?):(\s*)(.*)$/);
-      if (m) {
-        const [, indent, key, sep, valRaw] = m;
-        let formatted = esc(valRaw);
-        const val = valRaw.trim();
-
-        if (/^["'].*["']$/.test(valRaw)) {
-          formatted = '<span class="hl-string">' + esc(valRaw) + '</span>';
-        } else if (/^(true|false|yes|no)$/i.test(val)) {
-          formatted = '<span class="hl-boolean">' + esc(valRaw) + '</span>';
-        } else if (val && /^[0-9eE+\-.]+$/.test(val)) {
-          formatted = '<span class="hl-number">' + esc(valRaw) + '</span>';
-        } else if (/^https?:\/\//i.test(val)) {
-          formatted = '<span class="hl-url">' + esc(valRaw) + '</span>';
-        } else if (/^(null|~)$/.test(val)) {
-          formatted = '<span class="hl-null">' + esc(valRaw) + '</span>';
-        } else {
-          formatted = '<span class="hl-string">' + esc(valRaw) + '</span>';
-        }
-
-        return indent + '<span class="hl-key">' + esc(key) + '</span>:' + sep + formatted;
-      }
-
-      return esc(line);
-    }).join('\n');
-  }
-
-  function syncOverlay() {
-    if (!highlightOverlay || !configEditor) return;
-    highlightOverlay.scrollTop = configEditor.scrollTop;
-    highlightOverlay.scrollLeft = configEditor.scrollLeft;
-  }
-
-  configEditor?.addEventListener('input', () => {
-    if (!highlightOverlay) return;
-    highlightOverlay.innerHTML = highlightYAML(configEditor.value || '');
-    requestAnimationFrame(syncOverlay);
-  });
-
-  configEditor?.addEventListener('scroll', syncOverlay);
-
+  // setEditorContent：使用 CodeMirror
   function setEditorContent(txt) {
-    if (!configEditor || !highlightOverlay) return;
+    if (!codeMirrorView) return;
     const cleaned = (txt || '').replace(/\r\n/g, '\n');
-    configEditor.value = cleaned;
-    highlightOverlay.innerHTML = highlightYAML(cleaned);
-    requestAnimationFrame(syncOverlay);
+    codeMirrorView.dispatch({
+      changes: { from: 0, to: codeMirrorView.state.doc.length, insert: cleaned }
+    });
   }
 
-  // 配置加载保存
+    // 初始化 CodeMirror
+  function initCodeMirror(initialValue = '') {
+    const container = $('#configEditor');
+    if (!container || codeMirrorView) return;  // 已初始化跳过
+
+    // 等待 DOM 就绪
+    requestAnimationFrame(() => {
+      codeMirrorView = window.CodeMirror.createEditor(container, initialValue, getCurrentTheme());
+      // codeMirrorView.focus();  // 可选：自动焦点
+
+      // 主题变化监听（同步你的全局主题）
+      const observer = new MutationObserver(() => {
+        const newTheme = getCurrentTheme();
+        // 如果需要动态切换主题，可扩展 CodeMirror API（例如 dispatch 新扩展）
+        // 这里简化：重新创建视图（简单但有效；生产可优化为更新扩展）
+        if (newTheme !== getCurrentTheme()) {
+          const currentValue = codeMirrorView ? codeMirrorView.state.doc.toString() : '';
+          codeMirrorView.destroy();  // 销毁旧视图
+          codeMirrorView = window.CodeMirror.createEditor(container, currentValue, newTheme);
+        }
+      });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    });
+  }
+
+  // 获取当前主题
+  function getCurrentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+  
+  // 更新 loadConfigValidated：加载后初始化 CodeMirror
   async function loadConfigValidated() {
     if (!sessionKey) return;
     const r = await sfetch(API.config);
@@ -624,40 +580,51 @@
     if (p?.content !== undefined) raw = p.content;
     else if (typeof p === 'string') raw = p;
 
-    // YAML 校验
+    // 初始化 CodeMirror（如果未初始化）
+    if (!codeMirrorView) {
+      initCodeMirror(raw);
+    } else {
+      setEditorContent(raw);
+    }
+
+    // YAML 校验（保持原逻辑，如果 jsyaml 可用）
     if (typeof jsyaml !== 'undefined' && jsyaml.load) {
       try {
         const config = jsyaml.load(raw);
-        setEditorContent(raw);
+        // 无需 setEditorContent(raw) 已处理
       } catch (e) {
-        setEditorContent(raw);
         showToast('YAML 解析警告：' + e.message, 'warn', 5000);
       }
     } else {
       console.warn('jsyaml 未加载，跳过 YAML 校验');
-      setEditorContent(raw);
     }
   }
 
+  // 更新 saveConfigWithValidation：从 CodeMirror 获取值
   async function saveConfigWithValidation() {
     if (!sessionKey) {
       showLogin(true);
       showToast('请先登录', 'warn');
       return;
     }
+    if (!codeMirrorView) {
+      showToast('编辑器未初始化', 'error');
+      return;
+    }
 
-    const rawContent = configEditor.value;
+    const rawContent = codeMirrorView.state.doc.toString();
 
-    // YAML 校验
+    // YAML 校验（保持原逻辑）
     if (typeof jsyaml !== 'undefined' && jsyaml.load) {
       try {
         const parsed = jsyaml.load(rawContent);
-        // 替换编辑器内容为格式化后的
-        configEditor.value = parsed;
+        // 可选：格式化后设置回编辑器
+        const formatted = jsyaml.dump(parsed);
+        setEditorContent(formatted);
       } catch (e) {
         showToast('YAML 语法错误：' + e.message, 'error', 6000);
         console.error('YAML 校验失败:', e);
-        return; // 阻止保存
+        return;
       }
     } else {
       showToast('警告：无法进行 YAML 校验，js-yaml 库未加载', 'warn', 4000);
@@ -682,9 +649,10 @@
       showToast('保存失败：' + r.payload.error, 'error');
     } else {
       showToast(r.payload?.message || '保存成功', 'success');
-      await loadConfigValidated();
+      await loadConfigValidated();  // 重新加载以验证
     }
   }
+
 
   // 控制进度容器的显示/隐藏（隐藏: 'none'，显示: 恢复默认）
   function showProgressUI(visible) {
@@ -1242,11 +1210,19 @@
     return saved === 'dark' || saved === 'light';
   }
 
+  // 更新 toggleTheme：通知 CodeMirror 主题变化
   function toggleTheme() {
     const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
     const next = current === 'dark' ? 'light' : 'dark';
     applyTheme(next);
     safeLS(THEME_KEY, next);
+
+    // 同步到 CodeMirror（如果已初始化）
+    if (codeMirrorView) {
+      const currentValue = codeMirrorView.state.doc.toString();
+      codeMirrorView.destroy();
+      codeMirrorView = window.CodeMirror.createEditor($('#configEditor'), currentValue, next);
+    }
   }
 
   // 初始化主题
@@ -1450,10 +1426,13 @@
 
     bindControls();
     loginBtn?.addEventListener('click', onLoginBtnClick);
-    window.addEventListener('beforeunload', () => stopPollers());
+    window.addEventListener('beforeunload', () => {
+      if (codeMirrorView) codeMirrorView.destroy();  // 清理
+      stopPollers();
+    });
     setAuthUI(false);
 
-    // 初始化时隐藏进度区（避免页面加载时看到残留进度）
+    // 初始化时隐藏进度区
     try { showProgressUI(false); } catch (e) { }
   })();
 })();

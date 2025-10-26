@@ -228,9 +228,7 @@
 
         <!-- 编辑器区域 -->
         <div class="editor-wrapper">
-          <textarea id="configEditor" placeholder="# 配置将于登录后加载..." aria-label="配置编辑" spellcheck="false"
-            autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
-          <pre id="highlightOverlay" aria-hidden="true"># 配置将于登录后加载...</pre>
+          <div id="configEditor" aria-label="配置编辑" spellcheck="false" aria-placeholder="# 配置将于登录后加载..."></div> <!-- CodeMirror 容器 -->
         </div>
       </aside>
     </div>
@@ -238,6 +236,7 @@
 
   <!-- 脚本引入 -->
   <script src="/static/js/libs/js-yaml.min.js"></script>
+  <script src="/static/js/libs/codemirror.bundle.js"></script>
   <script type="module" src="/static/js/admin.js?v20251023"></script>
 </body>
 
