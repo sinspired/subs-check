@@ -44,6 +44,8 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
   --font-code: "Cascadia Code",
     "Source Code Pro", Menlo, Consolas, monospace;
+
+  --invert: 0%;
 }
 
 :root[data-theme='dark'] {
@@ -75,6 +77,8 @@
   --glass-border: rgba(255, 255, 255, 0.04);
   --glass-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   --glass-blur: 12px;
+
+  --invert: 100%;
 }
 
 * {
@@ -369,7 +373,7 @@ main {
 
 #shareMenu.active {
   display: block;
-  /* animation: fadeIn 0.2s ease-out; */
+  animation: fadeIn 0.2s ease-out;
 }
 
 #shareMenu .menu-header {
@@ -420,6 +424,81 @@ main {
   /* 调整间距 */
   font-size: 14px;
   color: var(--bg);
+}
+
+#projectMenu {
+  position: absolute;
+  top: 0;
+  /* 初始隐藏，JS 会动态定位到按钮下方 */
+  left: 0;
+  min-width: 160px;
+  max-width: 250px;
+  padding: 26px 16px 18px 16px;
+  min-height: 0;
+  background: var(--glass-bg);
+  /* 半透明背景 */
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  /* 玻璃磨砂效果 */
+  border-radius: 1em;
+  display: none;
+  /* 默认隐藏 */
+  z-index: 3000;
+}
+
+#projectMenu.active {
+  display: block;
+}
+
+.projectInfo {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  gap: 20px;
+  padding: 0px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-icons {
+  display: flex;
+  gap: 20px;
+}
+
+.project-icon {
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  filter: invert(var(--invert));
+}
+
+.project-icon:hover {
+  transform: scale(1.15);
+}
+
+.project-copy {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.project-copy a {
+  color: inherit;
+  /* 跟随父元素颜色 */
+  text-decoration: none;
+  /* 去掉下划线 */
+  font-weight: 500;
+  /* 稍微加粗，保证可读性 */
+  transition: color 0.2s ease;
+}
+
+.project-copy a:hover {
+  color: var(--accent);
+  /* 悬停时用主题强调色 */
+  text-decoration: underline;
+  /* 悬停时加下划线，提示可点击 */
 }
 
 /* 小动画 */
@@ -1297,6 +1376,10 @@ main {
   .theme-label {
     display: inline-block;
   }
+
+  .footer {
+    display: none;
+  }
 }
 
 @media(max-width:899px) {
@@ -1317,6 +1400,10 @@ main {
   #shareMenu {
     transform: translate(-50%, -50%) scale(1.2);
     z-index: 2000;
+  }
+
+  #projectMenu.active {
+    display: none;
   }
 
   /* 开始&结束检测按钮 */
@@ -1374,13 +1461,60 @@ main {
   }
 
   .logs-window {
-    font-size: 12px;
+    font-size: 13px;
     flex: 1;
     overflow-y: auto;
+  }
+
+  .footer {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    gap: 16px;
+    padding: 16px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .footer-icons {
+    display: flex;
+    gap: 20px;
+  }
+
+  .footer-icon {
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    filter: invert(var(--invert));
+  }
+
+  .footer-icon:hover {
+    transform: scale(1.15);
+  }
+
+  .footer-copy a {
+    color: inherit;
+    /* 跟随父元素颜色 */
+    text-decoration: none;
+    /* 去掉下划线 */
+    font-weight: 500;
+    /* 稍微加粗，保证可读性 */
+    transition: color 0.2s ease;
+  }
+
+  .footer-copy a:hover {
+    color: var(--accent);
+    /* 悬停时用主题强调色 */
+    text-decoration: underline;
+    /* 悬停时加下划线，提示可点击 */
   }
 }
 
 @media(max-width:899px) {
+
   /* 编辑器 */
   #configEditor,
   .cm-editor {

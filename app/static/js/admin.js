@@ -51,8 +51,15 @@
   const iconSun = $('#iconSun');
   const shareBtn = document.getElementById("share");
   const shareMenu = document.getElementById("shareMenu");
-  const btnShare = document.getElementById("btnShare");;
-  const projectUrlBtn = document.getElementById('project-url');
+  const btnShare = document.getElementById("btnShare");
+  const projectInfoBtn = document.getElementById('project-info');
+  const projectMenu = document.getElementById('projectMenu');
+  const githubMenuBtn = document.getElementById('githubMenuBtn');
+  const dockerMenuBtn = document.getElementById('dockerMenuBtn');
+  const telegramMenuBtn = document.getElementById('telegramMenuBtn');
+  const githubUrlBtn = document.getElementById('githubUrlBtn');
+  const dockerUrlBtn = document.getElementById('dockerUrlBtn');
+  const telegramUrlBtn = document.getElementById('telegramUrlBtn');
 
   // 上次检测结果
   const lastCheckResult = $('#lastCheckResult');
@@ -536,7 +543,7 @@
     });
   }
 
-    // 初始化 CodeMirror
+  // 初始化 CodeMirror
   function initCodeMirror(initialValue = '') {
     const container = $('#configEditor');
     if (!container || codeMirrorView) return;  // 已初始化跳过
@@ -565,7 +572,7 @@
   function getCurrentTheme() {
     return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   }
-  
+
   // 更新 loadConfigValidated：加载后初始化 CodeMirror
   async function loadConfigValidated() {
     if (!sessionKey) return;
@@ -944,10 +951,71 @@
 
   // ==================== 控件事件绑定 ====================
   function bindControls() {
-    projectUrlBtn.addEventListener('click', (e) => {
-      e.preventDefault(); // 防止默认行为（如如果有链接）
+    loginBtn?.addEventListener('click', onLoginBtnClick);
+
+    projectInfoBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      // const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
+      // window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer'); // 新标签打开
+      // 检查是否已经是显示状态：如果是，则直接隐藏
+      if (projectMenu.classList.contains("active")) {
+        projectMenu.classList.remove("active");
+        return; // 提前退出，无需其他逻辑
+      }
+      // 定位菜单
+      if (window.innerWidth < 768) {
+        // 小屏幕：居中显示
+        const rect = projectInfoBtn.getBoundingClientRect();
+        projectMenu.style.top = `${rect.top}px`;
+        projectMenu.style.left = `${rect.left - 160}px`;
+        projectMenu.style.transform = "none";
+      } else {
+        // 大屏幕：跟随按钮
+        const rect = projectInfoBtn.getBoundingClientRect();
+        projectMenu.style.top = `${rect.top}px`;
+        projectMenu.style.left = `${rect.right * 0.9}px`;
+        projectMenu.style.transform = "none";
+      }
+
+      // 显示菜单
+      projectMenu.classList.add("active");
+
+    });
+
+    githubMenuBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
       const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
-      window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer'); // 新标签打开
+      window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    dockerMenuBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check';
+      window.open(DOCKER_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    telegramMenuBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const TELEGRAM_URL = 'https://t.me/subs_check_group';
+      window.open(TELEGRAM_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    githubUrlBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
+      window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    dockerUrlBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check';
+      window.open(DOCKER_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    telegramUrlBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const TELEGRAM_URL = 'https://t.me/subs_check_group';
+      window.open(TELEGRAM_URL, '_blank', 'noopener,noreferrer');
     });
 
     downloadLogsBtnSide?.addEventListener('click', () => {
@@ -1092,6 +1160,7 @@
       applyTheme(sys);
       showToast('主题已重置为系统默认', 'info');
     });
+
   }
 
   // 轮询
@@ -1246,7 +1315,7 @@
     if (!btn) return;
 
     btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
+      e.preventDefault();
 
       // 先获取 shareMenu 并做安全检查
       const shareMenu = document.getElementById("shareMenu");
@@ -1350,6 +1419,11 @@
       e.target.id !== "btnShare") {
       shareMenu.classList.remove("active");
     }
+    if (projectMenu.classList.contains("active") &&
+      !projectMenu.contains(e.target) &&
+      e.target.id !== "project-info") {
+      projectMenu.classList.remove("active");
+    }
   });
 
   // 复制事件绑定函数（现在绑定到 list-item）
@@ -1425,7 +1499,7 @@
     } catch (e) { /* ignore */ }
 
     bindControls();
-    loginBtn?.addEventListener('click', onLoginBtnClick);
+
     window.addEventListener('beforeunload', () => {
       if (codeMirrorView) codeMirrorView.destroy();  // 清理
       stopPollers();
