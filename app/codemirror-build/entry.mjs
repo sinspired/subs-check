@@ -3,6 +3,8 @@ import { EditorView, basicSetup } from 'codemirror';  // 核心（EditorView + b
 import { EditorState } from '@codemirror/state';     // EditorState 单独导入
 import { yaml } from '@codemirror/lang-yaml';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { keymap} from "@codemirror/view"
+import {indentWithTab} from "@codemirror/commands"
 
 // 全局暴露
 window.CodeMirror = {
@@ -15,6 +17,7 @@ window.CodeMirror = {
       basicSetup,  // 基础（默认行号、折叠等）
       yaml(),      // YAML 高亮
       EditorView.lineWrapping,  // 启用基本软换行（视口宽度自动折叠）
+      keymap.of([indentWithTab]),
       theme === 'dark' ? oneDark : null  // 主题
     ].filter(Boolean);  // 过滤 null/undefined，避免扩展错误
 

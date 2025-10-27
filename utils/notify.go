@@ -27,6 +27,7 @@ func Notify(request NotifyRequest) error {
 	if err != nil {
 		return fmt.Errorf("构建请求体失败: %w", err)
 	}
+	// TODO: 检查系统代理
 
 	// 发送请求
 	resp, err := http.Post(config.GlobalConfig.AppriseAPIServer, "application/json", bytes.NewBuffer(body))
