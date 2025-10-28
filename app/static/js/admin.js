@@ -1021,7 +1021,7 @@
 
     telegramMenuBtn?.addEventListener('click', (e) => {
       e.preventDefault();
-      const TELEGRAM_URL = 'https://t.me/subs_check_group';
+      const TELEGRAM_URL = 'https://t.me/subs_check_pro';
       window.open(TELEGRAM_URL, '_blank', 'noopener,noreferrer');
     });
 
@@ -1039,7 +1039,7 @@
 
     telegramUrlBtn?.addEventListener('click', (e) => {
       e.preventDefault();
-      const TELEGRAM_URL = 'https://t.me/subs_check_group';
+      const TELEGRAM_URL = 'https://t.me/subs_check_pro';
       window.open(TELEGRAM_URL, '_blank', 'noopener,noreferrer');
     });
 
