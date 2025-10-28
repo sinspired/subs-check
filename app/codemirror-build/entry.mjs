@@ -7,6 +7,8 @@ import { keymap } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
 import { autocompletion } from "@codemirror/autocomplete";
 import { startCompletion } from "@codemirror/autocomplete";
+import { linter, Diagnostic } from "@codemirror/lint";
+import * as YAML from "yaml";
 
 // 配置键的自动完成列表（基于config.yaml配置模板）
 const configCompletions = [
@@ -374,6 +376,57 @@ const yamlConfigSource = (context) => {
   return null;
 };
 
+// 添加yaml校验
+function yamlLinter() {
+  return linter(view => {
+    const diagnostics = [];
+    const text = view.state.doc.toString();
+
+    try {
+      const doc = YAML.parseDocument(text);
+
+      // 收集错误
+      if (doc.errors && doc.errors.length > 0) {
+        for (const err of doc.errors) {
+          const pos = err.pos?.[0] ?? 0;
+          const line = view.state.doc.lineAt(pos); // 获取整行
+          diagnostics.push({
+            from: line.from,
+            to: line.to,
+            severity: "error",
+            message: err.message
+          });
+        }
+      }
+
+      // 收集警告
+      if (doc.warnings && doc.warnings.length > 0) {
+        for (const warn of doc.warnings) {
+          const pos = warn.pos?.[0] ?? 0;
+          const line = view.state.doc.lineAt(pos);
+          diagnostics.push({
+            from: line.from,
+            to: line.to,
+            severity: "warning",
+            message: warn.message
+          });
+        }
+      }
+    } catch (e) {
+      // 如果解析直接抛异常，就标记整篇文档
+      diagnostics.push({
+        from: 0,
+        to: text.length,
+        severity: "error",
+        message: e.message
+      });
+    }
+
+    return diagnostics;
+  });
+}
+
+
 // 全局暴露
 window.CodeMirror = {
   createEditor: (container, initialValue = '', theme = 'light') => {
@@ -387,6 +440,7 @@ window.CodeMirror = {
       EditorView.lineWrapping,
       keymap.of([indentWithTab]),
       autocompletion({ override: [yamlConfigSource] }),
+      yamlLinter(),
       theme === 'dark' ? oneDark : null
     ].filter(Boolean);
 

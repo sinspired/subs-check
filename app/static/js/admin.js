@@ -573,91 +573,116 @@
     return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   }
 
-// 更新 loadConfigValidated：加载后初始化 CodeMirror
-async function loadConfigValidated() {
-  if (!sessionKey) return;
-  const r = await sfetch(API.config);
-  if (!r.ok) {
-    showToast('读取配置失败', 'warn');
-    return;
-  }
-
-  const p = r.payload;
-  let raw = '';
-  if (p?.content !== undefined) raw = p.content;
-  else if (typeof p === 'string') raw = p;
-
-  // 初始化 CodeMirror（如果未初始化）
-  if (!codeMirrorView) {
-    initCodeMirror(raw);
-  } else {
-    setEditorContent(raw);
-  }
-
-  // YAML 校验（使用 parseDocument 保留注释）
-  if (typeof YAML !== 'undefined' && YAML.parseDocument) {
-    try {
-      YAML.parseDocument(raw); // 只做语法校验，不覆盖内容
-    } catch (e) {
-      showToast('YAML 解析警告：' + e.message, 'warn', 5000);
+  // loadConfigValidated：加载后初始化 CodeMirror
+  async function loadConfigValidated() {
+    if (!sessionKey) return;
+    const r = await sfetch(API.config);
+    if (!r.ok) {
+      showToast('读取配置失败', 'warn');
+      return;
     }
-  } else {
-    console.warn('YAML 库未加载，跳过 YAML 校验');
-  }
-}
 
-// 更新 saveConfigWithValidation：从 CodeMirror 获取值
-async function saveConfigWithValidation() {
-  if (!sessionKey) {
-    showLogin(true);
-    showToast('请先登录', 'warn');
-    return;
-  }
-  if (!codeMirrorView) {
-    showToast('编辑器未初始化', 'error');
-    return;
+    const p = r.payload;
+    let raw = '';
+    if (p?.content !== undefined) raw = p.content;
+    else if (typeof p === 'string') raw = p;
+
+    // 初始化 CodeMirror（如果未初始化）
+    if (!codeMirrorView) {
+      initCodeMirror(raw);
+    } else {
+      setEditorContent(raw);
+    }
   }
 
-  const rawContent = codeMirrorView.state.doc.toString();
-  let formatted = rawContent;
+  // saveConfigWithValidation：从 CodeMirror 获取值
+  async function saveConfigWithValidation() {
+    if (!sessionKey) {
+      showLogin(true);
+      showToast('请先登录', 'warn');
+      return;
+    }
+    if (!codeMirrorView) {
+      showToast('编辑器未初始化', 'error');
+      return;
+    }
 
-  // YAML 校验 + 格式化（保留注释）
-  if (typeof YAML !== 'undefined' && YAML.parseDocument) {
+    const rawContent = codeMirrorView.state.doc.toString();
+
+    const diagnostics = (view => {
+      const diagnostics = [];
+      const text = view.state.doc.toString();
+
+      try {
+        const doc = YAML.parseDocument(text);
+
+        if (doc.errors) {
+          for (const err of doc.errors) {
+            const pos = err.pos?.[0] ?? 0;
+            // 获取错误所在行
+            const line = view.state.doc.lineAt(pos);
+
+            diagnostics.push({
+              from: line.from,   // 行首
+              to: line.to,       // 行尾
+              severity: "error",
+              message: err.message
+            });
+          }
+        }
+      } catch (e) {
+        diagnostics.push({
+          from: 0,
+          to: text.length,
+          severity: "error",
+          message: e.message
+        });
+      }
+
+      return diagnostics;
+    })(codeMirrorView);
+
+    // 如果有错误，拼接所有错误信息并通知
+    const errorMessages = diagnostics
+      .filter(d => d.severity === "error")
+      .map(d => d.message)
+      .join("；");
+
+    if (errorMessages) {
+      showToast("YAML 语法错误：" + errorMessages, "error", 6000);
+      return;
+    }
+
+    // 格式化（保留注释）
+    let formatted = rawContent;
     try {
       const doc = YAML.parseDocument(rawContent);
-      formatted = doc.toString(); // 保留注释
+      formatted = doc.toString();
       setEditorContent(formatted);
     } catch (e) {
+      // 理论上不会走到这里，因为 lint 已经拦截了
       showToast('YAML 语法错误：' + e.message, 'error', 6000);
-      console.error('YAML 校验失败:', e);
+      console.error("保存时 YAML 格式化失败:", e);
+    }
+
+    const r = await sfetch(API.config, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: formatted })
+    });
+
+    if (!r.ok) {
+      showToast('保存失败', 'error');
       return;
     }
-  } else {
-    showToast('警告：无法进行 YAML 校验，YAML 库未加载', 'warn', 4000);
-    console.error('YAML 未定义，无法校验 YAML');
-    if (!window.confirm('无法进行 YAML 格式校验，是否仍要保存？')) {
-      return;
+
+    if (r.payload?.error) {
+      showToast('保存失败：' + r.payload.error, 'error');
+    } else {
+      showToast(r.payload?.message || '保存成功', 'success');
+      await loadConfigValidated();
     }
   }
-
-  const r = await sfetch(API.config, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: formatted })
-  });
-
-  if (!r.ok) {
-    showToast('保存失败', 'error');
-    return;
-  }
-
-  if (r.payload?.error) {
-    showToast('保存失败：' + r.payload.error, 'error');
-  } else {
-    showToast(r.payload?.message || '保存成功', 'success');
-    await loadConfigValidated();  // 重新加载以验证
-  }
-}
 
 
 

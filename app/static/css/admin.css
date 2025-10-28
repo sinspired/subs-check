@@ -964,33 +964,31 @@ main {
   font-size: 15px;
 }
 
-#configEditor:focus-within {
-  /* box-shadow: inset 0 0 8px var(--accent-light); */
-}
-
 .cm-editor.cm-focused {
   box-shadow: inset 0 0 8px var(--accent-light);
 }
 
-.cm-focused .cm-selectionBackground,
+/* 选择区域背景 */
+/* .cm-focused .cm-selectionBackground,
 ::selection {
-  /* background: #09c7c1 !important; */
-}
+  background: var(--edit-shadow-hover) !important;
+} */
 
 .cm-focused .cm-cursor {
   border: 1px solid var(--accent) !important;
 }
 
+/* 自动完成提示 */
 .cm-tooltip-autocomplete {
   &>ul>li[aria-selected] {
-    background: rgba(0, 197, 201, 0.926) !important;
+    background: rgba(0, 197, 201, 0.7) !important;
     color: var(--fg) !important;
     font-weight: 600;
   }
 }
 
 .cm-content {
-  padding: 8px 4px 8px 0px !important;
+  padding: 16px 4px 16px 0px !important;
   /* 增加内边距，呼吸感 */
   background: var(--content-bg) !important;
   white-space: pre-wrap !important;
