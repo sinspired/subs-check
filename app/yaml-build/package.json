@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.11"
+  }
+}

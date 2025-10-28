@@ -573,92 +573,92 @@
     return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   }
 
-  // 更新 loadConfigValidated：加载后初始化 CodeMirror
-  async function loadConfigValidated() {
-    if (!sessionKey) return;
-    const r = await sfetch(API.config);
-    if (!r.ok) {
-      showToast('读取配置失败', 'warn');
+// 更新 loadConfigValidated：加载后初始化 CodeMirror
+async function loadConfigValidated() {
+  if (!sessionKey) return;
+  const r = await sfetch(API.config);
+  if (!r.ok) {
+    showToast('读取配置失败', 'warn');
+    return;
+  }
+
+  const p = r.payload;
+  let raw = '';
+  if (p?.content !== undefined) raw = p.content;
+  else if (typeof p === 'string') raw = p;
+
+  // 初始化 CodeMirror（如果未初始化）
+  if (!codeMirrorView) {
+    initCodeMirror(raw);
+  } else {
+    setEditorContent(raw);
+  }
+
+  // YAML 校验（使用 parseDocument 保留注释）
+  if (typeof YAML !== 'undefined' && YAML.parseDocument) {
+    try {
+      YAML.parseDocument(raw); // 只做语法校验，不覆盖内容
+    } catch (e) {
+      showToast('YAML 解析警告：' + e.message, 'warn', 5000);
+    }
+  } else {
+    console.warn('YAML 库未加载，跳过 YAML 校验');
+  }
+}
+
+// 更新 saveConfigWithValidation：从 CodeMirror 获取值
+async function saveConfigWithValidation() {
+  if (!sessionKey) {
+    showLogin(true);
+    showToast('请先登录', 'warn');
+    return;
+  }
+  if (!codeMirrorView) {
+    showToast('编辑器未初始化', 'error');
+    return;
+  }
+
+  const rawContent = codeMirrorView.state.doc.toString();
+  let formatted = rawContent;
+
+  // YAML 校验 + 格式化（保留注释）
+  if (typeof YAML !== 'undefined' && YAML.parseDocument) {
+    try {
+      const doc = YAML.parseDocument(rawContent);
+      formatted = doc.toString(); // 保留注释
+      setEditorContent(formatted);
+    } catch (e) {
+      showToast('YAML 语法错误：' + e.message, 'error', 6000);
+      console.error('YAML 校验失败:', e);
       return;
     }
-
-    const p = r.payload;
-    let raw = '';
-    if (p?.content !== undefined) raw = p.content;
-    else if (typeof p === 'string') raw = p;
-
-    // 初始化 CodeMirror（如果未初始化）
-    if (!codeMirrorView) {
-      initCodeMirror(raw);
-    } else {
-      setEditorContent(raw);
-    }
-
-    // YAML 校验（保持原逻辑，如果 jsyaml 可用）
-    if (typeof jsyaml !== 'undefined' && jsyaml.load) {
-      try {
-        const config = jsyaml.load(raw);
-        // 无需 setEditorContent(raw) 已处理
-      } catch (e) {
-        showToast('YAML 解析警告：' + e.message, 'warn', 5000);
-      }
-    } else {
-      console.warn('jsyaml 未加载，跳过 YAML 校验');
+  } else {
+    showToast('警告：无法进行 YAML 校验，YAML 库未加载', 'warn', 4000);
+    console.error('YAML 未定义，无法校验 YAML');
+    if (!window.confirm('无法进行 YAML 格式校验，是否仍要保存？')) {
+      return;
     }
   }
 
-  // 更新 saveConfigWithValidation：从 CodeMirror 获取值
-  async function saveConfigWithValidation() {
-    if (!sessionKey) {
-      showLogin(true);
-      showToast('请先登录', 'warn');
-      return;
-    }
-    if (!codeMirrorView) {
-      showToast('编辑器未初始化', 'error');
-      return;
-    }
+  const r = await sfetch(API.config, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: formatted })
+  });
 
-    const rawContent = codeMirrorView.state.doc.toString();
-
-    // YAML 校验（保持原逻辑）
-    if (typeof jsyaml !== 'undefined' && jsyaml.load) {
-      try {
-        const parsed = jsyaml.load(rawContent);
-        // 可选：格式化后设置回编辑器
-        const formatted = jsyaml.dump(parsed);
-        setEditorContent(formatted);
-      } catch (e) {
-        showToast('YAML 语法错误：' + e.message, 'error', 6000);
-        console.error('YAML 校验失败:', e);
-        return;
-      }
-    } else {
-      showToast('警告：无法进行 YAML 校验，js-yaml 库未加载', 'warn', 4000);
-      console.error('jsyaml 未定义，无法校验 YAML');
-      if (!window.confirm('无法进行 YAML 格式校验，是否仍要保存？')) {
-        return;
-      }
-    }
-
-    const r = await sfetch(API.config, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: rawContent })
-    });
-
-    if (!r.ok) {
-      showToast('保存失败', 'error');
-      return;
-    }
-
-    if (r.payload?.error) {
-      showToast('保存失败：' + r.payload.error, 'error');
-    } else {
-      showToast(r.payload?.message || '保存成功', 'success');
-      await loadConfigValidated();  // 重新加载以验证
-    }
+  if (!r.ok) {
+    showToast('保存失败', 'error');
+    return;
   }
+
+  if (r.payload?.error) {
+    showToast('保存失败：' + r.payload.error, 'error');
+  } else {
+    showToast(r.payload?.message || '保存成功', 'success');
+    await loadConfigValidated();  // 重新加载以验证
+  }
+}
+
 
 
   // 控制进度容器的显示/隐藏（隐藏: 'none'，显示: 恢复默认）
@@ -1343,7 +1343,7 @@
         let yamlContent = '';
         if (p?.content !== undefined) yamlContent = p.content;
 
-        const config = jsyaml.load(yamlContent);
+        const config = YAML.parse(yamlContent);
 
         const port = config["sub-store-port"] || "";
         const path = config["sub-store-path"] || "";
