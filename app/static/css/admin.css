@@ -24,6 +24,7 @@
   --gutter-bg: rgba(241, 237, 226, 0.2);
   --edit-shadow: rgba(2, 6, 23, 0.06);
   --edit-shadow-hover: rgba(2, 6, 23, 0.2);
+  --placehoder-bg: rgba(0, 171, 166, 0.6);
 
   --window-shadow: rgba(2, 6, 23, 0.06);
   --window-shadow-hover: rgba(2, 6, 23, 0.2);
@@ -68,7 +69,7 @@
   --gutter-bg: rgba(0, 0, 0, 0.2);
   --edit-shadow: rgba(2, 6, 23, 0.6);
   --edit-shadow-hover: rgba(2, 6, 23, 1);
-
+  --placehoder-bg: rgba(225, 6, 141, 0.124);
 
   --window-shadow: rgba(2, 6, 23, 0.6);
   --window-shadow-hover: rgba(2, 6, 23, 1);
@@ -1021,6 +1022,24 @@ main {
   font-weight: 500;
   /* 半粗体，突出 */
 }
+
+.cm-boolean-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.cm-placeholder {
+  background: var(--placehoder-bg);
+  border: 1px solid var(--bg);
+  color: var(--fg) !important;
+  font-weight: 500;
+  padding: 0 6px;
+  border-radius: 8px;
+  /* font-style: italic; */
+  align-items: center;
+}
+
 
 /* 滚动条 */
 ::-webkit-scrollbar {

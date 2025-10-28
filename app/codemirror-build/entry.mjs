@@ -1,14 +1,20 @@
 // entry.mjs - CodeMirror 6 ESM 入口
-import { EditorView, basicSetup } from 'codemirror';  // 核心（EditorView + basicSetup）
-import { EditorState } from '@codemirror/state';     // EditorState 单独导入
-import { yaml } from '@codemirror/lang-yaml';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { keymap } from "@codemirror/view";
-import { indentWithTab } from "@codemirror/commands";
-import { autocompletion } from "@codemirror/autocomplete";
-import { startCompletion } from "@codemirror/autocomplete";
-import { linter, Diagnostic } from "@codemirror/lint";
-import * as YAML from "yaml";
+import { EditorView, basicSetup } from "codemirror";   // 核心（EditorView + basicSetup）
+import { EditorState } from "@codemirror/state";       // 状态
+import { yaml } from "@codemirror/lang-yaml";          // YAML 语言支持
+import { oneDark } from "@codemirror/theme-one-dark";  // 主题
+import { indentWithTab } from "@codemirror/commands";  // Tab 缩进
+import { autocompletion, startCompletion } from "@codemirror/autocomplete"; // 自动补全
+import { linter } from "@codemirror/lint";             // Lint 支持
+import * as YAML from "yaml";                          // YAML 解析库
+import {
+  EditorView as View,
+  keymap,
+  WidgetType,
+  Decoration,
+  ViewPlugin,
+  MatchDecorator
+} from "@codemirror/view";                             // 视图相关
 
 // 配置键的自动完成列表（基于config.yaml配置模板）
 const configCompletions = [
@@ -209,7 +215,6 @@ const arrayItemCompletions = {
     { label: "vless", detail: "VLESS 协议" },
     { label: "trojan", detail: "Trojan 协议" },
     { label: "shadowsocks", detail: "Shadowsocks 协议" },
-    { label: "vless", detail: "VLESS 协议" },
   ],
   "recipient-url": [
     { label: "tgram://xxxxxx/-1002149239223", detail: "Telegram 通知格式：tgram://{bot_token}/{chat_id}" },
@@ -426,8 +431,67 @@ function yamlLinter() {
   });
 }
 
+// -------------------- 占位符原子替换 --------------------
+class PlaceholderWidget extends WidgetType {
+  constructor(name) {
+    super();
+    this.name = name;
+  }
+  eq(other) { return other.name === this.name }
+  toDOM() {
+    let span = document.createElement("span");
+    span.className = "cm-placeholder";
+    span.textContent = this.name;
+    return span;
+  }
+  ignoreEvent() { return false }
+}
 
-// 全局暴露
+const placeholderMatcher = new MatchDecorator({
+  // 统一匹配 YAML 值部分（仅捕获值，不含键名）
+  regexp: new RegExp(
+    [
+      // 1) 列表项：- openai / - "openai"
+      '(?<=^[ \\t]*-\\s*["\']?)(openai|iprisk|gemini|tiktok|youtube|disney|netflix|x|ss|trojan|vless|vmess|shadowsocks)(?=["\']?\\b)',
+
+      // 2) version: 1.12 / "1.12"
+      '(?<=^[ \\t]*version:\\s*["\']?)([0-9]+(?:\\.[0-9]+)*)(?=["\']?)',
+
+      // 3) progress-mode: auto / stage
+      '(?<=^[ \\t]*progress-mode:\\s*["\']?)(auto|stage)(?=["\']?)',
+
+      // 4) sub-store-path: "xxx" / api-key: "xxx" 仅匹配非空
+      '(?<=^[ \\t]*(?:sub-store-path|api-key):\\s*["\'])([^"\']+)(?=["\'])'
+    ].join('|'),
+    'mg'
+  ),
+
+  decoration: match => {
+    const value = match[1] || match[2] || match[3] || match[4];
+    if (!value) return null;
+    return Decoration.replace({
+      widget: new PlaceholderWidget(value),
+      inclusive: false
+    });
+  }
+});
+
+const placeholderPlugin = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.decorations = placeholderMatcher.createDeco(view) || Decoration.none;
+  }
+  update(update) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = placeholderMatcher.updateDeco(update, this.decorations) || Decoration.none;
+    }
+  }
+}, {
+  decorations: v => v.decorations,
+  provide: plugin => EditorView.atomicRanges.of(v => v.decorations)
+});
+
+// TODO: 添加布尔值切换
+// -------------------- 全局暴露 --------------------
 window.CodeMirror = {
   createEditor: (container, initialValue = '', theme = 'light') => {
     if (!container || !(container instanceof HTMLElement)) {
@@ -441,6 +505,7 @@ window.CodeMirror = {
       keymap.of([indentWithTab]),
       autocompletion({ override: [yamlConfigSource] }),
       yamlLinter(),
+      placeholderPlugin,    // 占位符原子替换
       theme === 'dark' ? oneDark : null
     ].filter(Boolean);
 
