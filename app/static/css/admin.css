@@ -1492,7 +1492,7 @@ main {
   .logsCard,
   .editor {
     height: calc(100vh - var(--mobile-subtract));
-    min-height: 450px;
+    min-height: 500px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
