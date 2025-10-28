@@ -445,7 +445,7 @@ func (app *App) SetupUpdateTasks() {
 	_, err := updateCron.AddFunc(schedule, func() {
 		if !app.checking.Load() {
 			if !StartFromGUI && enableSelfUpdate && !isDocker {
-				slog.Info("定时检查版本更新并自动升级新版本...")
+				slog.Debug("定时检查版本更新并自动升级...")
 				updateDone := make(chan struct{})
 				go func() {
 					app.CheckUpdateAndRestart(true) // 定时任务使用 true
@@ -453,7 +453,7 @@ func (app *App) SetupUpdateTasks() {
 				}()
 				<-updateDone
 			} else {
-				slog.Info("定时检查新版本...")
+				slog.Debug("定时检查新版本...")
 				detectDone := make(chan struct{})
 				go func() {
 					app.detectLatestRelease()

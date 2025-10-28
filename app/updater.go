@@ -271,7 +271,7 @@ func (app *App) detectLatestRelease() (*selfupdate.Release, bool, error) {
 		return nil, false, fmt.Errorf("版本号解析失败: %w", err)
 	}
 	if !latest.GreaterThan(curVer.String()) {
-		slog.Info("已是最新版本", slog.String("version", currentVersion))
+		slog.Debug("已是最新版本", slog.String("version", currentVersion))
 		return nil, false, nil
 	}
 
@@ -334,7 +334,7 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 		return
 	}
 	if !latest.GreaterThan(curVer.String()) {
-		slog.Info("已是最新版本", slog.String("version", currentVersion))
+		slog.Debug("已是最新版本", slog.String("version", currentVersion))
 		return
 	}
 
