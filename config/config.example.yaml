@@ -178,7 +178,7 @@ sub-store-path: ""
 # 覆写订阅的url，这个的作用是生成带指定规则的mihomo/clash.meta订阅链接
 # 防止网络不好，所以现在内置，依赖:8199端口
 # 如果你想替换其他的自定义覆写文件，自己命名后放在output目录，然后更改此URL后缀即可
-mihomo-overwrite-url: http://127.0.0.1:8199/sub/ACL4SSR_Online_Full.yaml
+mihomo-overwrite-url: http://127.0.0.1:8199/ACL4SSR_Online_Full.yaml
 
 # singbox规则配置
 # json文件为分流规则

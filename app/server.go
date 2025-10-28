@@ -48,6 +48,11 @@ func (app *App) initHTTPServer() error {
 	// CM佬用的布丁狗
 	router.StaticFile("/bdg.yaml", saver.OutputPath+"/bdg.yaml")
 
+	// 兼容旧配置
+	router.StaticFile("/sub/ACL4SSR_Online_Full.yaml", saver.OutputPath+"/ACL4SSR_Online_Full.yaml")
+	// CM佬用的布丁狗
+	router.StaticFile("/sub/bdg.yaml", saver.OutputPath+"/bdg.yaml")
+
 	// 根据配置决定是否启用Web控制面板
 	if config.GlobalConfig.EnableWebUI {
 		if config.GlobalConfig.APIKey == "" {

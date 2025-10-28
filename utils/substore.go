@@ -111,7 +111,7 @@ func newDefaultSub(data []byte) sub {
 func newMihomoFile() file {
 	overwriteURL := config.GlobalConfig.MihomoOverwriteURL
 	if overwriteURL == "" {
-		overwriteURL = "http://127.0.0.1:8199/sub/ACL4SSR_Online_Full.yaml" // 默认值
+		overwriteURL = "http://127.0.0.1:8199/ACL4SSR_Online_Full.yaml" // 默认值
 	}
 	return file{
 		Name:        MihomoName,
