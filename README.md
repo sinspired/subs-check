@@ -1,6 +1,6 @@
 <!-- 项目logo -->
 <p align="center">
-  <img src="doc/logo/logo.png" alt="Project Logo" width="200"/>
+  <img src="https://raw.githubusercontent.com/sinspired/subs-check/main/doc/logo/logo.png" alt="Project Logo" width="200"/>
 </p>
 
 <h2 align="center">Subs-Check</h1>
@@ -16,13 +16,33 @@ High-performance proxy subscription checker.
 
 # 🚀 subs-check 性能版
 
-新增：[**自适应流水线高并发模式**](#1-测活-测速-媒体检测分阶段流水线自适应高并发)、[增强位置标签](#2-增强位置标签)、[优化内存](#3-优化内存)、[智能节点乱序](#4-智能节点乱序减少节点被测速-测死-的概率)、[历次检测可用节点](#5-保存并加载-历次-检测可用节点)、[自动检测代理](#-优化系统代理和github代理设置可选)。**大幅优化性能，减少数倍检测时间。**
+[ **测活、测速、媒体解锁** ] 检测工具，支持自动无缝版本更新；支持100-1000高并发低占用运行，检测结果更准确。全新设计，适配PC和手机设备的现代 WebUI 配置管理界面，自动生成 `mihomo` 和 `singbox` 订阅，支持一键复制分享。
 
-💡从版本 `v1.9.0` 开始，支持 [自动检查更新，无缝升级新版本](#6-自动检查更新无缝升级新版本)；自版本 `v1.9.3` 开始，重新设计了 [全新的 WebUI管理界面](#-重新设计的-webui管理界面)，优化手机等小屏设备访问WebUI管理配置的体验；自版本 `v1.9.7` 开始，支持 [自动生成开箱即用的singbox配置](#新增分享菜单项自动生成singbox订阅支持一键分享)，包括 1.12 和 1.11（兼容ios设备），并支持在WebUi一键复制订阅。 ⚙️[教程：随时随地管理subs-check检测与订阅](#️-cloudflare-tunnel隧道映射外网访问)
+## ✨ 新增
 
-🐳 支持多平台构建和容器化部署：[Docker 部署](#-docker-运行)
+- ⚡ [**自适应流水线高并发模式**](#1-测活-测速-媒体检测分阶段流水线自适应高并发)  
+- 🏷️ [**增强位置标签**](#2-增强位置标签)  
+- 🧠 [**优化内存**](#3-优化内存)  
+- 🔀 [**智能节点乱序**](#4-智能节点乱序减少节点被测速-测死-的概率)  
+- 📂 [**历次检测可用节点保存与加载**](#5-保存并加载-历次-检测可用节点)  
+- 🌐 [**自动检测代理**](#-优化系统代理和github代理设置可选)
+- 💻 支持 **Windows / Linux / macOS 多平台部署**，Windows 可搭配 [GUI程序](https://github.com/sinspired/SubsCheck-Win-GUI) 使用
+---
+### 🔄 版本特性
 
-> **⚠️ 注意：** 功能更新频繁，请查看最新的[配置文件](https://github.com/sinspired/subs-check/blob/main/config/config.example.yaml)以获取最新功能。
+- 💡 自 **v1.9.0** 起：支持 [自动检查更新，无缝升级新版本](#6-自动检查更新无缝升级新版本)。  
+- 📱 自 **v1.9.3** 起：全新设计的 [WebUI管理界面](#-重新设计的-webui管理界面)，优化小屏设备访问体验。  
+- 📦 自 **v1.9.7** 起：支持 [自动生成开箱即用的singbox配置](#新增分享菜单项自动生成singbox订阅支持一键分享)（兼容 iOS 设备），支持在 WebUI 一键复制订阅。  
+- ⚙️ 自 **v1.9.9** 起：升级配置编辑器，支持根据 `config.yaml` 自动补全。
+
+---
+🐳 教程：[Docker 部署](#-docker-运行)  
+
+📘 教程：[随时随地管理 subs-check 检测与订阅](#️-cloudflare-tunnel隧道映射外网访问)  
+
+> ⚠️ 注意事项
+>
+> 功能更新频繁，请务必查看最新的 [配置文件示例](https://github.com/sinspired/subs-check/blob/main/config/config.example.yaml) 以获取最新功能支持。  
 
 ## ✨ 特性
 
@@ -45,23 +65,23 @@ High-performance proxy subscription checker.
 
 ## 📸 预览
 
-![preview](./doc/images/preview.png)  
-![result](./doc/images/results.png)
+![preview](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/preview.png)  
+![result](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/results.png)
 
 ### ✨ 重新设计的 WebUI管理界面
 
-![login](./doc/images/login.png)
-![WebUI](./doc/images/WebUI.png)
+![login](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/login.png)
+![WebUI](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/WebUI.png)
 
 ### ⚡新增分享菜单项，自动生成singbox订阅，支持一键分享
 
 |                                  |                                        |                                        |
 | -------------------------------- | -------------------------------------- | -------------------------------------- |
-|![sub-store](./doc/images/sub-store.png) | ![shareMenu](./doc/images/share-menu.png)  |  ![singbox](./doc/images/sing-box.png)  |
+|![sub-store](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/sub-store.png) | ![shareMenu](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/share-menu.png)  |  ![singbox](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/sing-box.png)  |
 
 |                                  |                                        |
 | -------------------------------- | -------------------------------------- |
-| ![tgram](./doc/images/tgram.png) | ![dingtalk](./doc/images/dingtalk.png) |
+| ![tgram](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/tgram.png) | ![dingtalk](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/dingtalk.png) |
 
 ## **✨ 新增功能和性能优化**
 
@@ -269,7 +289,7 @@ github-proxy: "https://custom-domain/raw/"
 
 > **⚠️ 注意：** 避免使用 Speedtest 或 Cloudflare 下载链接，因为部分节点会屏蔽测速网站。
 
-1. 将 [worker.js](./doc/cloudflare/worker.js) 部署到 Cloudflare Workers。
+1. 将 [worker.js](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/cloudflare/worker.js) 部署到 Cloudflare Workers。
 2. 绑定自定义域名（避免被节点屏蔽）。
 3. 在配置文件中设置 `speed-test-url` 为你的 Workers 地址：
 
@@ -356,7 +376,7 @@ go run . -f ./config/config.yaml
 ### 🌐 Vercel 部署
 
 1. 点击[**此处**](https://vercel.com/new/clone?repository-url=https://github.com/sinspired/apprise_vercel)部署 Apprise。
-2. 部署后获取 API 链接，如 `https://testapprise-beck8s-projects.vercel.app/notify`。
+2. 部署后获取 API 链接，如 `https://projectName.vercel.app/notify`。
 3. 建议为 Vercel 项目设置自定义域名（国内访问 Vercel 可能受限）。
 
 ### 🐳 Docker 部署
@@ -400,9 +420,9 @@ notify-title: "🔔 节点状态更新"
 > **⚠️ 注意：** 选择保存方法时，请更改 `save-method` 配置。
 
 - **本地保存**：保存到 `./output` 文件夹。
-- **R2**：保存到 Cloudflare R2 [配置方法](./doc/r2.md)。
-- **Gist**：保存到 GitHub Gist [配置方法](./doc/gist.md)。
-- **WebDAV**：保存到 WebDAV 服务器 [配置方法](./doc/webdav.md)。
+- **R2**：保存到 Cloudflare R2 [配置方法](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/r2.md)。
+- **Gist**：保存到 GitHub Gist [配置方法](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/gist.md)。
+- **WebDAV**：保存到 WebDAV 服务器 [配置方法](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/webdav.md)。
 - **S3**：保存到 S3 对象存储。
 
 ## 📲 订阅使用方法
