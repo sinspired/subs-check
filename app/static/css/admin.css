@@ -30,6 +30,8 @@
   --window-shadow-hover: rgba(2, 6, 23, 0.2);
   --badge-shadow-hover: rgba(2, 6, 23, 0.2);
 
+  --scroll-bg: rgba(0, 211, 215, 0.2);
+
 
   /* 玻璃效果 */
   --glass-bg: rgba(255, 255, 255, 0.06);
@@ -76,6 +78,8 @@
   --window-shadow-hover: rgba(2, 6, 23, 1);
   --badge-shadow-hover: rgba(237, 238, 243, 0.2);
 
+  --scroll-bg: rgba(0, 127, 129, 0.4);
+  
   --glass-bg: rgba(255, 255, 255, 0.02);
   --glass-border: rgba(255, 255, 255, 0.04);
   --glass-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
@@ -1064,7 +1068,7 @@ main {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--scroll-bg);
   border-radius: 10px;
 }
 
@@ -1074,10 +1078,6 @@ main {
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--accent);
-}
-
-:root[data-theme='dark'] ::-webkit-scrollbar-thumb {
-  background: rgba(4, 152, 166, 0.191);
 }
 
 /* Toast 通知 */
