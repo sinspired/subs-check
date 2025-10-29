@@ -110,7 +110,12 @@ func resolveDBPath() (string, error) {
 		}
 	}
 
-	return filepath.Join(saver.OutputPath, "GeoLite2-Country.mmdb"), nil
+	maxminddbDir := filepath.Join(saver.OutputPath, "MaxMindData")
+
+	if err := os.MkdirAll(maxminddbDir, 0755); err != nil {
+		return "", fmt.Errorf("无法创建 MaxMind 输出目录: %w", err)
+	}
+	return filepath.Join(maxminddbDir, "GeoLite2-Country.mmdb"), nil
 }
 
 // 32 位程序使用从内存读取的方式

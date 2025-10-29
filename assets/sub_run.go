@@ -59,13 +59,18 @@ func startSubStore(ctx context.Context) error {
 		nodeName += ".exe"
 	}
 
+	substoreDir := filepath.Join(saver.OutputPath, "sub-store")
+
 	if err := os.MkdirAll(saver.OutputPath, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}
-	nodePath := filepath.Join(saver.OutputPath, nodeName)
-	jsPath := filepath.Join(saver.OutputPath, "sub-store.bundle.js")
-	overYamlPath := filepath.Join(saver.OutputPath, "ACL4SSR_Online_Full.yaml")
-	logPath := filepath.Join(saver.OutputPath, "sub-store.log")
+	if err := os.MkdirAll(substoreDir, 0755); err != nil {
+		return fmt.Errorf("创建sub-store目录失败: %w", err)
+	}
+	nodePath := filepath.Join(substoreDir, nodeName)
+	jsPath := filepath.Join(substoreDir, "sub-store.bundle.js")
+	overYamlPath := filepath.Join(substoreDir, "ACL4SSR_Online_Full.yaml")
+	logPath := filepath.Join(substoreDir, "sub-store.log")
 
 	killNode := func() {
 		pid, err := findProcesses(nodePath)
@@ -109,7 +114,7 @@ func startSubStore(ctx context.Context) error {
 	// 构建命令
 	cmd := exec.Command(nodePath, jsPath)
 	// js会在运行目录释放依赖文件
-	cmd.Dir = saver.OutputPath
+	cmd.Dir = substoreDir
 	cmd.Stdout = logWriter
 	cmd.Stderr = logWriter
 
@@ -349,7 +354,7 @@ func getNodePath() (string, error) {
 	if runtime.GOOS == "windows" {
 		nodeName += ".exe"
 	}
-	return filepath.Join(saver.OutputPath, nodeName), nil
+	return filepath.Join(saver.OutputPath, "sub-store", nodeName), nil
 }
 
 // FindNode 查找 Node 进程是否存在
