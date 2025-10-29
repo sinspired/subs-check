@@ -15,6 +15,8 @@ import {
   ViewPlugin,
   MatchDecorator
 } from "@codemirror/view";                             // 视图相关
+import { search, openSearchPanel, closeSearchPanel, searchPanelOpen } from "@codemirror/search"; // 搜索功能
+import { highlightSelectionMatches } from "@codemirror/search"; // 选择高亮
 
 // 配置键的自动完成列表（基于config.yaml配置模板）
 const configCompletions = [
@@ -201,8 +203,8 @@ const valueCompletions = {
 const arrayItemCompletions = {
   "platforms": [
     { label: "iprisk", detail: "IP 风险检测" },
-    { label: "openai", detail: "OpenAI 兼容性检测" },
-    { label: "gemini", detail: "Gemini 兼容性检测" },
+    { label: "openai", detail: "OpenAI 解锁检测" },
+    { label: "gemini", detail: "Gemini 解锁检测" },
     { label: "tiktok", detail: "TikTok 解锁检测" },
     { label: "youtube", detail: "YouTube 解锁检测" },
     { label: "netflix", detail: "Netflix 解锁检测" },
@@ -452,10 +454,9 @@ const placeholderMatcher = new MatchDecorator({
   // 统一匹配 YAML 值部分（仅捕获值，不含键名）
   regexp: new RegExp(
     [
-        // 匹配所有 configCompletions 中的 label，如果紧跟 : ，捕获 label
+      // 匹配所有 configCompletions 中的 label，如果紧跟 : ，捕获 label
       '(?<=^[ \t]*)(print-progress|progress-mode|update|update-on-startup|cron-check-update|prerelease|update-timeout|concurrent|alive-concurrent|speed-concurrent|media-concurrent|check-interval|cron-expression|success-limit|timeout|speed-test-url|min-speed|download-timeout|download-mb|total-speed-limit|threshold|rename-node|node-prefix|node-type|media-check|platforms|drop-bad-cf-nodes|enhanced-tag|maxmind-db-path|output-dir|keep-success-proxies|listen-port|enable-web-ui|api-key|callback-script|apprise-api-server|recipient-url|notify-title|sub-store-port|sub-store-path|mihomo-overwrite-url|singbox-latest|singbox-old|sub-store-sync-cron|sub-store-produce-cron|sub-store-push-service|save-method|webdav-url|webdav-username|webdav-password|github-gist-id|github-token|github-api-mirror|worker-url|worker-token|s3-endpoint|s3-access-id|s3-secret-key|s3-bucket|s3-use-ssl|s3-bucket-lookup|system-proxy|github-proxy|ghproxy-group|sub-urls-retry|success-rate|sub-urls-remote|sub-urls)(?=\s*:\s*)',
 
-  
       // 列表项：- openai / - "openai"
       '(?<=^[ \\t]*-\\s*["\']?)(openai|iprisk|gemini|tiktok|youtube|disney|netflix|x|ss|trojan|vless|vmess|shadowsocks)(?=["\']?\\b)',
 
@@ -501,8 +502,9 @@ const placeholderPlugin = ViewPlugin.fromClass(class {
   provide: plugin => EditorView.atomicRanges.of(v => v.decorations)
 });
 
-// TODO: 添加布尔值切换
 // -------------------- 全局暴露 --------------------
+let searchView = null; // 全局引用当前编辑器视图
+
 window.CodeMirror = {
   createEditor: (container, initialValue = '', theme = 'light') => {
     if (!container || !(container instanceof HTMLElement)) {
@@ -517,6 +519,9 @@ window.CodeMirror = {
       autocompletion({ override: [yamlConfigSource] }),
       yamlLinter(),
       placeholderPlugin,    // 占位符原子替换
+      search({ top: true }), // 内置搜索面板，置于顶部
+      highlightSelectionMatches(),
+
       theme === 'dark' ? oneDark : null
     ].filter(Boolean);
 
@@ -525,10 +530,27 @@ window.CodeMirror = {
       extensions
     });
 
-    return new EditorView({
+    const view = new EditorView({
       state,
       parent: container
     });
+
+    // 全局引用当前视图（用于搜索面板）
+    searchView = view;
+
+    // 绑定搜索按钮事件（开关搜索面板）
+    const searchBtn = document.getElementById('searchBtn');
+    if (searchBtn) {
+      searchBtn.addEventListener('click', () => {
+        if (searchView && searchPanelOpen(searchView.state)) {
+          closeSearchPanel(searchView);
+        } else if (searchView) {
+          openSearchPanel(searchView);
+        }
+      });
+    }
+
+    return view;
   },
   getValue: (view) => view.state.doc.toString(),
   setValue: (view, value) => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } }),
