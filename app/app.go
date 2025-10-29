@@ -442,6 +442,11 @@ func (app *App) SetupUpdateTasks() {
 		schedule = "0 0 * * 0"
 	}
 
+	if enableSelfUpdate {
+		slog.Info("程序将定时更新并重启", "schedule", schedule)
+	} else {
+		slog.Info("程序将定时检查新版本(不自动更新)", "schedule", schedule)
+	}
 	_, err := updateCron.AddFunc(schedule, func() {
 		if !app.checking.Load() {
 			if !StartFromGUI && enableSelfUpdate && !isDocker {

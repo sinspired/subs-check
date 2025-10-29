@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/utils"
-	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,6 +94,9 @@ func (app *App) initConfigWatcher() error {
 						oldCronExpr := config.GlobalConfig.CronExpression
 						oldInterval := app.interval
 
+						oldUpdateSwitcher := config.GlobalConfig.EnableSelfUpdate
+						oldCronCheckUpdateExpr := config.GlobalConfig.CronCheckUpdate
+
 						if err := app.loadConfig(); err != nil {
 							slog.Error(fmt.Sprintf("重新加载配置文件失败: %v", err))
 							return
@@ -113,6 +116,11 @@ func (app *App) initConfigWatcher() error {
 
 							// 使用setTimer方法重新设置定时器
 							app.setTimer()
+						}
+
+						if oldCronCheckUpdateExpr != config.GlobalConfig.CronCheckUpdate || oldUpdateSwitcher != config.GlobalConfig.EnableSelfUpdate {
+							slog.Warn("版本更新设置发生变化，重新设置定时更新任务")
+							app.SetupUpdateTasks()
 						}
 					})
 				}
