@@ -1,4 +1,4 @@
-# 是否显示检测进度
+# 是否显示检测进度（终端）
 print-progress: false
 # 进度条显示模式:
 # "auto": 根据测活-测速-媒体检测的阶段权重自动显示
@@ -8,7 +8,7 @@ progress-mode: auto
 # 是否开启新版本更新
 # 支持启动时检查更新及定时更新任务,无缝升级新版本
 # 支持apprise API通知渠道
-# true: 自动更新; false: 不更新
+# true: 自动更新; false: 不更新（仍会提醒新版本）
 update: true
 # 启动时检查更新版本
 update-on-startup: true
@@ -31,12 +31,12 @@ concurrent: 20
 # 测速设置了最低两倍缓冲通道,通道占满会阻塞测活任务。
 # 测活-测速-媒体检测并行,缓冲通道占满后会成为瓶颈
 
-# 测活阶段，建议：100-1000
+# 测活阶段，建议：10-1000
 alive-concurrent: 200
-# 测速阶段，建议：8-32
+# 测速阶段，建议：4-32
 speed-concurrent: 16
-# 媒体解锁检测，建议：50-200
-media-concurrent: 100
+# 媒体解锁检测，建议：10-200
+media-concurrent: 16
 
 # 检查间隔(分钟)
 check-interval: 720
@@ -54,10 +54,11 @@ check-interval: 720
 success-limit: 200
 
 # 超时时间(毫秒)(节点的最大延迟)
-timeout: 5000
+timeout: 6000
 # 测速地址(注意 并发数*节点速度<最大网速 否则测速结果不准确)
 # 尽量不要使用Speedtest，Cloudflare提供的下载链接，因为很多节点屏蔽测速网站
 # 如果找不到稳定的测速地址，可以自建测速地址
+# (留空关闭测速)
 speed-test-url: https://github.com/AaronFeng753/Waifu2x-Extension-GUI/releases/download/v2.21.12/Waifu2x-Extension-GUI-v2.21.12-Portable.7z
 
 # 注意: 节点可能被测速测死(暂时或永久), 经过多次测试, 不用怀疑!
@@ -111,9 +112,11 @@ platforms:
   - x
 
 # 是否丢弃无法访问 cloudflare 的节点(可正常访问Google等,默认保留,修改会导致可用节点急剧减少,且有大概率误杀)
+# true: 丢弃
+# false: 保留
 drop-bad-cf-nodes: false
 
-# 增强的位置显示开关,默认关闭
+# 增强的位置显示开关,默认开启
 # 无法访问 CF 的 CF 节点: HK⁻¹
 # 正常访问 CF: a.出口位置与cdn位置一致: HK¹⁺; b.位置不一致: HK¹-US⁰
 # 非 CF 节点,直接显示: HK²
@@ -133,13 +136,15 @@ output-dir: ""
 # 保留之前测试成功的节点
 # 如果为true，则保留之前测试成功的节点，这样就不会因为上游链接更新，导致可用的节点被清除掉
 # 此选项将保存并加载 "上次检测成功的节点" 和 "历次检测成功的节点"
+# 本项目已移除未经验证的 /all.yaml /sub/all.yaml访问,可放心设置CF隧道,在外网访问\修改配置\分享订阅
+# 如需 “检测本地自定义节点”，可将yaml格式的节点手动添加到 ./output/history.yaml
 keep-success-proxies: true
 
 # 是否启用Web控制面板
 # 如果为false，则不启动Web控制界面，仅启动订阅服务相关接口
 # 访问地址：http://127.0.0.1:8199/admin
 enable-web-ui: true
-# 填写Web控制面板的api-key，如果为空，则自动生成
+# 填写Web控制面板的api-key，如果为空，则自动生成 !请在终端窗口查看apikey
 # 配置文件为空时，支持使用环境变量设置 API_KEY
 api-key: ""
 
@@ -150,18 +155,23 @@ api-key: ""
 # 注意如果使用docker，目前docker使用的alpine，只有sh，不支持bash
 callback-script: ""
 
+# 配置通知渠道，将自动发送检测结果通知，新版本通知
+# 复制 https://vercel.com/new/clone?repository-url=https://github.com/sinspired/apprise_vercel 到浏览器
+# 按提示部署，建议为 Vercel 项目设置自定义域名（国内访问 Vercel 可能受限）。
 # 填写搭建的apprise API server 地址
 # https://notify.xxxx.us.kg/notify
 apprise-api-server: ""
-# 填写通知目标
+# 通知渠道
 # 支持100+ 个通知渠道，详细格式请参照 https://github.com/caronc/apprise
+# 格式参考：
+# telegram格式：tgram://{bot_token}/{chat_id}
+# 钉钉格式：dingtalk://{Secret}@{ApiKey}
+# QQ邮箱：mailto://QQ号:邮箱授权码@qq.com
+# 邮箱授权码：设置-账号-POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务-开通-继续获取授权码
 recipient-url:
-  # - 渠道1
-  # - 渠道2
-  # telegram格式：tgram://{bot_token}/{chat_id}
   # - tgram://xxxxxx/-1002149239223
-  # 钉钉格式：dingtalk://{Secret}@{ApiKey}
   # - dingtalk://xxxxxx@xxxxxxx
+  # - mailto://xxxxx:xxxxxx@qq.com
 
 # 自定义通知标题
 notify-title: "🔔 节点状态更新"
@@ -172,19 +182,19 @@ notify-title: "🔔 节点状态更新"
 sub-store-port: ":8299"
 # sub-store自定义访问路径，必须以/开头，后续访问订阅也要带上此路径
 # 设置path之后，还可以开启订阅分享功能，无需暴露真实的path
+# 订阅示例：http://127.0.0.1:8299/path/api/file/mihomo
 # sub-store-path: "/path"
 sub-store-path: ""
 
 # 覆写订阅的url，这个的作用是生成带指定规则的mihomo/clash.meta订阅链接
 # 防止网络不好，所以现在内置，依赖:8199端口
-# 如果你想替换其他的自定义覆写文件，自己命名后放在output目录，然后更改此URL后缀即可
 mihomo-overwrite-url: http://127.0.0.1:8199/ACL4SSR_Online_Full.yaml
 
 # singbox规则配置
 # json文件为分流规则
 # js脚本用来根据规则对节点进行处理
 # singbox每个版本规则不兼容，须根据客户端版本选择合适的规则
-# singbox latest 版本配置
+# singbox 最新版
 singbox-latest:
   version: 1.12
   json:
@@ -255,6 +265,7 @@ s3-bucket-lookup: auto
 # 写法跟环境变量一样，修改需重启生效
 # system-proxy: "http://username:password@192.168.1.1:7890"
 # system-proxy: "socks5://username:password@192.168.1.1:7890"
+# system-proxy: "http://127.0.0.1:10808"
 system-proxy: ""
 # Github 代理：获取订阅使用
 # github-proxy: "https://ghfast.top/"

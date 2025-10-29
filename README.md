@@ -469,6 +469,9 @@ http://127.0.0.1:8299/download/sub?target=Surfboard
 
 ```bash
 http://127.0.0.1:8299/api/file/mihomo
+
+# 如果设置了(建议设置) sub-store-path: "/path"
+http://127.0.0.1:8299/path/api/file/mihomo
 ```
 
 ## 🌐 内置端口说明

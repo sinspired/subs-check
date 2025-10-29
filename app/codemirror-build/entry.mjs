@@ -18,27 +18,27 @@ import {
 
 // 配置键的自动完成列表（基于config.yaml配置模板）
 const configCompletions = [
-  { label: "print-progress", type: "property", detail: "是否显示检测进度", section: "进度条", isArray: false },
+  { label: "print-progress", type: "property", detail: "是否显示检测进度（终端）", section: "进度条", isArray: false },
   { label: "progress-mode", type: "property", detail: "进度条显示模式", section: "进度条", isArray: false },
   { label: "update", type: "property", detail: "是否开启新版本更新", section: "版本更新", isArray: false },
-  { label: "update-on-startup", type: "property", detail: "启动时检查更新版本", section: "版本更新", isArray: false },
-  { label: "cron-check-update", type: "property", detail: "检查更新定时任务", section: "版本更新", isArray: false },
+  { label: "update-on-startup", type: "property", detail: "启动时检查更新", section: "版本更新", isArray: false },
+  { label: "cron-check-update", type: "property", detail: "定时检查更新", section: "版本更新", isArray: false },
   { label: "prerelease", type: "property", detail: "使用预发布版本", section: "版本更新", isArray: false },
-  { label: "update-timeout", type: "property", detail: "下载新版本超时时间(分钟)", section: "版本更新", isArray: false },
+  { label: "update-timeout", type: "property", detail: "下载新版本超时(分钟)", section: "版本更新", isArray: false },
   { label: "concurrent", type: "property", detail: "并发线程数", section: "检测参数", isArray: false },
-  { label: "alive-concurrent", type: "property", detail: "测活并发数，建议：100-1000", section: "检测参数", isArray: false },
-  { label: "speed-concurrent", type: "property", detail: "测速并发数，建议：8-32", section: "检测参数", isArray: false },
-  { label: "media-concurrent", type: "property", detail: "媒体解锁并发数，建议：50-200", section: "检测参数", isArray: false },
+  { label: "alive-concurrent", type: "property", detail: "测活并发数，建议：10-1000", section: "检测参数", isArray: false },
+  { label: "speed-concurrent", type: "property", detail: "测速并发数，建议：4-32", section: "检测参数", isArray: false },
+  { label: "media-concurrent", type: "property", detail: "媒体解锁并发数，建议：4-200", section: "检测参数", isArray: false },
   { label: "check-interval", type: "property", detail: "检查间隔(分钟)", section: "检测参数", isArray: false },
-  { label: "cron-expression", type: "property", detail: "检测定时任务", section: "检测参数", isArray: false },
+  { label: "cron-expression", type: "property", detail: "定时检测", section: "检测参数", isArray: false },
   { label: "success-limit", type: "property", detail: "成功节点数量限制", section: "检测参数", isArray: false },
-  { label: "timeout", type: "property", detail: "超时时间(毫秒)", section: "检测参数", isArray: false },
-  { label: "speed-test-url", type: "property", detail: "测速地址", section: "检测参数", isArray: false },
+  { label: "timeout", type: "property", detail: "单个检测超时(毫秒)", section: "检测参数", isArray: false },
+  { label: "speed-test-url", type: "property", detail: "测速地址(留空关闭测速)", section: "检测参数", isArray: false },
   { label: "min-speed", type: "property", detail: "最低下载速度(KB/s)", section: "检测参数", isArray: false },
   { label: "download-timeout", type: "property", detail: "下载测试时间(s)", section: "检测参数", isArray: false },
   { label: "download-mb", type: "property", detail: "单节点下载数据(MB)限制，0为不限", section: "检测参数", isArray: false },
   { label: "total-speed-limit", type: "property", detail: "总下载速度限制(MB/s)，0为不限", section: "检测参数", isArray: false },
-  { label: "threshold", type: "property", detail: "相似度阈值", section: "检测参数", isArray: false },
+  { label: "threshold", type: "property", detail: "节点乱序，相似度阈值", section: "检测参数", isArray: false },
   { label: "rename-node", type: "property", detail: "是否重命名节点", section: "节点处理", isArray: false },
   { label: "node-prefix", type: "property", detail: "节点前缀", section: "节点处理", isArray: false },
   { label: "node-type", type: "property", detail: "只测试指定协议的节点", section: "节点处理", isArray: true },
@@ -99,7 +99,7 @@ const valueCompletions = {
   ],
   "update": [
     { label: "true", detail: "自动更新（默认）" },
-    { label: "false", detail: "不更新" }
+    { label: "false", detail: "不更新（会提醒新版本）" }
   ],
   "update-on-startup": [
     { label: "true", detail: "启动时检查更新（默认）" },
@@ -218,7 +218,8 @@ const arrayItemCompletions = {
   ],
   "recipient-url": [
     { label: "tgram://xxxxxx/-1002149239223", detail: "Telegram 通知格式：tgram://{bot_token}/{chat_id}" },
-    { label: "dingtalk://xxxxxx@xxxxxxx", detail: "钉钉通知格式：dingtalk://{Secret}@{ApiKey}" }
+    { label: "dingtalk://xxxxxx@xxxxxxx", detail: "钉钉通知格式：dingtalk://{Secret}@{ApiKey}" },
+    { label: "mailto://xxxxx:xxxxxx@qq.com", detail: "QQ邮箱：mailto://QQ号:邮箱授权码@qq.com" }
   ],
   "ghproxy-group": [
     { label: "https://ghp.yeye.f5.si/", detail: "GHProxy 代理 1" },
