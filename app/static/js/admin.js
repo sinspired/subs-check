@@ -1187,6 +1187,15 @@
       showToast('主题已重置为系统默认', 'info');
     });
 
+    // 绑定编辑器搜索按钮事件
+    const searchBtn = document.getElementById('searchBtn');
+    searchBtn.addEventListener('click', () => {
+      if (window.searchView && searchPanelOpen(window.searchView.state)) {
+        closeSearchPanel(window.searchView);
+      } else if (window.searchView) {
+        openSearchPanel(window.searchView);
+      }
+    });
   }
 
   // 轮询
@@ -1228,7 +1237,7 @@
 
         // 设置 transform
         versionInline.style.transform = "translate(1px, -2px)";
-        versionInline.style.padding ="2px 6px"
+        versionInline.style.padding = "2px 6px"
       }
     } catch (e) { /* ignore */ }
   }

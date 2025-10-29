@@ -79,7 +79,7 @@
   --badge-shadow-hover: rgba(237, 238, 243, 0.2);
 
   --scroll-bg: rgba(0, 127, 129, 0.4);
-  
+
   --glass-bg: rgba(255, 255, 255, 0.02);
   --glass-border: rgba(255, 255, 255, 0.04);
   --glass-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
@@ -1058,6 +1058,12 @@ main {
   border-radius: 8px;
   /* font-style: italic; */
   align-items: center;
+}
+
+.cm-panels.cm-panels-top {
+  border: none;
+  background: var(--gutter-bg) !important;
+  box-shadow: 1px 1px 10px var(--accent-light);
 }
 
 

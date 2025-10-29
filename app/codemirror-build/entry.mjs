@@ -503,7 +503,6 @@ const placeholderPlugin = ViewPlugin.fromClass(class {
 });
 
 // -------------------- 全局暴露 --------------------
-let searchView = null; // 全局引用当前编辑器视图
 
 window.CodeMirror = {
   createEditor: (container, initialValue = '', theme = 'light') => {
@@ -535,20 +534,11 @@ window.CodeMirror = {
       parent: container
     });
 
-    // 全局引用当前视图（用于搜索面板）
-    searchView = view;
-
-    // 绑定搜索按钮事件（开关搜索面板）
-    const searchBtn = document.getElementById('searchBtn');
-    if (searchBtn) {
-      searchBtn.addEventListener('click', () => {
-        if (searchView && searchPanelOpen(searchView.state)) {
-          closeSearchPanel(searchView);
-        } else if (searchView) {
-          openSearchPanel(searchView);
-        }
-      });
-    }
+    // 全局暴露变量
+    window.searchView = view; 
+    window.openSearchPanel = openSearchPanel;
+    window.closeSearchPanel = closeSearchPanel;
+    window.searchPanelOpen = searchPanelOpen;
 
     return view;
   },
