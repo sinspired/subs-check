@@ -17,7 +17,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/shirou/gopsutil/v4/process"
-	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/config"	
 	"github.com/sinspired/subs-check/save/method"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -45,6 +45,35 @@ func RunSubStoreService(ctx context.Context) {
 	}
 }
 
+func migrateOldFiles(srcDir, fileName, targetDir string) error {
+	src := filepath.Join(srcDir, fileName)
+	dst := filepath.Join(targetDir, fileName)
+
+	// 目标已存在 -> 不做任何操作
+	if _, err := os.Stat(dst); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("检查目标文件失败: %w", err)
+	}
+
+	// 源不存在 -> 不做任何操作
+	if _, err := os.Stat(src); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("检查源文件失败: %w", err)
+	}
+
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("读取源文件失败: %w", err)
+	}
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("写入目标文件失败: %w", err)
+	}
+	return nil
+}
+
 func startSubStore(ctx context.Context) error {
 	saver, err := method.NewLocalSaver()
 	if err != nil {
@@ -67,6 +96,12 @@ func startSubStore(ctx context.Context) error {
 	if err := os.MkdirAll(substoreDir, 0755); err != nil {
 		return fmt.Errorf("创建sub-store目录失败: %w", err)
 	}
+
+	// 迁移sub-store配置
+	if err := migrateOldFiles(saver.OutputPath, "sub-store.json", substoreDir); err != nil {
+		slog.Error("迁移sub-store配置失败")
+	}
+
 	nodePath := filepath.Join(substoreDir, nodeName)
 	jsPath := filepath.Join(substoreDir, "sub-store.bundle.js")
 	overYamlPath := filepath.Join(substoreDir, "ACL4SSR_Online_Full.yaml")
