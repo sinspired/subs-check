@@ -452,38 +452,24 @@ const placeholderMatcher = new MatchDecorator({
   // 统一匹配 YAML 值部分（仅捕获值，不含键名）
   regexp: new RegExp(
     [
-      // 1) 列表项：- openai / - "openai"
+        // 匹配所有 configCompletions 中的 label，如果紧跟 : ，捕获 label
+      '(?<=^[ \t]*)(print-progress|progress-mode|update|update-on-startup|cron-check-update|prerelease|update-timeout|concurrent|alive-concurrent|speed-concurrent|media-concurrent|check-interval|cron-expression|success-limit|timeout|speed-test-url|min-speed|download-timeout|download-mb|total-speed-limit|threshold|rename-node|node-prefix|node-type|media-check|platforms|drop-bad-cf-nodes|enhanced-tag|maxmind-db-path|output-dir|keep-success-proxies|listen-port|enable-web-ui|api-key|callback-script|apprise-api-server|recipient-url|notify-title|sub-store-port|sub-store-path|mihomo-overwrite-url|singbox-latest|singbox-old|sub-store-sync-cron|sub-store-produce-cron|sub-store-push-service|save-method|webdav-url|webdav-username|webdav-password|github-gist-id|github-token|github-api-mirror|worker-url|worker-token|s3-endpoint|s3-access-id|s3-secret-key|s3-bucket|s3-use-ssl|s3-bucket-lookup|system-proxy|github-proxy|ghproxy-group|sub-urls-retry|success-rate|sub-urls-remote|sub-urls)(?=\s*:\s*)',
+
+  
+      // 列表项：- openai / - "openai"
       '(?<=^[ \\t]*-\\s*["\']?)(openai|iprisk|gemini|tiktok|youtube|disney|netflix|x|ss|trojan|vless|vmess|shadowsocks)(?=["\']?\\b)',
 
-      // 2) version: 1.12 / "1.12"
-      '(?<=^[ \\t]*version:\\s*["\']?)([0-9]+(?:\\.[0-9]+)*)(?=["\']?)',
-
-      // 3) progress-mode: auto / stage
-      '(?<=^[ \\t]*progress-mode:\\s*["\']?)(auto|stage)(?=["\']?)',
-
-      // 4) sub-store-path: "xxx" / api-key: "xxx" 仅匹配非空
-      '(?<=^[ \\t]*(?:sub-store-path|api-key):\\s*["\'])([^"\']+)(?=["\'])',
-
-      // 5) save-method: local / gist / r2 / webdav / s3
-      '(?<=^[ \\t]*save-method:\\s*["\']?)(local|gist|r2|webdav|s3)(?=["\']?)',
-
-      // 6) 订阅备注（行内 #...）
+      // 订阅备注（行内 #...）
       '(?<=^[ \\t]*-\\s*[^#]*)(#.*$)',
 
-      // 7) 列表项中匹配 {Ymd} 或 {Y}-{m}-{d}
+      // 列表项中匹配 {Ymd} 或 {Y}-{m}-{d}
       '(?<=^[ \\t]*-\\s*[^#]*)({Ymd}|{Y}-{m}-{d})(?=[^#]*(?:#.*)?$)',
 
-      // 8) threshold 1 0.75 0.50 0.25
+      // threshold 1 0.75 0.50 0.25
       '(?<=^[ \\t]*threshold:\\s*["\']?)(1.00|0.75|0.50|0.25|1|0.5)(?=["\']?)',
 
-      // 9) 列表项：- tgram / dingtalk / mailto
+      // 列表项：- tgram / dingtalk / mailto
       '(?<=^[ \\t]*-\\s*["\']?)(tgram|dingtalk|mailto)(?=["\']?\\b)',
-
-      // 10 quoted) cron-check-update|cron-expression|sub-store-sync-cron: "xxx"
-      '(?<=^[ \\t]*(?:cron-check-update|cron-expression|sub-store-sync-cron|sub-store-produce-cron):\\s*["\'])(\\s*[0-9*/][0-9,/-]*(?:\\s+[0-9*/][0-9,/-]*){4}\\s*)(?=["\'])',
-
-      // 10 unquoted) cron-check-update|cron-expression|sub-store-sync-cron: xxx
-      '(?<=^[ \\t]*(?:cron-check-update|cron-expression|sub-store-sync-cron|sub-store-produce-cron):\\s+)(\\s*[0-9*/][0-9,/-]*(?:\\s+[0-9*/][0-9,/-]*){4}\\s*)(?=\\s*(?:#.*)?$)',
 
     ].join('|'),
     'mg'

@@ -24,7 +24,7 @@
   --gutter-bg: rgba(241, 237, 226, 0.2);
   --edit-shadow: rgba(2, 6, 23, 0.06);
   --edit-shadow-hover: rgba(2, 6, 23, 0.2);
-  --placehoder-bg: rgba(0, 171, 166, 0.6);
+  --placehoder-bg: rgba(173, 173, 173, 0.2);
 
   --window-shadow: rgba(2, 6, 23, 0.06);
   --window-shadow-hover: rgba(2, 6, 23, 0.2);
@@ -1054,7 +1054,7 @@ main {
   border: 1px solid var(--bg);
   color: var(--fg) !important;
   font-weight: 500;
-  padding: 0 6px;
+  padding: 0 4px;
   border-radius: 8px;
   /* font-style: italic; */
   align-items: center;
