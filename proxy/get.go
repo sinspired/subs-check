@@ -369,6 +369,7 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 // 1. 如果配置了代理，优先使用代理请求原始 URL（默认行为，无需显式设置）
 // 2. 如果失败，再尝试 githubproxy，但明确禁用代理直连
 func GetDateFromSubs(subURL string) ([]byte, error) {
+	// TODO:支持{Ymd} 和 {Y}-{m}-{d} 占位符
 	maxRetries := config.GlobalConfig.SubUrlsReTry
 	retryInterval := config.GlobalConfig.SubUrlsRetryInterval
 	if retryInterval == 0 {

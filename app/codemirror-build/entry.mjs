@@ -479,15 +479,20 @@ const placeholderMatcher = new MatchDecorator({
       // 9) 列表项：- tgram / dingtalk / mailto
       '(?<=^[ \\t]*-\\s*["\']?)(tgram|dingtalk|mailto)(?=["\']?\\b)',
 
-      // 10) cron表达式
-      '(?<=^[ \\t]*(cron-check-update|cron-expression|sub-store-sync-cron|sub-store-produce-cron):\\s*["\'])([^"\']+)(?=["\'])',
+      // 10 quoted) cron-check-update|cron-expression|sub-store-sync-cron: "xxx"
+      '(?<=^[ \\t]*(?:cron-check-update|cron-expression|sub-store-sync-cron|sub-store-produce-cron):\\s*["\'])(\\s*[0-9*/][0-9,/-]*(?:\\s+[0-9*/][0-9,/-]*){4}\\s*)(?=["\'])',
+
+      // 10 unquoted) cron-check-update|cron-expression|sub-store-sync-cron: xxx
+      '(?<=^[ \\t]*(?:cron-check-update|cron-expression|sub-store-sync-cron|sub-store-produce-cron):\\s+)(\\s*[0-9*/][0-9,/-]*(?:\\s+[0-9*/][0-9,/-]*){4}\\s*)(?=\\s*(?:#.*)?$)',
 
     ].join('|'),
     'mg'
   ),
 
   decoration: match => {
-    const value = match[1] || match[2] || match[3] || match[4] || match[5] || match[6] || match[7] || match[8] || match[9] || match[10];
+    // match[0] 是整体，后面是各个捕获组：直接取第一个非空值，避免硬编码索引
+    const groups = Array.from(match).slice(1);
+    const value = groups.find(g => g !== undefined && g !== null && g !== '');
     if (!value) return null;
     return Decoration.replace({
       widget: new PlaceholderWidget(value),
