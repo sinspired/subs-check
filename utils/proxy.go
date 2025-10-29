@@ -28,7 +28,7 @@ func GetSysProxy() bool {
 	proxy := findAvailableSysProxy(config.GlobalConfig.SystemProxy, commonProxies)
 	if proxy != "" {
 		// 清理所有可能的代理环境变量
-		unsetAllProxyEnvVars()
+		UnsetAllProxyEnvVars()
 
 		// 设置 HTTP 和 HTTPS 代理
 		os.Setenv("HTTP_PROXY", proxy)
@@ -44,13 +44,13 @@ func GetSysProxy() bool {
 	}
 
 	// 如果没有找到可用代理，清理所有代理环境变量
-	unsetAllProxyEnvVars()
+	UnsetAllProxyEnvVars()
 	slog.Debug("未找到可用代理，清除代理环境变量")
 	return false
 }
 
-// unsetAllProxyEnvVars 清理所有可能的代理环境变量
-func unsetAllProxyEnvVars() {
+// UnsetAllProxyEnvVars 清理所有可能的代理环境变量
+func UnsetAllProxyEnvVars() {
 	for _, key := range []string{
 		"HTTP_PROXY", "http_proxy",
 		"HTTPS_PROXY", "https_proxy",
