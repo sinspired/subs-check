@@ -14,7 +14,6 @@ import (
 )
 
 // GetSysProxy 检测系统代理是否可用，并设置环境变量
-// GetSysProxy 检测系统代理是否可用，并设置环境变量
 func GetSysProxy() bool {
 	commonProxies := []string{
 		"http://127.0.0.1:7890",

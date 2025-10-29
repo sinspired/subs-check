@@ -236,6 +236,8 @@ func tryUpdateOnce(parentCtx context.Context, updater *selfupdate.Updater, lates
 
 // detectLatestRelease 探测最新版本并判断是否需要更新
 func (app *App) detectLatestRelease() (*selfupdate.Release, bool, error) {
+	// 探测前检测系统代理环境
+	isSysProxy = utils.GetSysProxy()
 	ctx := context.Background()
 	client, err := newGitHubClient()
 	if err != nil {
@@ -247,8 +249,6 @@ func (app *App) detectLatestRelease() (*selfupdate.Release, bool, error) {
 		return nil, false, fmt.Errorf("创建探测用 updater 失败: %w", err)
 	}
 
-	// 探测前确保系统代理环境
-	isSysProxy = utils.GetSysProxy()
 	latest, found, err := updaterProbe.DetectLatest(ctx, repo)
 	if err != nil {
 		return nil, false, fmt.Errorf("检查更新失败: %w", err)
