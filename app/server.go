@@ -262,12 +262,18 @@ func (app *App) getLogs(c *gin.Context) {
 
 // getLogs 获取版本号
 func (app *App) getVersion(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"version": app.version})
+	c.JSON(http.StatusOK, gin.H{
+		"version":        app.version,
+		"latest_version": app.latestVersion, // 建议用下划线，避免 JS 解析问题})
+	})
 }
 
 // getOriginVersion 获取原始程序版本
 func (app *App) getOriginVersion(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"version": app.originVersion})
+	c.JSON(http.StatusOK, gin.H{
+		"version":        app.originVersion,
+		"latest_version": app.latestVersion, // 建议用下划线，避免 JS 解析问题
+	})
 }
 
 // getSingboxVersions 获取 singbox 版本

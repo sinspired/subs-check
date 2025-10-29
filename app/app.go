@@ -39,6 +39,7 @@ type App struct {
 	cron          *cron.Cron    // crontab调度器
 	version       string
 	originVersion string
+	latestVersion string
 	httpServer    *http.Server
 	stopCh        <-chan struct{}
 
@@ -428,7 +429,10 @@ func (app *App) SetupUpdateTasks() {
 	} else {
 		detectDone := make(chan struct{})
 		go func() {
-			app.detectLatestRelease()
+			_, _, err := app.detectLatestRelease()
+			if err != nil {
+				slog.Warn("检查更新错误", "error", err)
+			}
 			close(detectDone)
 		}()
 		<-detectDone
@@ -461,7 +465,10 @@ func (app *App) SetupUpdateTasks() {
 				slog.Debug("定时检查新版本...")
 				detectDone := make(chan struct{})
 				go func() {
-					app.detectLatestRelease()
+					_, _, err := app.detectLatestRelease()
+					if err != nil {
+						slog.Warn("检查更新错误", "error", err)
+					}
 					close(detectDone)
 				}()
 				<-detectDone

@@ -27,6 +27,7 @@
   const loginModal = $('#loginModal');
   const statusEl = $('#status');
   const logContainer = $('#logContainer');
+  const versionBadge = $('#version-badge');
   const versionLogin = $(`#version-login`);
   const versionInline = $('#versionInline');
   const toggleBtn = $('#btnToggleCheck');
@@ -1216,6 +1217,19 @@
       if (r.payload?.version && versionInline) {
         versionInline.textContent = r.payload.version;
       }
+      if (r.payload?.latest_version && r.payload.version != r.payload?.latest_version) {
+        versionInline.textContent = `有新版本 v${r.payload?.latest_version}`;
+        versionInline.classList.add("new-version");
+        versionInline.title = `有新版本 v${r.payload?.latest_version}`;
+        versionInline.addEventListener("click", function () {
+          const url = "https://github.com/sinspired/subs-check/releases/latest";
+          window.open(url, "_blank");
+        });
+
+        // 设置 transform
+        versionInline.style.transform = "translate(1px, -2px)";
+        versionInline.style.padding ="2px 6px"
+      }
     } catch (e) { /* ignore */ }
   }
   // 登录界面时获取版本号（不需要验证）
@@ -1225,6 +1239,14 @@
       const data = await r.json();
       versionLogin.textContent = data.version;
 
+      if (data?.latest_version && data.version != data?.latest_version) {
+        versionBadge.classList.add("new-version");
+        versionBadge.title = `有新版本 v${data.latest_version}`;
+        versionBadge.addEventListener("click", function () {
+          const url = "https://github.com/sinspired/subs-check/releases/latest";
+          window.open(url, "_blank");
+        });
+      }
     } catch (e) {
       console.error('获取版本失败', e);
     }
