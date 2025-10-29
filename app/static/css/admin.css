@@ -838,7 +838,7 @@ main {
   overflow-y: auto;
   overflow-x: hidden;
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: 14px;
   white-space: pre-wrap;
   word-break: break-word;
   cursor: pointer;
