@@ -99,3 +99,21 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=target,annotation-index.org.opencontainers.image.description=高性能[测活、测速、媒体检测]代理检测筛选工具，支持100-1000高并发低占用运行，大幅减少数倍检测时间。
+
+  notify: # Telegram 通知
+    runs-on: ubuntu-latest
+    needs: [releaser, docker] # 依赖前两个 job，确保成功后运行
+    steps:
+      - name: Send Telegram message on push
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }} # 频道 ID
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }} # Bot Token
+          format: markdown
+          message: |
+            🚀 *subs-check 更新*
+
+            版本: `${{ github.ref_name }}`
+            项目: `${{ github.repository }}`
+
+            🔗 [查看详情](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
