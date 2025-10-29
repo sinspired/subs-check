@@ -462,13 +462,32 @@ const placeholderMatcher = new MatchDecorator({
       '(?<=^[ \\t]*progress-mode:\\s*["\']?)(auto|stage)(?=["\']?)',
 
       // 4) sub-store-path: "xxx" / api-key: "xxx" 仅匹配非空
-      '(?<=^[ \\t]*(?:sub-store-path|api-key):\\s*["\'])([^"\']+)(?=["\'])'
+      '(?<=^[ \\t]*(?:sub-store-path|api-key):\\s*["\'])([^"\']+)(?=["\'])',
+
+      // 5) save-method: local / gist / r2 / webdav / s3
+      '(?<=^[ \\t]*save-method:\\s*["\']?)(local|gist|r2|webdav|s3)(?=["\']?)',
+
+      // 6) 订阅备注（行内 #...）
+      '(?<=^[ \\t]*-\\s*[^#]*)(#.*$)',
+
+      // 7) 列表项中匹配 {Ymd} 或 {Y}-{m}-{d}
+      '(?<=^[ \\t]*-\\s*[^#]*)({Ymd}|{Y}-{m}-{d})(?=[^#]*(?:#.*)?$)',
+
+      // 8) threshold 1 0.75 0.50 0.25
+      '(?<=^[ \\t]*threshold:\\s*["\']?)(1.00|0.75|0.50|0.25|1|0.5)(?=["\']?)',
+
+      // 9) 列表项：- tgram / dingtalk / mailto
+      '(?<=^[ \\t]*-\\s*["\']?)(tgram|dingtalk|mailto)(?=["\']?\\b)',
+
+      // 10) cron表达式
+      '(?<=^[ \\t]*(cron-check-update|cron-expression|sub-store-sync-cron|sub-store-produce-cron):\\s*["\'])([^"\']+)(?=["\'])',
+
     ].join('|'),
     'mg'
   ),
 
   decoration: match => {
-    const value = match[1] || match[2] || match[3] || match[4];
+    const value = match[1] || match[2] || match[3] || match[4] || match[5] || match[6] || match[7] || match[8] || match[9] || match[10];
     if (!value) return null;
     return Decoration.replace({
       widget: new PlaceholderWidget(value),
