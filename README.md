@@ -1,6 +1,6 @@
 <!-- 项目logo -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sinspired/subs-check/main/doc/logo/logo.png" alt="Project Logo" width="200"/>
+  <img src="doc/logo/logo.png" alt="Project Logo" width="200"/>
 </p>
 
 <h2 align="center">Subs-Check</h1>
@@ -27,15 +27,14 @@ High-performance proxy subscription checker.
 - 📂 [**历次检测可用节点保存与加载**](#5-保存并加载-历次-检测可用节点)  
 - 🌐 [**自动检测代理**](#-优化系统代理和github代理设置可选)
 - 💻 支持 **Windows / Linux / macOS 多平台部署**，Windows 可搭配 [GUI程序](https://github.com/sinspired/SubsCheck-Win-GUI) 使用
----
+
 ### 🔄 版本特性
 
 - 💡 自 **v1.9.0** 起：支持 [自动检查更新，无缝升级新版本](#6-自动检查更新无缝升级新版本)。  
 - 📱 自 **v1.9.3** 起：全新设计的 [WebUI管理界面](#-重新设计的-webui管理界面)，优化小屏设备访问体验。  
-- 📦 自 **v1.9.7** 起：支持 [自动生成开箱即用的singbox配置](#新增分享菜单项自动生成singbox订阅支持一键分享)（兼容 iOS 设备），支持在 WebUI 一键复制订阅。  
+- 📦 自 **v1.9.7** 起：支持 [自动生成开箱即用的singbox配置](#-sing-box-订阅带分流规则)（兼容 iOS 设备），支持在 WebUI 一键复制订阅。  
 - ⚙️ 自 **v1.9.9** 起：升级配置编辑器，支持根据 `config.yaml` 自动补全。
 
----
 🐳 教程：[Docker 部署](#-docker-运行)  
 
 📘 教程：[随时随地管理 subs-check 检测与订阅](#️-cloudflare-tunnel隧道映射外网访问)  
@@ -65,25 +64,25 @@ High-performance proxy subscription checker.
 
 ## 📸 预览
 
-![preview](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/preview.png)  
-![result](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/results.png)
+![preview](./doc/images/preview.png)  
+![result](./doc/images/results.png)
 
 ### ✨ 重新设计的 WebUI管理界面
 
-![login](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/login.png)
-![WebUI](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/WebUI.png)
+![login](./doc/images/login-white.png)
+![WebUI](./doc/images/WebUI.png)
 
 ### ⚡新增分享菜单项，自动生成singbox订阅，支持一键分享
 
 |                                  |                                        |                                        |
 | -------------------------------- | -------------------------------------- | -------------------------------------- |
-|![sub-store](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/sub-store.png) | ![shareMenu](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/share-menu.png)  |  ![singbox](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/sing-box.png)  |
+|![sub-store](./doc/images/sub-store.png) | ![shareMenu](./doc/images/share-menu.png)  |  ![singbox](./doc/images/sing-box.png)  |
 
 |                                  |                                        |
 | -------------------------------- | -------------------------------------- |
-| ![tgram](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/tgram.png) | ![dingtalk](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/images/dingtalk.png) |
+| ![tgram](./doc/images/tgram.png) | ![dingtalk](./doc/images/dingtalk.png) |
 
-## **✨ 新增功能和性能优化**
+## **✨ 新增功能和性能优化详情**
 
 ### 1. 测活-测速-媒体检测，分阶段流水线，自适应高并发
 
@@ -184,9 +183,7 @@ prerelease: false
 
 ## ⚙️ Cloudflare Tunnel（隧道映射）外网访问
 
-> WebUI 经过全新设计，添加了 **logo 图标** 等资源，因此需要比原版额外增加一个 **static 资源路径**。
-
----
+> WebUI 经过全新设计，添加了 **logo 图标** 等资源，本地化了所有用到的依赖，因此需要比原版额外增加一个 **`static` 资源路径**。
 
 ### 🚀 简易操作步骤
 
@@ -206,8 +203,6 @@ prerelease: false
      - `path` → (可选) 路径  
    - 服务类型 → 选择 **`http`**  
    - URL → 输入 `localhost:8199` 或 `localhost:8299`  
-
----
 
 ### 📒 需添加的路由条目
 
@@ -289,7 +284,7 @@ github-proxy: "https://custom-domain/raw/"
 
 > **⚠️ 注意：** 避免使用 Speedtest 或 Cloudflare 下载链接，因为部分节点会屏蔽测速网站。
 
-1. 将 [worker.js](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/cloudflare/worker.js) 部署到 Cloudflare Workers。
+1. 将 [worker.js](./doc/cloudflare/worker.js) 部署到 Cloudflare Workers。
 2. 绑定自定义域名（避免被节点屏蔽）。
 3. 在配置文件中设置 `speed-test-url` 为你的 Workers 地址：
 
@@ -399,16 +394,24 @@ docker run --name apprise \
 ### 📝 配置文件中配置通知
 
 ```yaml
+# 配置通知渠道，将自动发送检测结果通知，新版本通知
+# 复制 https://vercel.com/new/clone?repository-url=https://github.com/sinspired/apprise_vercel 到浏览器
+# 按提示部署，建议为 Vercel 项目设置自定义域名（国内访问 Vercel 可能受限）。
 # 填写搭建的apprise API server 地址
 # https://notify.xxxx.us.kg/notify
 apprise-api-server: ""
-# 填写通知目标
+# 通知渠道
 # 支持100+ 个通知渠道，详细格式请参照 https://github.com/caronc/apprise
-recipient-url: 
-  # telegram格式：tgram://{bot_token}/{chat_id}
+# 格式参考：
+# telegram格式：tgram://{bot_token}/{chat_id}
+# 钉钉格式：dingtalk://{Secret}@{ApiKey}
+# QQ邮箱：mailto://QQ号:邮箱授权码@qq.com
+# 邮箱授权码：设置-账号-POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务-开通-继续获取授权码
+recipient-url:
   # - tgram://xxxxxx/-1002149239223
-  # 钉钉格式：dingtalk://{Secret}@{ApiKey}
   # - dingtalk://xxxxxx@xxxxxxx
+  # - mailto://xxxxx:xxxxxx@qq.com
+
 # 自定义通知标题
 notify-title: "🔔 节点状态更新"
 ```
@@ -420,16 +423,16 @@ notify-title: "🔔 节点状态更新"
 > **⚠️ 注意：** 选择保存方法时，请更改 `save-method` 配置。
 
 - **本地保存**：保存到 `./output` 文件夹。
-- **R2**：保存到 Cloudflare R2 [配置方法](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/r2.md)。
-- **Gist**：保存到 GitHub Gist [配置方法](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/gist.md)。
-- **WebDAV**：保存到 WebDAV 服务器 [配置方法](https://raw.githubusercontent.com/sinspired/subs-check/main/doc/webdav.md)。
+- **R2**：保存到 Cloudflare R2 [配置方法](./doc/r2.md)。
+- **Gist**：保存到 GitHub Gist [配置方法](./doc/gist.md)。
+- **WebDAV**：保存到 WebDAV 服务器 [配置方法](./doc/webdav.md)。
 - **S3**：保存到 S3 对象存储。
 
 ## 📲 订阅使用方法
 
 > **💡 提示：** 内置 Sub-Store，可生成多种订阅格式；高级玩家可DIY很多功能
 
-**🚀 通用订阅**
+### 🚀 通用订阅 (不带分流规则)
 
 ```bash
 # 通用订阅
@@ -463,27 +466,66 @@ http://127.0.0.1:8299/download/sub?target=Surge
 http://127.0.0.1:8299/download/sub?target=Surfboard
 ```
 
-**🚀 Mihomo/Clash 订阅（带规则）：**
-> 默认使用 `https://raw.githubusercontent.com/sinspired/override-hub/refs/heads/main/yaml/ACL4SSR_Online_Full.yaml` 覆写  
-可在配置中更改 `mihomo-overwrite-url`。
+### 🚀 Mihomo/Clash 订阅（带分流规则）
+
+默认使用 `https://raw.githubusercontent.com/sinspired/override-hub/refs/heads/main/yaml/ACL4SSR_Online_Full.yaml` 覆写  
+
+> 可在配置中更改 `mihomo-overwrite-url`。
 
 ```bash
+# 如果未设置 sub-store-path
 http://127.0.0.1:8299/api/file/mihomo
 
-# 如果设置了(建议设置) sub-store-path: "/path"
+# 如果设置了 sub-store-path: "/path" (建议设置)
 http://127.0.0.1:8299/path/api/file/mihomo
 ```
 
-## 🌐 内置端口说明
+### 🚀 sing-box 订阅（带分流规则）
+
+本项目默认支持 `sing-box` 最新版(`1.12`)和 `1.11(ios兼容)` 规则，可自定义规则，
+
+✨ 在 WebUI 点击 `分享订阅` 获取订阅链接
+
+![singbox-shareMenu](./doc/images/share-menu.png)
+
+请查阅最新 [配置文件示例](https://github.com/sinspired/subs-check/blob/main/config/config.example.yaml)
+
+```yaml
+# singbox规则配置
+# json文件为分流规则
+# js脚本用来根据规则对节点进行处理
+# singbox每个版本规则不兼容，须根据客户端版本选择合适的规则
+# singbox 最新版
+singbox-latest:
+  version: 1.12
+  json:
+    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json
+  js:
+    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.js
+
+# singbox 1.11 版本配置（iOS 兼容）
+singbox-old:
+  version: 1.11
+  json:
+    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.json
+  js:
+    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.js
+```
+
+## 🌐 内置文件服务
 >
-> subs-check本身会在测试完后保存三个文件到output目录中；output目录中的所有文件会被8199端口提供文件服务
+> subs-check 会在测试完后保存三个文件到output目录中；output目录中的所有文件会被8199端口提供文件服务
+
+⚠️ 为方便使用cloudflare隧道映射等方案在公网访问，本项目取消了对output文件夹的无限制访问，需在/sub前面添加apikey才可访问，例如：`http://127.0.0.1:8199/{apikey}/sub/all.yaml`
+
+💡 如确有需求或仅在内网运行，本项目提供了一个替代方案：可将文件放进 `output/more` 文件夹下，通过: `http://127.0.0.1:8199/more/文件名` 访问
 
 | 服务地址                                 | 格式说明                       | 来源说明                      |
 | ---------------------------------------- | ------------------------------ | ----------------------------- |
-| `http://127.0.0.1:8199/sub/all.yaml`     | Clash 格式节点                 | 由subs-check直接生成          |
-| `http://127.0.0.1:8199/sub/mihomo.yaml`  | 带分流规则的 Mihomo/Clash 订阅 | 从上方sub-store转换下载后提供 |
-| `http://127.0.0.1:8199/sub/base64.txt`   | Base64 格式订阅                | 从上方sub-store转换下载后提供 |
-| `http://127.0.0.1:8199/sub/history.yaml` | Clash 格式节点                 | 历次检测可用节点              |
+| `http://127.0.0.1:8199/{apikey}/sub/all.yaml`     | Clash 格式节点                 | 由subs-check直接生成          |
+| `http://127.0.0.1:8199/{apikey}/sub/mihomo.yaml`  | 带分流规则的 Mihomo/Clash 订阅 | 从上方sub-store转换下载后提供 |
+| `http://127.0.0.1:8199/{apikey}/sub/base64.txt`   | Base64 格式订阅                | 从上方sub-store转换下载后提供 |
+| `http://127.0.0.1:8199/{apikey}/sub/history.yaml` | Clash 格式节点                 | 历次检测可用节点              |
 
 ## 🗺️ 架构图
 

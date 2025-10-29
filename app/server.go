@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -53,16 +54,28 @@ func (app *App) initHTTPServer() error {
 	// CM佬用的布丁狗
 	router.StaticFile("/sub/bdg.yaml", saver.OutputPath+"/bdg.yaml")
 
+	if config.GlobalConfig.APIKey == "" {
+		if apiKey := os.Getenv("API_KEY"); apiKey != "" {
+			config.GlobalConfig.APIKey = apiKey
+		} else {
+			config.GlobalConfig.APIKey = GenerateSimpleKey()
+			slog.Warn("未设置api-key，已生成一个随机api-key", "api-key", config.GlobalConfig.APIKey)
+		}
+	}
+
+	// 提供一个相对安全暴露 output 文件夹的方案
+	router.Static("/"+config.GlobalConfig.APIKey+"/sub/", saver.OutputPath)
+
+	// 提供一个用户自由分享暴露的文件夹
+	moreDIR := filepath.Join(saver.OutputPath, "more")
+	if err := os.MkdirAll(moreDIR, 0755); err != nil {
+		return fmt.Errorf("创建用户自定义目录失败: %w", err)
+	}
+
+	router.Static("/more/", saver.OutputPath+"/more")
+
 	// 根据配置决定是否启用Web控制面板
 	if config.GlobalConfig.EnableWebUI {
-		if config.GlobalConfig.APIKey == "" {
-			if apiKey := os.Getenv("API_KEY"); apiKey != "" {
-				config.GlobalConfig.APIKey = apiKey
-			} else {
-				config.GlobalConfig.APIKey = GenerateSimpleKey()
-				slog.Warn("未设置api-key，已生成一个随机api-key", "api-key", config.GlobalConfig.APIKey)
-			}
-		}
 		slog.Info("启用Web控制面板", "path", "http://ip:port/admin", "api-key", config.GlobalConfig.APIKey)
 
 		// 设置模板加载 - 只有在启用Web控制面板时才加载
