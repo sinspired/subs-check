@@ -261,6 +261,11 @@ const yamlConfigSource = (context) => {
   const trimmed = lineText.trimLeft();
   const textBeforeCursor = lineText.slice(0, col);
 
+  // 如果当前行是注释行，直接返回 null，不触发补全
+  if (/^\s*#/.test(lineText)) {
+    return null;
+  }
+
   // 检查是否在数组项位置（行以 - 开头，缩进匹配）
   if (trimmed.startsWith('- ') || trimmed.startsWith('-')) {
     // 动态计算缩进级别（查找父键的缩进）
@@ -451,10 +456,9 @@ class PlaceholderWidget extends WidgetType {
 }
 
 const placeholderMatcher = new MatchDecorator({
-  // 统一匹配 YAML 值部分（仅捕获值，不含键名）
   regexp: new RegExp(
     [
-      // 匹配所有 configCompletions 中的 label，如果紧跟 : ，捕获 label
+      // 匹配所有 configCompletions 中的 label
       '(?<=^[ \t]*)(print-progress|progress-mode|update|update-on-startup|cron-check-update|prerelease|update-timeout|concurrent|alive-concurrent|speed-concurrent|media-concurrent|check-interval|cron-expression|success-limit|timeout|speed-test-url|min-speed|download-timeout|download-mb|total-speed-limit|threshold|rename-node|node-prefix|node-type|media-check|platforms|drop-bad-cf-nodes|enhanced-tag|maxmind-db-path|output-dir|keep-success-proxies|listen-port|enable-web-ui|api-key|callback-script|apprise-api-server|recipient-url|notify-title|sub-store-port|sub-store-path|mihomo-overwrite-url|singbox-latest|singbox-old|sub-store-sync-cron|sub-store-produce-cron|sub-store-push-service|save-method|webdav-url|webdav-username|webdav-password|github-gist-id|github-token|github-api-mirror|worker-url|worker-token|s3-endpoint|s3-access-id|s3-secret-key|s3-bucket|s3-use-ssl|s3-bucket-lookup|system-proxy|github-proxy|ghproxy-group|sub-urls-retry|success-rate|sub-urls-remote|sub-urls)(?=\s*:\s*)',
 
       // 列表项：- openai / - "openai"
@@ -472,12 +476,18 @@ const placeholderMatcher = new MatchDecorator({
       // 列表项：- tgram / dingtalk / mailto
       '(?<=^[ \\t]*-\\s*["\']?)(tgram|dingtalk|mailto)(?=["\']?\\b)',
 
+      // // 注释内的占位符 {xxx},避免小白误解
+      // '(?<=#.*?)(\{[A-Za-z0-9_-]+\})(?=.*$)',
+      // // 注释内仅中文占位符 {中文...}
+      // '(?<=#.*?)(\{[\u4e00-\u9fa5]+\})(?=.*$)',
+
+      // 注释内的占位符 {xxx},避免小白误解（支持中英文混合）
+      '(?<=#.*?)(\{[A-Za-z0-9\u4e00-\u9fa5_-]+\})(?=.*$)',
     ].join('|'),
     'mg'
   ),
 
   decoration: match => {
-    // match[0] 是整体，后面是各个捕获组：直接取第一个非空值，避免硬编码索引
     const groups = Array.from(match).slice(1);
     const value = groups.find(g => g !== undefined && g !== null && g !== '');
     if (!value) return null;
@@ -487,6 +497,7 @@ const placeholderMatcher = new MatchDecorator({
     });
   }
 });
+
 
 const placeholderPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
@@ -535,7 +546,7 @@ window.CodeMirror = {
     });
 
     // 全局暴露变量
-    window.searchView = view; 
+    window.searchView = view;
     window.openSearchPanel = openSearchPanel;
     window.closeSearchPanel = closeSearchPanel;
     window.searchPanelOpen = searchPanelOpen;
