@@ -104,7 +104,7 @@ func startSubStore(ctx context.Context) error {
 
 	nodePath := filepath.Join(substoreDir, nodeName)
 	jsPath := filepath.Join(substoreDir, "sub-store.bundle.js")
-	overYamlPath := filepath.Join(substoreDir, "ACL4SSR_Online_Full.yaml")
+	overYamlPath := filepath.Join(saver.OutputPath, "ACL4SSR_Online_Full.yaml")
 	logPath := filepath.Join(substoreDir, "sub-store.log")
 
 	killNode := func() {
