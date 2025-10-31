@@ -17,7 +17,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/shirou/gopsutil/v4/process"
-	"github.com/sinspired/subs-check/config"	
+	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -204,7 +204,14 @@ func startSubStore(ctx context.Context) error {
 	cmd.Env = append(cmd.Env, "SUB_STORE_BODY_JSON_LIMIT=30mb")
 	// 增加自定义访问路径
 	if config.GlobalConfig.SubStorePath != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("SUB_STORE_FRONTEND_BACKEND_PATH=%s", config.GlobalConfig.SubStorePath))
+		// 如果不是以 "/" 开头，则补上
+		if !strings.HasPrefix(config.GlobalConfig.SubStorePath, "/") {
+			config.GlobalConfig.SubStorePath = "/" + config.GlobalConfig.SubStorePath
+		}
+
+		cmd.Env = append(cmd.Env,
+			fmt.Sprintf("SUB_STORE_FRONTEND_BACKEND_PATH=%s", config.GlobalConfig.SubStorePath),
+		)
 		cmd.Env = append(cmd.Env, "SUB_STORE_BACKEND_MERGE=1")
 	}
 

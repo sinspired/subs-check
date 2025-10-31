@@ -198,6 +198,9 @@ func UpdateSubStore(yamlData []byte) {
 	// 设置基础URL
 	BaseURL = fmt.Sprintf("http://127.0.0.1%s", config.GlobalConfig.SubStorePort)
 	if config.GlobalConfig.SubStorePath != "" {
+		if !strings.HasPrefix(config.GlobalConfig.SubStorePath, "/") {
+			config.GlobalConfig.SubStorePath = "/" + config.GlobalConfig.SubStorePath
+		}
 		BaseURL = fmt.Sprintf("%s%s", BaseURL, config.GlobalConfig.SubStorePath)
 	}
 
