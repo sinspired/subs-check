@@ -19,6 +19,7 @@ import (
 
 	"github.com/juju/ratelimit"
 	"github.com/metacubex/mihomo/adapter"
+	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/metacubex/mihomo/constant"
 	"github.com/oschwald/maxminddb-golang/v2"
 	"github.com/sinspired/subs-check/assets"
@@ -879,12 +880,12 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 // ProxyClient 定义 http.client
 type ProxyClient struct {
 	*http.Client
-	proxy     constant.Proxy
 	Transport *StatsTransport
 }
 
 // CreateClient 创建 mihomo 客户端
 func CreateClient(mapping map[string]any) *ProxyClient {
+	resolver.DisableIPv6 = false
 	proxy, err := adapter.ParseProxy(mapping)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("底层mihomo创建代理Client失败: %v", err))
@@ -893,18 +894,25 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 
 	baseTransport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// 为拨号单独设置超时，避免连接泄露
+			dialCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+
 			host, portStr, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
 			}
+
 			var u16Port uint16
 			if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
 				u16Port = uint16(port)
 			}
-			return proxy.DialContext(ctx, &constant.Metadata{
+
+			conn, err := proxy.DialContext(dialCtx, &constant.Metadata{
 				Host:    host,
 				DstPort: u16Port,
 			})
+			return conn, err
 		},
 		DisableKeepAlives: true,
 	}
@@ -915,31 +923,26 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 			Timeout:   time.Duration(config.GlobalConfig.Timeout) * time.Millisecond,
 			Transport: statsTransport,
 		},
-		proxy:     proxy,
 		Transport: statsTransport,
 	}
 }
 
-// Close closes the proxy client and cleans up resources
 // 防止底层库有一些泄露，所以这里手动关闭
 func (pc *ProxyClient) Close() {
 	if pc.Client != nil {
 		pc.Client.CloseIdleConnections()
-	}
-	if pc.proxy != nil {
-		pc.proxy.Close()
 	}
 	if pc.Transport != nil {
 		TotalBytes.Add(atomic.LoadUint64(&pc.Transport.BytesRead))
 		// 清理Transport资源
 		if pc.Transport.Base != nil {
 			if transport, ok := pc.Transport.Base.(*http.Transport); ok {
+				time.Sleep(2 * time.Second)
 				transport.CloseIdleConnections()
 			}
 		}
 	}
 	pc.Client = nil
-	pc.proxy = nil
 	pc.Transport = nil
 }
 
