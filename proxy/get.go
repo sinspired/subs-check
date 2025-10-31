@@ -33,6 +33,10 @@ var (
 )
 
 func GetProxies() ([]map[string]any, int, int, error) {
+	// 初始化系统代理和 githubproxy
+	IsSysProxyAvailable = utils.GetSysProxy()
+	IsGhProxyAvailable = utils.GetGhProxy()
+
 	// 解析本地与远程订阅清单
 	subUrls, localNum, remoteNum, historyNum := resolveSubUrls()
 	args := []any{}
@@ -47,10 +51,6 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	}
 	args = append(args, "总计", len(subUrls))
 	slog.Info("订阅链接数量", args...)
-
-	// 初始化系统代理和 githubproxy
-	IsSysProxyAvailable = utils.GetSysProxy()
-	IsGhProxyAvailable = utils.GetGhProxy()
 
 	// 仅在有值时打印
 	if IsSysProxyAvailable {
@@ -266,7 +266,8 @@ func resolveSubUrls() ([]string, int, int, int) {
 
 	if len(config.GlobalConfig.SubUrlsRemote) != 0 {
 		for _, subURLRemote := range config.GlobalConfig.SubUrlsRemote {
-			if remote, err := fetchRemoteSubUrls(subURLRemote); err != nil {
+			warped := utils.WarpURL(subURLRemote, IsGhProxyAvailable)
+			if remote, err := fetchRemoteSubUrls(warped); err != nil {
 				slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
 			} else {
 				remoteNum += len(remote)
