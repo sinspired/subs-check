@@ -126,7 +126,7 @@ func GetProxies() ([]map[string]any, int, int, error) {
 
 			data, err := GetDateFromSubs(url)
 			if err != nil {
-				slog.Error(fmt.Sprintf("获取订阅链接错误跳过: %v", err))
+				slog.Error(fmt.Sprintf("%v", err))
 				return
 			}
 
@@ -165,7 +165,7 @@ func GetProxies() ([]map[string]any, int, int, error) {
 
 			proxyInterface, ok := con["proxies"]
 			if !ok || proxyInterface == nil {
-				slog.Error(fmt.Sprintf("订阅链接没有proxies: %s", url))
+				slog.Warn(fmt.Sprintf("订阅链接为空: %s", url))
 				return
 			}
 
@@ -447,12 +447,6 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 			warped := utils.WarpURL(candURL, IsGhProxyAvailable)
 			localTryUrls = append(localTryUrls, tryURL{warped, false})
 
-			// 如果配置了 githubproxy，如果失败,则尝试一次 原始url
-			if IsGhProxyAvailable {
-				slog.Debug(fmt.Sprintf("添加原始链接到重试列表作为最后直连尝试: %s", candURL))
-				localTryUrls = append(localTryUrls, tryURL{candURL, false})
-			}
-
 			for _, t := range localTryUrls {
 				subURL, err := u.Parse(t.url)
 				if err != nil {
@@ -503,8 +497,21 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
-					lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d", req.URL.String(), resp.StatusCode)
-					continue
+					
+					switch resp.StatusCode {
+					case http.StatusNotFound, http.StatusGone, http.StatusUnavailableForLegalReasons:
+						lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d，\033[33m链接已失效！\033[0m", req.URL.String(), resp.StatusCode)
+						// 404, 410, 451 → 明确失效
+						return nil, lastErr
+					case http.StatusUnauthorized, http.StatusForbidden:
+						// 401, 403 → 可能是权限问题，提示用户
+						slog.Warn(fmt.Sprintf("订阅链接: %s 权限不足或需要认证", req.URL.String()))
+						return nil, lastErr
+					default:
+						// 其他情况（如 5xx）继续重试
+						lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d", req.URL.String(), resp.StatusCode)
+						continue
+					}
 				}
 
 				body, err := io.ReadAll(resp.Body)
