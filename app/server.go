@@ -21,6 +21,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var initAPIKey string
+var geneAPIKey string
+
 // initHTTPServer 初始化HTTP服务器
 func (app *App) initHTTPServer() error {
 	gin.SetMode(gin.ReleaseMode)
@@ -54,12 +57,14 @@ func (app *App) initHTTPServer() error {
 	// CM佬用的布丁狗
 	router.StaticFile("/sub/bdg.yaml", saver.OutputPath+"/bdg.yaml")
 
+	initAPIKey = config.GlobalConfig.APIKey
 	if config.GlobalConfig.APIKey == "" {
 		if apiKey := os.Getenv("API_KEY"); apiKey != "" {
 			config.GlobalConfig.APIKey = apiKey
 		} else {
 			config.GlobalConfig.APIKey = GenerateSimpleKey()
-			slog.Warn("未设置api-key，已生成一个随机api-key", "api-key", config.GlobalConfig.APIKey)
+			geneAPIKey = config.GlobalConfig.APIKey
+			slog.Warn("未设置api-key，已随机生成", "api-key", config.GlobalConfig.APIKey)
 		}
 	}
 
@@ -96,7 +101,7 @@ func (app *App) initHTTPServer() error {
 		})
 
 		// 整个目录直接挂在根路径
-		router.Use(app.authMiddleware(config.GlobalConfig.APIKey)) // 根路径加认证
+		router.Use(app.authMiddleware()) // 根路径加认证
 		// router.Static("/", saver.OutputPath)
 
 		router.GET("/all.yaml", func(c *gin.Context) {
@@ -114,7 +119,7 @@ func (app *App) initHTTPServer() error {
 
 		// API路由
 		api := router.Group("/api")
-		api.Use(app.authMiddleware(config.GlobalConfig.APIKey)) // 添加认证中间件
+		api.Use(app.authMiddleware()) // 添加认证中间件
 		{
 			// 配置相关API
 			api.GET("/config", app.getConfig)
@@ -153,10 +158,11 @@ func (app *App) initHTTPServer() error {
 }
 
 // authMiddleware API认证中间件
-func (app *App) authMiddleware(key string) gin.HandlerFunc {
+func (app *App) authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKey := c.GetHeader("X-API-Key")
-		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(key)) != 1 {
+		// 动态获取apikey
+		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(config.GlobalConfig.APIKey)) != 1 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "无效的API密钥"})
 			return
 		}

@@ -102,6 +102,19 @@ func (app *App) initConfigWatcher() error {
 							return
 						}
 
+						if config.GlobalConfig.APIKey == "" {
+							if apiKey := os.Getenv("API_KEY"); apiKey != "" {
+								config.GlobalConfig.APIKey = apiKey
+							} else {
+								if initAPIKey != "" {
+									config.GlobalConfig.APIKey = GenerateSimpleKey()
+									slog.Warn("未设置api-key，key，已随机生成", "api-key", config.GlobalConfig.APIKey)
+								} else {
+									config.GlobalConfig.APIKey = geneAPIKey
+									slog.Debug("保留首次运行自动生成的API key", "api-key", config.GlobalConfig.APIKey)
+								}
+							}
+						}
 						// 检查cron表达式或检测间隔是否变化
 						if oldCronExpr != config.GlobalConfig.CronExpression ||
 							oldInterval != config.GlobalConfig.CheckInterval {
