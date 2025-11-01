@@ -1280,6 +1280,7 @@
   // 勾选保存密钥时自动登录
   (async function initAutoLogin() {
     try {
+      getPublicVersion()
       const saved = safeLS('subscheck_api_key');
       if (saved) {
         sessionKey = saved;
