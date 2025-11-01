@@ -9,7 +9,8 @@
     version: '/api/version',
     trigger: '/api/trigger-check',
     forceClose: '/api/force-close',
-    singboxVersions: '/api/singbox-versions'
+    singboxVersions: '/api/singbox-versions',
+    publicVersion: '/admin/version'
   };
 
   const REFRESH_STATUS_INTERVAL_MS = 1000;
@@ -1244,7 +1245,7 @@
   // 登录界面时获取版本号（不需要验证）
   async function getPublicVersion() {
     try {
-      const r = await fetch('/version');   // 注意这里是 /version
+      const r = await fetch(API.publicVersion);   // 注意这里是 /version
       const data = await r.json();
       versionLogin.textContent = data.version;
 

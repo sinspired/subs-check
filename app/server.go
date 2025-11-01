@@ -90,15 +90,15 @@ func (app *App) initHTTPServer() error {
 		staticSub, _ := fs.Sub(staticFS, "static")
 		router.StaticFS("/static", http.FS(staticSub))
 
-		// 暴露版本号
-		router.GET("/version", app.getOriginVersion)
-
 		// 配置页面
 		router.GET("/admin", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin.html", gin.H{
 				"configPath": app.configPath,
 			})
 		})
+
+		// 暴露版本号
+		router.GET("/admin/version", app.getOriginVersion)
 
 		// 整个目录直接挂在根路径
 		router.Use(app.authMiddleware()) // 根路径加认证
