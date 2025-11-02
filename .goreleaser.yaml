@@ -18,6 +18,8 @@ builds:
     # 启用 CGO_ENABLED=0 来创建静态链接的二进制文件
     env:
       - CGO_ENABLED=0
+      # 实验特性
+      - GOEXPERIMENT=greenteagc,jsonv2
     # 目标操作系统
     goos:
       - linux
