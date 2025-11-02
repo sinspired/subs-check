@@ -207,6 +207,8 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	wg.Wait()
 	close(proxyChan)
 	<-done // 等待收集完成
+	// 释放运行时内存
+	runtime.GC()
 
 	// 构建 succed 节点的 server 集合
 	succedSet := make(map[string]struct{}, len(succedProxies))
@@ -497,7 +499,7 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
-					
+
 					switch resp.StatusCode {
 					case http.StatusNotFound, http.StatusGone, http.StatusUnavailableForLegalReasons:
 						lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d，\033[33m链接已失效！\033[0m", req.URL.String(), resp.StatusCode)

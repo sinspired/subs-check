@@ -1,6 +1,9 @@
 package platform
 
-import "net/http"
+import (
+	"io"
+	"net/http"
+)
 
 func CheckNetflix(httpClient *http.Client) (bool, error) {
 	// https://www.netflix.com/title/81280792
@@ -14,6 +17,7 @@ func CheckNetflix(httpClient *http.Client) (bool, error) {
 		return false, err
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) // 确保读完
 
 	if resp.StatusCode == 200 {
 		return true, nil

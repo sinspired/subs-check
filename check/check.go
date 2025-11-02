@@ -363,7 +363,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	}
 
 	// 启动流水线阶段
-	go pc.distributeJobs(proxies, ctx, cancel)
+	go pc.distributeJobs(proxies, ctx)
 	go pc.runAliveStage(ctx)
 	go pc.runSpeedStage(ctx, cancel)
 	pc.runMediaStageAndCollect(geoDB, ctx)
@@ -398,7 +398,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 }
 
 // distributeJobs 分发代理任务
-func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Context, cancel context.CancelFunc) {
+func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Context) {
 	defer close(pc.aliveChan)
 
 	concurrency := min(pc.proxyCount, pc.aliveConcurrent)
@@ -877,13 +877,14 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 	}
 }
 
-// ProxyClient 定义 http.client
 type ProxyClient struct {
 	*http.Client
 	Transport *StatsTransport
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
-// CreateClient 创建 mihomo 客户端
+// CreateClient 创建独立的代理客户端
 func CreateClient(mapping map[string]any) *ProxyClient {
 	resolver.DisableIPv6 = false
 	proxy, err := adapter.ParseProxy(mapping)
@@ -892,58 +893,73 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		return nil
 	}
 
+	// 全局可取消的 context
+	pcCtx, pcCancel := context.WithCancel(context.Background())
+
 	baseTransport := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// 为拨号单独设置超时，避免连接泄露
-			dialCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
+		DialContext: func(reqCtx context.Context, network, addr string) (net.Conn, error) {
+			// 合并请求级别 ctx 和全局 ctx
+			mergedCtx, mergedCancel := context.WithCancel(reqCtx)
+			defer mergedCancel()
+			go func() {
+				<-pcCtx.Done() // 当 ProxyClient.Close() 调用时触发
+				mergedCancel()
+			}()
 
 			host, portStr, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
 			}
-
 			var u16Port uint16
 			if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
 				u16Port = uint16(port)
 			}
-
-			conn, err := proxy.DialContext(dialCtx, &constant.Metadata{
+			return proxy.DialContext(mergedCtx, &constant.Metadata{
 				Host:    host,
 				DstPort: u16Port,
 			})
-			return conn, err
 		},
-		DisableKeepAlives: true,
+		DisableKeepAlives:   false,
+		Proxy:               nil,
+		IdleConnTimeout:     15 * time.Second,
+		MaxIdleConnsPerHost: 20,
 	}
 
 	statsTransport := &StatsTransport{Base: baseTransport}
+
 	return &ProxyClient{
 		Client: &http.Client{
 			Timeout:   time.Duration(config.GlobalConfig.Timeout) * time.Millisecond,
 			Transport: statsTransport,
 		},
 		Transport: statsTransport,
+		ctx:       pcCtx,
+		cancel:    pcCancel,
 	}
 }
 
-// 防止底层库有一些泄露，所以这里手动关闭
+// Close 关闭客户端，释放所有资源
 func (pc *ProxyClient) Close() {
+	if pc.cancel != nil {
+		pc.cancel() // 取消所有挂起的请求和拨号
+	}
 	if pc.Client != nil {
 		pc.Client.CloseIdleConnections()
 	}
 	if pc.Transport != nil {
 		TotalBytes.Add(atomic.LoadUint64(&pc.Transport.BytesRead))
-		// 清理Transport资源
 		if pc.Transport.Base != nil {
 			if transport, ok := pc.Transport.Base.(*http.Transport); ok {
-				time.Sleep(2 * time.Second)
 				transport.CloseIdleConnections()
+				transport.DisableKeepAlives = true
 			}
 		}
 	}
+
 	pc.Client = nil
 	pc.Transport = nil
+	pc.ctx = nil
+	pc.cancel = nil
 }
 
 // countingReadCloser 封装了 io.ReadCloser，用于统计读取的字节数。

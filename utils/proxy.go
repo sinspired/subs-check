@@ -217,6 +217,7 @@ func isSysProxyAvailable(proxy string) bool {
 				return
 			}
 			defer resp.Body.Close()
+			io.Copy(io.Discard, resp.Body) // 确保读完
 			results <- (resp.StatusCode == expect)
 		}(t.url, t.expectCode)
 	}

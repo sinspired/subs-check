@@ -1,9 +1,9 @@
 package platform
 
 import (
+	"io"
 	"log/slog"
 	"net/http"
-
 )
 
 func CheckGoogle(httpClient *http.Client) (bool, error) {
@@ -40,5 +40,6 @@ func checkGoogleEndpoint(httpClient *http.Client, url string, statusCode int) (b
 		return false, err
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) // 确保读完
 	return resp.StatusCode == statusCode, nil
 }
