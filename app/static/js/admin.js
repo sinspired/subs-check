@@ -821,7 +821,7 @@
   }
 
   // 进度更新
-  function updateProgress(total, processed, available) {
+  function updateProgress(total, processed, available, checking, lastChecked) {
     total = Number(total) || 0;
     processed = Number(processed) || 0;
     const pct = total > 0 ? Math.min(100, (processed / total) * 100) : 0;
@@ -850,11 +850,11 @@
     }
 
     if (statusEl) {
-      if (processed < total && total > 0) {
+      if (processed < total && total > 0 && checking) {
         statusEl.textContent = `运行中,预计剩余: ${etaText}`;
         statusEl.title = etaText ? `预计剩余: ${etaText}` : '';
         statusEl.className = 'muted status-label status-checking';
-      } else if (processed >= total && total > 0) {
+      } else if ((processed >= total && total > 0) || lastChecked) {
         statusEl.textContent = '检测完成';
         statusEl.title = '';
         statusEl.className = 'muted status-label status-logged';
@@ -907,11 +907,12 @@
 
       const d = r.payload || {};
       const checking = !!d.checking;
+      const lastChecked = d.lastCheck && d.lastCheck.total > 0 && d.lastCheck.available > 0;
 
       if (checking) {
         updateToggleUI('checking');
         showProgressUI(true); // 开始检测：显示进度区域
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0);
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked);
         // 检测中时隐藏上次结果
         hideLastCheckResult();
 
@@ -923,14 +924,14 @@
         // 检测结束：先隐藏进度相关 UI（再显示上次检测结果）
         showProgressUI(false);
         updateToggleUI('idle');
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0);
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked);
         if (progressBar && (d.progress === 0 || d.proxyCount === 0)) {
           progressBar.value = 0;
         }
 
         // 检测结束时显示上次检测结果
         // 优先使用后端返回的数据，如果没有则使用前端记录
-        if (d.lastCheck && d.lastCheck.duration && d.lastCheck.available) {
+        if (lastChecked) {
           showLastCheckResult({
             lastCheckTime: d.lastCheck.time || d.lastCheck.timestamp,
             duration: d.lastCheck.duration,
