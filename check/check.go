@@ -946,6 +946,18 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 	pc.Client = &http.Client{
 		Timeout:   time.Duration(config.GlobalConfig.Timeout) * time.Millisecond,
 		Transport: statsTransport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("重定向次数过多")
+			}
+			if strings.Contains(req.URL.Host, "cdn") {
+				if len(via) > 0 {
+					originalURL := via[0].URL.String()
+					slog.Info(fmt.Sprintf("重定向提示: 原始URL [%s] -> 中间URL [%s]", originalURL, req.URL.String()))
+				}
+			}
+			return nil
+		},
 	}
 	pc.Transport = statsTransport
 	pc.ctx = pcCtx
