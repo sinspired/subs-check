@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/metacubex/mihomo/common/convert"
 	"github.com/sinspired/subs-check/config"
 )
 
@@ -22,13 +23,20 @@ func GetSysProxy() bool {
 		"http://127.0.0.1:8080",
 		"http://127.0.0.1:10808",
 		"http://127.0.0.1:10809",
+		"http://127.0.0.1:3067",
+		"http://127.0.0.1:2080",
+		"http://127.0.0.1:1194",
+		"http://127.0.0.1:1082",
+		"http://127.0.0.1:12334",
+		"http://127.0.0.1:12335",
 	}
+
+	// 清理所有可能的代理环境变量
+	UnsetAllProxyEnvVars()
 
 	// 优先使用配置文件中的代理，其次检测常见端口
 	proxy := findAvailableSysProxy(config.GlobalConfig.SystemProxy, commonProxies)
 	if proxy != "" {
-		// 清理所有可能的代理环境变量
-		UnsetAllProxyEnvVars()
 
 		// 设置 HTTP 和 HTTPS 代理
 		os.Setenv("HTTP_PROXY", proxy)
@@ -191,7 +199,7 @@ func isSysProxyAvailable(proxy string) bool {
 	}
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   5 * time.Second,
+		Timeout:   8 * time.Second,
 	}
 
 	// 检测目标列表
@@ -211,7 +219,13 @@ func isSysProxyAvailable(proxy string) bool {
 		wg.Add(1)
 		go func(target string, expect int) {
 			defer wg.Done()
-			resp, err := client.Get(target)
+			req, err := http.NewRequest("GET", target, nil)
+			if err != nil {
+				results <- false
+				return
+			}
+			req.Header.Set("User-Agent", convert.RandUserAgent())
+			resp, err := client.Do(req)
 			if err != nil {
 				results <- false
 				return
