@@ -79,6 +79,23 @@ func (app *App) initHTTPServer() error {
 
 	router.Static("/more/", saver.OutputPath+"/more")
 
+	// 通过认证访问的订阅文件
+	router.Use(app.authMiddleware()) // 根路径加认证
+	// router.Static("/", saver.OutputPath)
+
+	router.GET("/all.yaml", func(c *gin.Context) {
+		c.File(saver.OutputPath + "/all.yaml")
+	})
+	router.GET("/history.yaml", func(c *gin.Context) {
+		c.File(saver.OutputPath + "/history.yaml")
+	})
+	router.GET("/base64.yaml", func(c *gin.Context) {
+		c.File(saver.OutputPath + "/base64.yaml")
+	})
+	router.GET("/mihomo.yaml", func(c *gin.Context) {
+		c.File(saver.OutputPath + "/mihomo.yaml")
+	})
+
 	// 根据配置决定是否启用Web控制面板
 	if config.GlobalConfig.EnableWebUI {
 		slog.Info("启用Web控制面板", "path", "http://ip:port/admin", "api-key", config.GlobalConfig.APIKey)
@@ -99,23 +116,6 @@ func (app *App) initHTTPServer() error {
 
 		// 暴露版本号
 		router.GET("/admin/version", app.getOriginVersion)
-
-		// 整个目录直接挂在根路径
-		router.Use(app.authMiddleware()) // 根路径加认证
-		// router.Static("/", saver.OutputPath)
-
-		router.GET("/all.yaml", func(c *gin.Context) {
-			c.File(saver.OutputPath + "/all.yaml")
-		})
-		router.GET("/history.yaml", func(c *gin.Context) {
-			c.File(saver.OutputPath + "/history.yaml")
-		})
-		router.GET("/base64.yaml", func(c *gin.Context) {
-			c.File(saver.OutputPath + "/base64.yaml")
-		})
-		router.GET("/mihomo.yaml", func(c *gin.Context) {
-			c.File(saver.OutputPath + "/mihomo.yaml")
-		})
 
 		// API路由
 		api := router.Group("/api")
