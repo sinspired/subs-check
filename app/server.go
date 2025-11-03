@@ -69,15 +69,139 @@ func (app *App) initHTTPServer() error {
 	}
 
 	// 提供一个相对安全暴露 output 文件夹的方案
-	router.Static("/"+config.GlobalConfig.APIKey+"/sub/", saver.OutputPath)
+	// router.Static("/"+config.GlobalConfig.APIKey+"/sub/", saver.OutputPath)
 
-	// 提供一个用户自由分享暴露的文件夹
-	moreDIR := filepath.Join(saver.OutputPath, "more")
-	if err := os.MkdirAll(moreDIR, 0755); err != nil {
-		return fmt.Errorf("创建用户自定义目录失败: %w", err)
+		// 提供一个用户自由分享目录
+	router.GET("/"+config.GlobalConfig.APIKey+"/sub/*filepath", func(c *gin.Context) {
+		relPath := c.Param("filepath") // 带前缀的路径，如 "/abc.txt"
+
+		if relPath == "" || relPath == "/" {
+			// 访问根目录时返回 HTML 提示页
+			c.Header("Content-Type", "text/html; charset=utf-8")
+			c.String(200, `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Subs-Check 文件分享（通过apikey验证）</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background: #fafafa; }
+        .box { padding: 1.5em; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
+        h2 { color: #d9534f; }
+        p { margin: 0.5em 0; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>⚠️ 注意</h2>
+        <p>您正在访问 <b>/output</b>。</p>
+        <p>请输入正确的文件名访问，例如：<code>{api-key}/sub/filename.txt</code></p>
+		</br>
+		<p>请勿将本网址分享给他人，建议仅在局域网使用！</p>
+		</br>
+		<p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code> 即可</p>
+		</br>
+		<p>🚨 请勿在该目录存放敏感文件，请勿暴露外网，以免资源泄露！</p>
+    </div>
+</body>
+</html>
+        `)
+			return
+		}
+
+		// 拼接绝对路径
+		absPath := filepath.Join(saver.OutputPath, relPath)
+
+		// 判断文件是否存在
+		info, err := os.Stat(absPath)
+		if err != nil || info.IsDir() {
+			c.String(404, "❌ 文件不存在")
+			return
+		}
+
+		// 存在则返回文件
+		c.File(absPath)
+	})
+
+	// 提供一个用户自由分享目录
+	router.GET("/more/*filepath", func(c *gin.Context) {
+		relPath := c.Param("filepath") // 带前缀的路径，如 "/abc.txt"
+
+		if relPath == "" || relPath == "/" {
+			// 访问根目录时返回 HTML 提示页
+			c.Header("Content-Type", "text/html; charset=utf-8")
+			c.String(200, `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Subs-Check 文件分享</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background: #fafafa; }
+        .box { padding: 1.5em; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
+        h2 { color: #d9534f; }
+        p { margin: 0.5em 0; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>⚠️ 注意</h2>
+        <p>您正在访问 <b>用户自由分享目录</b>。</p>
+        <p>请输入正确的文件名访问，例如：<code>/more/filename.txt</code></p>
+        <p>文件内容未经过审核，请谨慎下载。</p>
+		<p>建议仅在局域网使用！</p>
+		</br>
+		<p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code> 即可</p>
+		</br>
+		<p>🚨 请勿在该目录存放敏感文件，请勿暴露外网，以免资源泄露！</p>
+    </div>
+</body>
+</html>
+        `)
+			return
+		}
+
+		// 拼接绝对路径
+		absPath := filepath.Join(saver.OutputPath, "more", relPath)
+
+		// 判断文件是否存在
+		info, err := os.Stat(absPath)
+		if err != nil || info.IsDir() {
+			c.String(404, "❌ 文件不存在")
+			return
+		}
+
+		// 存在则返回文件
+		c.File(absPath)
+	})
+
+	// 通过配置控制webUI开关
+	if !config.GlobalConfig.EnableWebUI {
+		slog.Info("Web控制面板已禁用,仍可通过apiKey访问订阅文件", "api-key", config.GlobalConfig.APIKey)
+		router.GET("/admin", func(c *gin.Context) {
+			c.String(http.StatusForbidden, "Web 控制面板已禁用，请在配置中启用 EnableWebUI")
+		})
+	} else {
+		// 根据配置决定是否启用Web控制面板
+		slog.Info("启用Web控制面板", "path", "http://ip:port/admin", "api-key", config.GlobalConfig.APIKey)
+
+		// 设置模板加载 - 只有在启用Web控制面板时才加载
+		router.SetHTMLTemplate(template.Must(template.New("").ParseFS(configFS, "templates/*.html")))
+
+		// 挂载嵌入的 static 目录
+		staticSub, _ := fs.Sub(staticFS, "static")
+		router.StaticFS("/static", http.FS(staticSub))
+
+		// 配置页面
+		router.GET("/admin", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin.html", gin.H{
+				"configPath": app.configPath,
+			})
+		})
+
+		// 暴露版本号
+		router.GET("/admin/version", app.getOriginVersion)
 	}
-
-	router.Static("/more/", saver.OutputPath+"/more")
 
 	// 通过认证访问的订阅文件
 	router.Use(app.authMiddleware()) // 根路径加认证
@@ -98,25 +222,6 @@ func (app *App) initHTTPServer() error {
 
 	// 根据配置决定是否启用Web控制面板
 	if config.GlobalConfig.EnableWebUI {
-		slog.Info("启用Web控制面板", "path", "http://ip:port/admin", "api-key", config.GlobalConfig.APIKey)
-
-		// 设置模板加载 - 只有在启用Web控制面板时才加载
-		router.SetHTMLTemplate(template.Must(template.New("").ParseFS(configFS, "templates/*.html")))
-
-		// 挂载嵌入的 static 目录
-		staticSub, _ := fs.Sub(staticFS, "static")
-		router.StaticFS("/static", http.FS(staticSub))
-
-		// 配置页面
-		router.GET("/admin", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin.html", gin.H{
-				"configPath": app.configPath,
-			})
-		})
-
-		// 暴露版本号
-		router.GET("/admin/version", app.getOriginVersion)
-
 		// API路由
 		api := router.Group("/api")
 		api.Use(app.authMiddleware()) // 添加认证中间件
@@ -136,8 +241,6 @@ func (app *App) initHTTPServer() error {
 			// 日志相关API
 			api.GET("/logs", app.getLogs)
 		}
-	} else {
-		slog.Info("Web控制面板已禁用")
 	}
 
 	// 启动HTTP服务器
