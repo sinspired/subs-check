@@ -507,7 +507,7 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 					} else {
 						lastErr = fmt.Errorf("订阅链接: %s 请求失败: %v", req.URL.String(), err)
 					}
-					// lastErr = err
+					lastErr = err
 					continue
 				}
 				defer resp.Body.Close()
@@ -516,16 +516,16 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 
 					switch resp.StatusCode {
 					case http.StatusNotFound, http.StatusGone, http.StatusUnavailableForLegalReasons:
-						lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d，\033[33m链接已失效！\033[0m", req.URL.String(), resp.StatusCode)
-						// 404, 410, 451 → 明确失效
+						lastErr = fmt.Errorf("\033[31m订阅链接已失效！\033[0m%s [系统代理: %v, 状态码: %d]", t.url, t.useProxy, resp.StatusCode)
+						// 404, 410, 451 → 明确失效, 终止对当前 candURL 的所有尝试
 						return nil, lastErr
 					case http.StatusUnauthorized, http.StatusForbidden:
-						// 401, 403 → 可能是权限问题，提示用户
-						slog.Warn(fmt.Sprintf("订阅链接: %s 权限不足或需要认证", req.URL.String()))
+						// 401, 403 → 可能是权限问题, 终止对当前 candURL 的所有尝试
+						lastErr = fmt.Errorf("订阅: %s 权限不足或需要认证 (状态码: %d)", req.URL.String(), resp.StatusCode)
 						return nil, lastErr
 					default:
 						// 其他情况（如 5xx）继续重试
-						lastErr = fmt.Errorf("订阅链接: %s 返回状态码: %d", req.URL.String(), resp.StatusCode)
+						lastErr = fmt.Errorf("订阅: %s 状态码: %d", req.URL.String(), resp.StatusCode)
 						continue
 					}
 				}
