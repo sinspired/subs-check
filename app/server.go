@@ -70,20 +70,22 @@ func (app *App) initHTTPServer() error {
 
 	// 提供一个相对安全暴露 output 文件夹的方案
 	// router.Static("/"+config.GlobalConfig.APIKey+"/sub/", saver.OutputPath)
+	if config.GlobalConfig.SharePassword != "" {
+		slog.Info("启用订阅分享目录", "path", fmt.Sprintf("http://ip:port/%s/sub/filename.yaml", config.GlobalConfig.SharePassword))
 
 		// 提供一个用户自由分享目录
-	router.GET("/"+config.GlobalConfig.APIKey+"/sub/*filepath", func(c *gin.Context) {
-		relPath := c.Param("filepath") // 带前缀的路径，如 "/abc.txt"
+		router.GET("/"+config.GlobalConfig.SharePassword+"/sub/*filepath", func(c *gin.Context) {
+			relPath := c.Param("filepath") // 带前缀的路径，如 "/abc.txt"
 
-		if relPath == "" || relPath == "/" {
-			// 访问根目录时返回 HTML 提示页
-			c.Header("Content-Type", "text/html; charset=utf-8")
-			c.String(200, `
+			if relPath == "" || relPath == "/" {
+				// 访问根目录时返回 HTML 提示页
+				c.Header("Content-Type", "text/html; charset=utf-8")
+				c.String(200, `
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Subs-Check 文件分享（通过apikey验证）</title>
+    <title>Subs-Check 文件分享（通过分享密码）</title>
     <style>
         body { font-family: sans-serif; margin: 2em; background: #fafafa; }
         .box { padding: 1.5em; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
@@ -95,9 +97,9 @@ func (app *App) initHTTPServer() error {
     <div class="box">
         <h2>⚠️ 注意</h2>
         <p>您正在访问 <b>/output</b>。</p>
-        <p>请输入正确的文件名访问，例如：<code>{api-key}/sub/filename.txt</code></p>
+        <p>请输入正确的文件名访问，例如：<code>{share-password}/sub/filename.txt</code></p>
 		</br>
-		<p>请勿将本网址分享给他人，建议仅在局域网使用！</p>
+		<p>请勿将本网址随意分享给他人！</p>
 		</br>
 		<p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code> 即可</p>
 		</br>
@@ -106,22 +108,23 @@ func (app *App) initHTTPServer() error {
 </body>
 </html>
         `)
-			return
-		}
+				return
+			}
 
-		// 拼接绝对路径
-		absPath := filepath.Join(saver.OutputPath, relPath)
+			// 拼接绝对路径
+			absPath := filepath.Join(saver.OutputPath, relPath)
 
-		// 判断文件是否存在
-		info, err := os.Stat(absPath)
-		if err != nil || info.IsDir() {
-			c.String(404, "❌ 文件不存在")
-			return
-		}
+			// 判断文件是否存在
+			info, err := os.Stat(absPath)
+			if err != nil || info.IsDir() {
+				c.String(404, "❌ 文件不存在")
+				return
+			}
 
-		// 存在则返回文件
-		c.File(absPath)
-	})
+			// 存在则返回文件
+			c.File(absPath)
+		})
+	}
 
 	// 提供一个用户自由分享目录
 	router.GET("/more/*filepath", func(c *gin.Context) {

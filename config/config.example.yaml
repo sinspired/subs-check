@@ -100,6 +100,13 @@ enable-web-ui: true
 # 配置文件为空时，支持使用环境变量设置 API_KEY
 api-key: ""
 
+# 如果你要分享订阅，请设置订阅分享密码
+# 订阅访问地址格式：http://127.0.0.1:8199/{share-password}/sub/filename.yaml
+# 文件位置放在 output/filename.yaml
+# 比如: http://127.0.0.1:8199/{share-password}/sub/all.yaml
+share-password: ""
+
+
 # 以节点IP查询位置重命名节点
 # 质量差的节点可能造成IP查询失败，造成整体检查速度稍微变慢，默认true
 rename-node: true

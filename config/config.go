@@ -74,6 +74,7 @@ type Config struct {
 	NodeType             []string `yaml:"node-type"`
 	EnableWebUI          bool     `yaml:"enable-web-ui"`
 	APIKey               string   `yaml:"api-key"`
+	SharePassword        string   `yaml:"share-password"`
 	CallbackScript       string   `yaml:"callback-script"`
 	SystemProxy          string   `yaml:"system-proxy"`
 	GithubProxy          string   `yaml:"github-proxy"`
