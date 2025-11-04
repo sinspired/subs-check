@@ -96,7 +96,7 @@ func (app *App) initHTTPServer() error {
 <body>
     <div class="box">
         <h2>⚠️ 注意</h2>
-        <p>您正在访问 <b>/output</b>。</p>
+        <p>您正在访问 <b>/output/</b>。</p>
         <p>请输入正确的文件名访问，例如：<code>{share-password}/sub/filename.txt</code></p>
 		</br>
 		<p>请勿将本网址随意分享给他人！</p>
@@ -151,7 +151,6 @@ func (app *App) initHTTPServer() error {
         <h2>⚠️ 注意</h2>
         <p>您正在访问 <b>用户自由分享目录</b>。</p>
         <p>请输入正确的文件名访问，例如：<code>/more/filename.txt</code></p>
-        <p>文件内容未经过审核，请谨慎下载。</p>
 		<p>建议仅在局域网使用！</p>
 		</br>
 		<p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code> 即可</p>
