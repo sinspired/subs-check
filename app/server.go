@@ -70,6 +70,7 @@ func (app *App) initHTTPServer() error {
 
 	// 提供一个相对安全暴露 output 文件夹的方案
 	// router.Static("/"+config.GlobalConfig.APIKey+"/sub/", saver.OutputPath)
+	// TODO: 不使用output目录,使用output/subs目录
 	if config.GlobalConfig.SharePassword != "" {
 		slog.Info("启用订阅分享目录", "path", fmt.Sprintf("http://ip:port/%s/sub/filename.yaml", config.GlobalConfig.SharePassword))
 

@@ -899,9 +899,10 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 
 type ProxyClient struct {
 	*http.Client
-	Transport *StatsTransport
-	ctx       context.Context
-	cancel    context.CancelFunc
+	Transport   *StatsTransport
+	ctx         context.Context
+	cancel      context.CancelFunc
+	mihomoProxy constant.Proxy
 }
 
 // CreateClient 创建独立的代理客户端
@@ -914,7 +915,11 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 	}
 
 	// 创建 ProxyClient 实例
-	pc := &ProxyClient{}
+	pc := &ProxyClient{
+		mihomoProxy: proxy,
+	}
+
+	proxy.Close() // 关闭临时代理实例，释放资源
 
 	// 全局可取消的 context
 	pcCtx, pcCancel := context.WithCancel(context.Background())
@@ -937,7 +942,7 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 			if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
 				u16Port = uint16(port)
 			}
-			return proxy.DialContext(mergedCtx, &constant.Metadata{
+			return pc.mihomoProxy.DialContext(mergedCtx, &constant.Metadata{
 				Host:    host,
 				DstPort: u16Port,
 			})
@@ -945,7 +950,7 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		DisableKeepAlives:   false,
 		Proxy:               nil,
 		IdleConnTimeout:     90 * time.Second,
-		MaxIdleConnsPerHost: 2,
+		MaxIdleConnsPerHost: 5,
 	}
 
 	statsTransport := &StatsTransport{Base: baseTransport}
@@ -970,12 +975,17 @@ func (pc *ProxyClient) Close() {
 	if pc.Client != nil {
 		pc.Client.CloseIdleConnections()
 	}
+
+	if pc.mihomoProxy != nil {
+		pc.mihomoProxy.Close()
+		pc.mihomoProxy = nil
+	}
+
 	if pc.Transport != nil {
 		TotalBytes.Add(atomic.LoadUint64(&pc.Transport.BytesRead))
 		if pc.Transport.Base != nil {
 			if transport, ok := pc.Transport.Base.(*http.Transport); ok {
 				transport.CloseIdleConnections()
-				transport.DisableKeepAlives = true
 			}
 		}
 	}
