@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -128,7 +129,13 @@ func GetGhProxy() bool {
 
 		if best.ok {
 			config.GlobalConfig.GithubProxy = best.proxy
-			slog.Info("最佳GitHub代理", "best", best.proxy, "耗时", best.cost)
+			if best.cost.Milliseconds() <= 1000 {
+				cost := fmt.Sprintf("%d ms", best.cost.Milliseconds())
+				slog.Info("最佳GitHub代理", "URL", best.proxy, "耗时", cost)
+			} else {
+				cost := fmt.Sprintf("%.2f s", best.cost.Seconds())
+				slog.Info("最佳GitHub代理", "URL", best.proxy, "耗时", cost)
+			}
 			return true
 		}
 	}
