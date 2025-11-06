@@ -387,7 +387,7 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 	}
 	timeout := config.GlobalConfig.SubUrlsTimeout
 	if timeout == 0 {
-		timeout = 10
+		timeout = 15
 	}
 
 	var lastErr error
@@ -503,11 +503,10 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 				resp, err := client.Do(req)
 				if err != nil {
 					if os.IsTimeout(err) {
-						lastErr = fmt.Errorf("订阅链接: %s 请求超时", req.URL.String())
+						lastErr = fmt.Errorf("订阅链接: %s 请求超时 [系统代理: %v]", req.URL.String(), t.useProxy)
 					} else {
 						lastErr = fmt.Errorf("订阅链接: %s 请求失败: %v", req.URL.String(), err)
 					}
-					lastErr = err
 					continue
 				}
 				defer resp.Body.Close()
