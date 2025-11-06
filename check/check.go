@@ -87,7 +87,6 @@ type ProxyChecker struct {
 
 // ProxyJob 在测活-测速-流媒体检测任务间传输信息
 type ProxyJob struct {
-	Proxy  map[string]any
 	Client *ProxyClient
 	Result Result
 
@@ -108,9 +107,12 @@ type ProxyJob struct {
 func (j *ProxyJob) Close() {
 	j.doneOnce.Do(func() {
 		if j.Client != nil {
-			// 关闭 mihomo 客户端并清理资源
 			j.Client.Close()
+			j.Client = nil // 切断对底层资源的引用
 		}
+		// 切断map引用，释放内存
+		j.Result.Proxy = nil
+		j.Result = Result{}
 	})
 }
 
@@ -392,6 +394,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	for i := range proxies {
 		proxies[i] = nil
 	}
+	proxies = proxies[:0]
 	runtime.GC() // 提示 GC 回收
 
 	return pc.results, nil
@@ -430,7 +433,6 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 				}
 
 				job := &ProxyJob{
-					Proxy:  mapping,
 					Client: cli,
 					Result: Result{Proxy: mapping},
 				}
@@ -442,6 +444,7 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 				case pc.aliveChan <- job:
 				case <-ctx.Done():
 					job.Close()
+					job = nil // 释放引用
 					return
 				}
 			}
@@ -470,6 +473,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 			for job := range pc.aliveChan {
 				if checkCtxDone(ctx) {
 					job.Close()
+					job = nil // 释放引用
 					continue
 				}
 				// 节点测活
@@ -481,18 +485,20 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 						pc.pt.CountAlive(false)
 					}
 					job.Close()
-					continue // 不进入 speed/media
+					job = nil // 释放引用
+					continue  // 不进入 speed/media
 				}
 
 				// CF 过滤
 				if job.NeedCF {
 					job.IsCfAccessible, job.CfLoc, job.CfIP = platform.CheckCloudflare(job.Client.Client)
 					if config.GlobalConfig.DropBadCfNodes && !job.IsCfAccessible {
-						job.Close()
 						// 记录丢弃
 						if atomic.CompareAndSwapInt32(&job.aliveMarked, 0, 1) {
 							pc.pt.CountAlive(false)
 						}
+						job.Close()
+						job = nil // 释放引用
 						continue
 					}
 				}
@@ -506,16 +512,19 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 					case pc.speedChan <- job:
 					case <-ctx.Done():
 						job.Close()
+						job = nil // 释放引用
 					}
 				} else {
 					// 无测速时：通过 alive 即可视为“可用”，确保 Available 与最终可用数量一致
 					if atomic.CompareAndSwapInt32(&job.speedMarked, 0, 1) {
 						pc.incrementAvailable()
 					}
+					// 如果未开测速, 测活通过就可以收集结果
 					select {
 					case pc.mediaChan <- job:
 					case <-ctx.Done():
 						job.Close()
+						job = nil // 释放引用
 					}
 				}
 			}
@@ -545,10 +554,12 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 			for job := range pc.speedChan {
 				if checkCtxDone(ctx) {
 					job.Close()
+					job = nil // 释放引用
 					continue
 				}
 				speed, _, err := platform.CheckSpeed(job.Client.Client, Bucket)
 				success := err == nil && speed >= config.GlobalConfig.MinSpeed
+
 				if atomic.CompareAndSwapInt32(&job.speedMarked, 0, 1) {
 					pc.pt.CountSpeed(success)
 					// 仅在测速成功时计入可用数量
@@ -556,10 +567,13 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 						pc.incrementAvailable()
 					}
 				}
+
 				if !success {
 					job.Close()
+					job = nil // 释放引用
 					continue
 				}
+
 				job.Speed = speed
 
 				if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) >= config.GlobalConfig.SuccessLimit {
@@ -580,12 +594,8 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 					})
 				}
 
-				select {
-				case pc.mediaChan <- job:
-				// 抛弃正在进行的测速任务
-				// case <-ctx.Done():
-				// 	job.Close()
-				}
+				// 流转
+				pc.mediaChan <- job
 			}
 		})
 	}
@@ -620,6 +630,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 					// 只在没开启测速时接受媒体检测停止信号
 					if checkCtxDone(ctx) {
 						job.Close()
+						job = nil // 释放引用
 						continue
 					}
 				}
@@ -629,6 +640,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 					}
 				}
 
+				// 如未开启媒体检测，直接更新代理名称
 				pc.updateProxyName(&job.Result, job.Client, job.Speed, db, job.CfLoc, job.CfIP, ctx)
 
 				// 将结果发送到 collector
@@ -639,6 +651,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 				}
 
 				job.Close()
+				job = nil // 释放引用
 			}
 		})
 	}
@@ -656,6 +669,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 func (pc *ProxyChecker) collectResults() {
 	for result := range pc.resultChan {
 		pc.results = append(pc.results, result)
+		result.Proxy = nil // 释放引用
 	}
 }
 
@@ -663,7 +677,6 @@ func (pc *ProxyChecker) collectResults() {
 func checkAlive(job *ProxyJob) bool {
 	gstatic, err := platform.CheckGstatic(job.Client.Client)
 	if err != nil || !gstatic {
-		slog.Debug(fmt.Sprintf("无法访问Gstatic: %v", job.Proxy["name"]))
 		return false
 	}
 	google, err := platform.CheckGoogle(job.Client.Client)
