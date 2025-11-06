@@ -562,10 +562,16 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 				}
 				job.Speed = speed
 
-				if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) > config.GlobalConfig.SuccessLimit {
+				if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) >= config.GlobalConfig.SuccessLimit {
 					stopOnce.Do(func() {
 						if mediaON {
-							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
+							if speedON {
+								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待测速和媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
+							} else {
+								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
+							}
+						} else if speedON {
+							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待测速和节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
 						} else {
 							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
 						}
@@ -576,8 +582,9 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 
 				select {
 				case pc.mediaChan <- job:
-				case <-ctx.Done():
-					job.Close()
+				// 抛弃正在进行的测速任务
+				// case <-ctx.Done():
+				// 	job.Close()
 				}
 			}
 		})
