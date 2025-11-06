@@ -146,6 +146,8 @@ func startSubStore(ctx context.Context) error {
 		jsPath = subStoreBinPath
 	}
 
+	// TODO: 集成sub-store前端和http-meta服务
+
 	// 构建命令
 	cmd := exec.Command(nodePath, jsPath)
 	// js会在运行目录释放依赖文件

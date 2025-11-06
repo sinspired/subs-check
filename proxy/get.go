@@ -483,18 +483,6 @@ func GetDateFromSubs(subURL string) ([]byte, error) {
 				// 根据是否走代理选择 Client
 				client := &http.Client{
 					Timeout: time.Duration(timeout) * time.Second,
-					CheckRedirect: func(req *http.Request, via []*http.Request) error {
-						if len(via) >= 10 {
-							return fmt.Errorf("重定向次数过多")
-						}
-						if strings.Contains(req.URL.Host, "cdn") {
-							if len(via) > 0 {
-								originalURL := via[0].URL.String()
-								slog.Info(fmt.Sprintf("重定向提示: 原始URL [%s] -> 中间URL [%s]", originalURL, req.URL.String()))
-							}
-						}
-						return nil
-					},
 				}
 				if !t.useProxy {
 					client.Transport = directTransport // 禁用代理

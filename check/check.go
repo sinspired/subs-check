@@ -902,8 +902,6 @@ type ProxyClient struct {
 	Transport *StatsTransport
 	ctx       context.Context
 	cancel    context.CancelFunc
-	proxyName string       // 用于日志输出
-	dialCount atomic.Int64 // 用于计算新建连接数
 }
 
 // CreateClient 创建独立的代理客户端
@@ -915,24 +913,14 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		return nil
 	}
 
-	proxyName := "Unknown"
-	if v, ok := mapping["name"].(string); ok {
-		proxyName = v
-	}
-
-	// 先创建 ProxyClient 实例，以便在 DialContext 中捕获它
-	pc := &ProxyClient{
-		proxyName: proxyName,
-	}
+	// 创建 ProxyClient 实例
+	pc := &ProxyClient{}
 
 	// 全局可取消的 context
 	pcCtx, pcCancel := context.WithCancel(context.Background())
 
 	baseTransport := &http.Transport{
 		DialContext: func(reqCtx context.Context, network, addr string) (net.Conn, error) {
-			// 每当这个函数被调用，就意味着一个新连接正在被建立
-			pc.dialCount.Add(1)
-
 			// 合并请求级别 ctx 和全局 ctx
 			mergedCtx, mergedCancel := context.WithCancel(reqCtx)
 			defer mergedCancel()
@@ -966,18 +954,6 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 	pc.Client = &http.Client{
 		Timeout:   time.Duration(config.GlobalConfig.Timeout) * time.Millisecond,
 		Transport: statsTransport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 10 {
-				return fmt.Errorf("重定向次数过多")
-			}
-			if strings.Contains(req.URL.Host, "cdn") {
-				if len(via) > 0 {
-					originalURL := via[0].URL.String()
-					slog.Info(fmt.Sprintf("重定向提示: 原始URL [%s] -> 中间URL [%s]", originalURL, req.URL.String()))
-				}
-			}
-			return nil
-		},
 	}
 	pc.Transport = statsTransport
 	pc.ctx = pcCtx
@@ -988,11 +964,6 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 
 // Close 关闭客户端，释放所有资源
 func (pc *ProxyClient) Close() {
-	// 在关闭时打印连接统计信息
-	if pc.dialCount.Load() > 1 {
-		slog.Debug(fmt.Sprintf("关闭客户端 [%s], 总共建立了 %d 个新连接", pc.proxyName, pc.dialCount.Load()))
-	}
-
 	if pc.cancel != nil {
 		pc.cancel() // 取消所有挂起的请求和拨号
 	}
