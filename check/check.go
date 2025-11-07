@@ -701,12 +701,12 @@ func mediaCheck(job *ProxyJob, plat string, db *maxminddb.Reader, ctx context.Co
 	switch plat {
 	case "x":
 		if job.NeedCF && !job.IsCfAccessible {
-			return
+			break
 		}
 		job.Result.X = true
 	case "openai":
 		if job.NeedCF && !job.IsCfAccessible {
-			return
+			break
 		}
 		cookiesOK, clientOK := platform.CheckOpenAI(job.Client.Client)
 		if clientOK && cookiesOK {
@@ -737,7 +737,7 @@ func mediaCheck(job *ProxyJob, plat string, db *maxminddb.Reader, ctx context.Co
 	case "iprisk":
 		country, ip, countryCodeTag, _ := proxyutils.GetProxyCountry(job.Client.Client, db, ctx, job.CfLoc, job.CfIP)
 		if ip == "" {
-			return
+			break
 		}
 		job.Result.IP = ip
 		job.Result.Country = country
