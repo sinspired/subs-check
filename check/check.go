@@ -675,15 +675,15 @@ func (pc *ProxyChecker) collectResults() {
 
 // checkAlive 使用谷歌服务执行基本的存活检测。
 func checkAlive(job *ProxyJob) bool {
-	gstatic, err := platform.CheckGstatic(job.Client.Client)
-	if err != nil || !gstatic {
-		return false
-	}
 	google, err := platform.CheckGoogle(job.Client.Client)
-	if err != nil || !google {
-		return false
+	if err == nil && google {
+		return true
 	}
-	return true
+	gstatic, err := platform.CheckGstatic(job.Client.Client)
+	if err == nil && gstatic {
+		return true
+	}
+	return false
 }
 
 // needsCF 判断所选的媒体检测平台是否需要Cloudflare访问权限。
