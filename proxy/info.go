@@ -76,12 +76,15 @@ func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedC
 	}
 
 	for range config.GlobalConfig.SubUrlsReTry {
-		loc, ip, countryCodeTag, _ = cliMe.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+		loc, ip, countryCodeTag, err = cliMe.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+		if err != nil {
+			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置失败: %v", err))
+		}
 		if loc != "" && countryCodeTag != "" {
-			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置成功: %s", loc))
+			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置成功:%s %s", ip, loc))
 			return loc, ip, countryCodeTag, nil
 		} else {
-			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置失败: %s", loc))
+			slog.Debug(fmt.Sprintf("MeAPI 获取节点位置失败:%s: %s-%s", ip, loc, countryCodeTag))
 		}
 	}
 
@@ -91,10 +94,16 @@ func GetProxyCountry(httpClient *http.Client, db *maxminddb.Reader, GetAnalyzedC
 		slog.Debug(fmt.Sprintf("创建 ipinfo 主客户端失败: %s", err))
 	} else {
 		defer cli.Close()
-		loc, ip, countryCodeTag, _ = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+		loc, ip, countryCodeTag, err = cli.GetAnalyzed(GetAnalyzedCtx, cfLoc, cfIP)
+		if err != nil {
+			slog.Debug(fmt.Sprintf("Analyzed 获取节点位置失败: %v", err))
+			return "", "", "", nil
+		}
 		if loc != "" && countryCodeTag != "" {
 			slog.Debug(fmt.Sprintf("Analyzed 获取节点位置成功: %s %s", loc, countryCodeTag))
 			return loc, ip, countryCodeTag, nil
+		} else {
+			slog.Debug(fmt.Sprintf("Analyzed 获取节点位置空白: %s-%s", loc, countryCodeTag))
 		}
 	}
 	return "", "", "", nil

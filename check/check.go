@@ -157,6 +157,9 @@ func NewProxyChecker(proxyCount int) *ProxyChecker {
 		// 使用相对平滑的衰减方案
 		fnAlive := NewLogDecay(400, 0.005, 400)
 		fnMedia := NewExpDecay(400, 0.001, 100)
+		// if !speedON {
+		// 	fnMedia = NewExpDecay(400, 0.001, 10)
+		// }
 
 		aliveConc = min(proxyCount, RoundInt(fnAlive(float64(threadCount))))
 		speedConc = min(calcSpeedConcurrency(proxyCount), proxyCount)
@@ -173,6 +176,9 @@ func NewProxyChecker(proxyCount int) *ProxyChecker {
 	// 测速阶段的缓冲通道不用太大,以形成阻塞,避免测活浪费资源
 	fnScLength := NewTanhDecay(100, 0.0004, float64(aliveConc))
 	speedChanLength = RoundInt(fnScLength(float64(speedConc)))
+	if !speedON {
+		speedChanLength = 1 // 不启用测速时，设置为最小缓冲
+	}
 
 	return &ProxyChecker{
 		proxyCount:  proxyCount,
@@ -762,6 +768,9 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 		}
 		if res.Country != "" {
 			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(res.Country, res.CountryCodeTag)
+		} else {
+			originName := res.Proxy["name"].(string)
+				res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(res.Country, res.CountryCodeTag) + originName
 		}
 	}
 

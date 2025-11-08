@@ -44,7 +44,7 @@ func ResetRenameCounter() {
 
 func CountryCodeToFlag(code string) string {
 	if len(code) != 2 {
-		return "❓Other"
+		return "🏴‍☠"
 	}
 
 	code = string([]rune(code)[0]&^0x20) + string([]rune(code)[1]&^0x20) // 转成大写（ASCII 位运算）
