@@ -36,7 +36,7 @@ alive-concurrent: 200
 # 测速阶段，建议：4-32
 speed-concurrent: 16
 # 媒体解锁检测，建议：10-200
-media-concurrent: 16
+media-concurrent: 100
 
 # 检查间隔(分钟)
 check-interval: 720
