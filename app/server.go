@@ -288,6 +288,7 @@ func (app *App) getConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"content": string(configData),
+		"sub_store_path": config.GlobalConfig.SubStorePath,
 	})
 }
 

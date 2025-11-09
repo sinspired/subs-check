@@ -129,19 +129,62 @@
       <section class="content">
         <aside class="card sidebar glass" id="sidebar">
           <div class="sidebar-top">
-            <div class="title-wrap">
+            <!-- <div class="title-wrap">
               <div class="title">订阅管理</div>
-            </div>
+            </div> -->
             <div class="sidebar-list">
-              <div class="list-item" id="share" title="V2Ray、Mihomo 、Singbox订阅地址" style="cursor:pointer;">分享订阅</div>
-              <div class="list-item" id="downloadLogsBtnSide" title="下载运行日志" style="cursor:pointer;">下载日志</div>
-              <div class="list-item" id="project-info" title="查看项目地址，加群交流" style="cursor:pointer;">项目信息</div>
-              <!-- TODO: 一键添加sub-store后端地址到前端 -->
+              <div class="list-item" id="share" title="V2Ray、Mihomo 、Singbox订阅地址" style="cursor:pointer;">
+                <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="18" cy="5" r="3"></circle>
+                  <circle cx="6" cy="12" r="3"></circle>
+                  <circle cx="18" cy="19" r="3"></circle>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                <span>分享订阅</span>
+              </div>
+              <div class="list-item" id="sub-store" title="进入sub-store，编辑、管理、分享订阅" style="cursor:pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" class="sidebar-icon" fill="currentColor">
+                  <path
+                    d="M12.6 35C8.2 21.8 21 8.5 34.3 12.5c3.4 1 8.2 4.9 15.2 11.8l10.2 10.3-2.8 2.8-2.8 2.8-10-9.9c-8.2-8.2-10.7-9.9-14.2-9.9-9.2 0-12.5 10.6-5.4 17.4l3.8 3.8-2.8 3-2.8 3-4.2-4.1c-2.3-2.2-4.9-6-5.6-8.4h-.2z" />
+                  <path
+                    d="M48.1 46.5l-7.4 7.6 3.8 3.8 3.8 3.8-2.8 2.8-2.8 3-6.7-6.8-6.8-6.7 6.4-6.4c3.4-3.4 6.7-6.4 7.2-6.4s2 1.8 5.6 5.2zM59.7 46.5l7.4 7.6-3.8 3.8-3.8 3.8 2.8 2.8 2.8 3 6.7-6.8 6.8-6.7-6.4-6.4c-3.4-3.4-6.7-6.4-7.2-6.4s-2 1.8-5.6 5.2zM24.4 70.4c-4.5 5.2-5 10.8-1.3 14.6 4 4 10.3 3.4 14.8-1.3l3.8-3.8 3 2.8 3 2.8-4.1 4.2c-8 8.2-18.4 8.8-26 1-7.7-7.6-7.4-17.5.9-26l4-4.2 3 2.8 2.8 2.7-3.8 4.4zM83.6 37.6c4.5-5.2 5-10.8 1.3-14.6-4-4-10.3-3.4-14.8 1.3l-3.8 3.8-3-2.8-3-2.8 4.1-4.2c8-8.2 18.4-8.8 26-1 7.7 7.6 7.4 17.5-.9 26l-4 4.2-3-2.8-2.8-2.7 3.8-4.4z" />
+                  <path
+                    d="M95.4 73c4.4 13.3-8.4 26.5-21.6 22.5-3.4-1-8.2-4.9-15.2-11.8L48.4 73.4l2.8-2.8 2.8-2.8 10 9.9c8.2 8.2 10.7 9.9 14.2 9.9 9.2 0 12.5-10.6 5.4-17.4l-3.8-3.8 2.8-3 2.8-3 4.2 4.1c2.3 2.2 4.9 6 5.6 8.4z" />
+                </svg>
+                <span>订阅管理</span>
+              </div>
+              <div class="list-item" id="downloadLogsBtnSide" title="下载运行日志" style="cursor:pointer;">
+                <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>下载日志</span>
+              </div>
+              <div class="list-item" id="project-info" title="查看项目地址，加群交流" style="cursor:pointer;">
+                <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                <span>项目信息</span>
+              </div>
             </div>
           </div>
           <div class="sidebar-bottom">
-            <div class="list-item" id="logoutBtn" title="清除保存的 API 密钥并退出" style="cursor:pointer;">退出登录</div>
-          </div>
+            <div class="list-item" id="logoutBtn" title="清除保存的 API 密钥并退出" style="cursor:pointer;">
+              <svg class="sidebar-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              <span>退出登录</span>
+            </div>
         </aside>
       </section>
 
@@ -188,6 +231,7 @@
                   style="display:flex;align-items:center;justify-content:space-between;gap:8px">
                   <div class="history-title" style="font-weight:600;font-size:13px;color:var(--muted)">上次检测</div>
                   <div style="margin-left:14px">
+                    <button id="btnSubStore" class="btn small" title="进入sub-store，编辑、管理、分享订阅">节点库</button>
                     <button id="btnShare" class="btn small" title="分享订阅">分享</button>
                     <button id="btnHistoryExit" class="btn small" title="退出并清除本地 API 密钥">退出</button>
                   </div>

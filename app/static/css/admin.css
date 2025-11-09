@@ -310,6 +310,10 @@ main {
   justify-content: space-between;
 }
 
+.sidebar.card{
+  padding: 0;
+}
+
 .sidebar-top,
 .sidebar-bottom {
   width: 100%;
@@ -350,6 +354,21 @@ main {
   /* ✅ 子项默认拉伸 */
 }
 
+.sidebar-icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1;
+  color: var(--muted);
+  flex-shrink: 0;
+  opacity: 1;
+  padding-top: 2px;
+  margin-right: 4px;
+}
+
+#sub-store.sidebar-icon {
+  stroke-width: 0;
+}
+
 .list-item {
   width: 100%;
   /* ✅ 占满父容器宽度 */
@@ -360,11 +379,12 @@ main {
   font-size: 14px;
   transition: background-color .12s ease, transform .08s ease;
   cursor: pointer;
-  border-radius: 10px;
+  /* border-radius: 10px; */
   box-sizing: border-box;
   /* ✅ 确保 padding 不撑破 */
   text-align: center;
   /* ✅ 文字居中 */
+  align-items: center;
 }
 
 .list-item:hover {
