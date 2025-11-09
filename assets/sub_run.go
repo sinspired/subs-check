@@ -25,6 +25,43 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+type subStorePaths struct {
+	substoreDir  string
+	nodePath     string
+	jsPath       string
+	frontDir     string
+	overYamlPath string
+	logPath      string
+}
+
+// getSubStorePaths 获取 sub-store 相关路径
+func getSubStorePaths() (*subStorePaths, error) {
+	saver, err := method.NewLocalSaver()
+	if err != nil {
+		return nil, err
+	}
+	if !filepath.IsAbs(saver.OutputPath) {
+		// 处理用户写相对路径的问题
+		saver.OutputPath = filepath.Join(saver.BasePath, saver.OutputPath)
+	}
+
+	nodeName := "node"
+	if runtime.GOOS == "windows" {
+		nodeName += ".exe"
+	}
+
+	substoreDir := filepath.Join(saver.OutputPath, "sub-store")
+
+	return &subStorePaths{
+		substoreDir:  substoreDir,
+		nodePath:     filepath.Join(substoreDir, nodeName),
+		jsPath:       filepath.Join(substoreDir, "sub-store.bundle.js"),
+		frontDir:     filepath.Join(substoreDir, "frontend"),
+		overYamlPath: filepath.Join(saver.OutputPath, "ACL4SSR_Online_Full.yaml"),
+		logPath:      filepath.Join(substoreDir, "sub-store.log"),
+	}, nil
+}
+
 // RunSubStoreService 运行sub-store服务，支持 ctx，可被外部取消
 func RunSubStoreService(ctx context.Context) {
 	for {
@@ -78,71 +115,58 @@ func migrateOldFiles(srcDir, fileName, targetDir string) error {
 	return nil
 }
 
+func killNodeProcess(nodePath string) {
+	pid, err := findProcesses(nodePath)
+	if err == nil {
+		err := killProcess(pid)
+		if err != nil {
+			slog.Debug("Sub-store service kill failed", "error", err)
+		}
+		slog.Debug("Sub-store service already killed", "pid", pid)
+	}
+}
+
 func startSubStore(ctx context.Context) error {
-	saver, err := method.NewLocalSaver()
+	paths, err := getSubStorePaths()
 	if err != nil {
 		return err
 	}
-	if !filepath.IsAbs(saver.OutputPath) {
-		// 处理用户写相对路径的问题
-		saver.OutputPath = filepath.Join(saver.BasePath, saver.OutputPath)
-	}
-	nodeName := "node"
-	if runtime.GOOS == "windows" {
-		nodeName += ".exe"
-	}
 
-	substoreDir := filepath.Join(saver.OutputPath, "sub-store")
-
-	if err := os.MkdirAll(saver.OutputPath, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(paths.substoreDir), 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}
-	if err := os.MkdirAll(substoreDir, 0755); err != nil {
+	if err := os.MkdirAll(paths.substoreDir, 0755); err != nil {
 		return fmt.Errorf("创建sub-store目录失败: %w", err)
 	}
 
 	// 迁移sub-store配置
-	if err := migrateOldFiles(saver.OutputPath, "sub-store.json", substoreDir); err != nil {
+	if err := migrateOldFiles(filepath.Dir(paths.substoreDir), "sub-store.json", paths.substoreDir); err != nil {
 		slog.Error("迁移sub-store配置失败")
 	}
 
-	nodePath := filepath.Join(substoreDir, nodeName)
-	jsPath := filepath.Join(substoreDir, "sub-store.bundle.js")
-	frontDir := filepath.Join(substoreDir, "frontend")
-	overYamlPath := filepath.Join(saver.OutputPath, "ACL4SSR_Online_Full.yaml")
-	logPath := filepath.Join(substoreDir, "sub-store.log")
-
-	killNode := func() {
-		pid, err := findProcesses(nodePath)
-		if err == nil {
-			err := killProcess(pid)
-			if err != nil {
-				slog.Debug("Sub-store service kill failed", "error", err)
-			}
-			slog.Debug("Sub-store service already killed", "pid", pid)
-		}
-	}
 	// 在函数结束前确保尝试杀掉 node
-	defer killNode()
+	defer killNodeProcess(paths.nodePath)
 
 	// 如果subs-check内存问题退出，会导致node二进制损坏，启动的node变成僵尸，所以删一遍
-	_ = os.Remove(nodePath)
-	_ = os.Remove(jsPath)
-	_ = os.Remove(overYamlPath)
-	_ = os.RemoveAll(frontDir)
-	if err := decodeZstd(nodePath, jsPath, overYamlPath, frontDir); err != nil {
+	_ = os.Remove(paths.nodePath)
+	_ = os.Remove(paths.jsPath)
+	_ = os.Remove(paths.overYamlPath)
+	_ = os.RemoveAll(paths.frontDir)
+	if err := decodeZstd(paths.nodePath, paths.jsPath, paths.overYamlPath, paths.frontDir); err != nil {
 		return err
 	}
 
 	// 配置日志轮转
 	logWriter := &lumberjack.Logger{
-		Filename:   logPath,
+		Filename:   paths.logPath,
 		MaxSize:    10, // 每个日志文件最大 10MB
 		MaxBackups: 3,  // 保留 3 个旧文件
-		MaxAge:     7,  // 保留 7 天
+		MaxAge:     14,  // 保留 7 天
 	}
 	defer logWriter.Close()
 
+	nodePath := paths.nodePath
+	jsPath := paths.jsPath
 	// 支持自定义node二进制文件路径，可兼容更多的设备
 	if nodeBinPath := os.Getenv("NODEBIN_PATH"); nodeBinPath != "" {
 		nodePath = nodeBinPath
@@ -152,12 +176,10 @@ func startSubStore(ctx context.Context) error {
 		jsPath = subStoreBinPath
 	}
 
-	// TODO: 集成sub-store前端和http-meta服务
-
 	// 构建命令
 	cmd := exec.Command(nodePath, jsPath)
 	// js会在运行目录释放依赖文件
-	cmd.Dir = substoreDir
+	cmd.Dir = paths.substoreDir
 	cmd.Stdout = logWriter
 	cmd.Stderr = logWriter
 
@@ -222,15 +244,16 @@ func startSubStore(ctx context.Context) error {
 		slog.Info("已随机生成", "sub-store-path", config.GlobalConfig.SubStorePath)
 	}
 
+	// TODO: 集成http-meta服务
 	// 设置后端path
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("SUB_STORE_FRONTEND_BACKEND_PATH=%s", config.GlobalConfig.SubStorePath),
 	)
 
-	// 设置前端文件夹
+	// 集成sub-store前端并启用合并功能
 	cmd.Env = append(cmd.Env, "SUB_STORE_BACKEND_MERGE=true")
 	cmd.Env = append(cmd.Env,
-		fmt.Sprintf("SUB_STORE_FRONTEND_PATH=%s",frontDir),
+		fmt.Sprintf("SUB_STORE_FRONTEND_PATH=%s", paths.frontDir),
 	)
 
 	// sub-store 环境变量: 后端上传文件至 gist
@@ -259,7 +282,7 @@ func startSubStore(ctx context.Context) error {
 		return fmt.Errorf("启动 sub-store 失败: %w", err)
 	}
 
-	slog.Info("Sub-store 服务已启动", "pid", cmd.Process.Pid, "port", config.GlobalConfig.SubStorePort, "log", logPath)
+	slog.Info("Sub-store 服务已启动", "pid", cmd.Process.Pid, "port", config.GlobalConfig.SubStorePort, "log", paths.logPath)
 
 	// ctx 取消时尝试杀掉子进程
 	go func() {
@@ -444,30 +467,13 @@ func killProcess(pid int32) error {
 	return nil
 }
 
-// getNodePath 返回 node 可执行文件的完整路径
-func getNodePath() (string, error) {
-	saver, err := method.NewLocalSaver()
-	if err != nil {
-		return "", err
-	}
-	if !filepath.IsAbs(saver.OutputPath) {
-		saver.OutputPath = filepath.Join(saver.BasePath, saver.OutputPath)
-	}
-
-	nodeName := "node"
-	if runtime.GOOS == "windows" {
-		nodeName += ".exe"
-	}
-	return filepath.Join(saver.OutputPath, "sub-store", nodeName), nil
-}
-
 // FindNode 查找 Node 进程是否存在
 func FindNode() (bool, error) {
-	nodePath, err := getNodePath()
+	paths, err := getSubStorePaths()
 	if err != nil {
 		return false, err
 	}
-	pid, err := findProcesses(nodePath)
+	pid, err := findProcesses(paths.nodePath)
 	if err == nil && pid > 0 {
 		return true, nil
 	}
@@ -476,11 +482,11 @@ func FindNode() (bool, error) {
 
 // KillNode 杀掉 Node 进程
 func KillNode() error {
-	nodePath, err := getNodePath()
+	paths, err := getSubStorePaths()
 	if err != nil {
 		return err
 	}
-	pid, err := findProcesses(nodePath)
+	pid, err := findProcesses(paths.nodePath)
 	if err != nil {
 		// 没找到进程，不算错误
 		return nil

@@ -59,8 +59,8 @@ timeout: 6000
 # 测速地址(注意 并发数*节点速度<最大网速 否则测速结果不准确)
 # 尽量不要使用Speedtest，Cloudflare提供的下载链接，因为很多节点屏蔽测速网站
 # 如果找不到稳定的测速地址，可以自建测速地址
-# (留空关闭测速)
-speed-test-url:
+# (留空关闭测速，如节点数量少，网络环境差，请确保测速功能关闭)
+speed-test-url: ""
 # speed-test-url: https://github.com/pytorch/pytorch/releases/download/v2.9.0/pytorch-v2.9.0.tar.gz
 
 # 注意: 节点可能被测速测死(暂时或永久), 经过多次测试, 不用怀疑!
