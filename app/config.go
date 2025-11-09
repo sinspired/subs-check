@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/sinspired/subs-check/assets"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/utils"
 	"gopkg.in/yaml.v3"
@@ -96,6 +98,7 @@ func (app *App) initConfigWatcher() error {
 
 						oldUpdateSwitcher := config.GlobalConfig.EnableSelfUpdate
 						oldCronCheckUpdateExpr := config.GlobalConfig.CronCheckUpdate
+						oldSubStorePath := config.GlobalConfig.SubStorePath
 
 						if err := app.loadConfig(); err != nil {
 							slog.Error(fmt.Sprintf("重新加载配置文件失败: %v", err))
@@ -114,6 +117,15 @@ func (app *App) initConfigWatcher() error {
 									slog.Debug("保留首次运行自动生成的API key", "api-key", config.GlobalConfig.APIKey)
 								}
 							}
+						}
+						// 如果sub-store路径变化，重启sub-store服务
+						if oldSubStorePath != config.GlobalConfig.SubStorePath {
+							slog.Warn("sub-store路径发生变化，正在重启sub-store服务")
+							if app.cancel != nil {
+								app.cancel()
+								app.ctx, app.cancel = context.WithCancel(context.Background())
+							}
+							assets.RunSubStoreService(app.ctx)
 						}
 						// 检查cron表达式或检测间隔是否变化
 						if oldCronExpr != config.GlobalConfig.CronExpression ||
