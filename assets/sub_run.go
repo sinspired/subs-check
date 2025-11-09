@@ -25,6 +25,8 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+var InitSubStorePath = ""
+
 type subStorePaths struct {
 	substoreDir  string
 	nodePath     string
@@ -232,6 +234,8 @@ func startSubStore(ctx context.Context) error {
 
 	// 增加body限制，默认1M
 	cmd.Env = append(cmd.Env, "SUB_STORE_BODY_JSON_LIMIT=30mb")
+
+	InitSubStorePath = config.GlobalConfig.SubStorePath
 	// 增加自定义访问路径
 	if config.GlobalConfig.SubStorePath != "" {
 		// 如果不是以 "/" 开头，则补上

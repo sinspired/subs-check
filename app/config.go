@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -40,9 +41,12 @@ func (app *App) loadConfig() error {
 		return fmt.Errorf("读取配置文件失败: %w", err)
 	}
 
-	if err := yaml.Unmarshal(yamlFile, config.GlobalConfig); err != nil {
+	// 为避免旧配置残留，反序列化到新的实例，然后替换全局配置
+	newConfig := new(config.Config)
+	if err := yaml.Unmarshal(yamlFile, newConfig); err != nil {
 		return fmt.Errorf("解析配置文件失败: %w", err)
 	}
+	*config.GlobalConfig = *newConfig
 
 	slog.Info("配置文件读取成功")
 	return nil
@@ -118,8 +122,32 @@ func (app *App) initConfigWatcher() error {
 								}
 							}
 						}
+
+						// 去掉开头斜杠以进行比对
+						oldSubStorePath = strings.TrimPrefix(oldSubStorePath, "/")
+						config.GlobalConfig.SubStorePath = strings.TrimPrefix(config.GlobalConfig.SubStorePath, "/")
+
 						// 如果sub-store路径变化，重启sub-store服务
-						if oldSubStorePath != config.GlobalConfig.SubStorePath {
+						if config.GlobalConfig.SubStorePath == "" {
+							if subStorePath := os.Getenv("SUB_STORE_PATH"); subStorePath != "" {
+								config.GlobalConfig.SubStorePath = subStorePath
+							} else {
+								if assets.InitSubStorePath != "" {
+									slog.Warn("sub-store路径发生变化，正在重启sub-store服务")
+									config.GlobalConfig.SubStorePath = GenerateSimpleKey(20)
+									slog.Info("已随机生成", "sub-store-path", config.GlobalConfig.SubStorePath)
+
+									if app.cancel != nil {
+										app.cancel()
+										app.ctx, app.cancel = context.WithCancel(context.Background())
+									}
+									assets.RunSubStoreService(app.ctx)
+								} else {
+									config.GlobalConfig.SubStorePath = assets.InitSubStorePath
+									slog.Debug("保留首次运行自动生成的sub-store路径", "sub-store-path", config.GlobalConfig.SubStorePath)
+								}
+							}
+						} else if oldSubStorePath != config.GlobalConfig.SubStorePath {
 							slog.Warn("sub-store路径发生变化，正在重启sub-store服务")
 							if app.cancel != nil {
 								app.cancel()
@@ -127,6 +155,7 @@ func (app *App) initConfigWatcher() error {
 							}
 							assets.RunSubStoreService(app.ctx)
 						}
+
 						// 检查cron表达式或检测间隔是否变化
 						if oldCronExpr != config.GlobalConfig.CronExpression ||
 							oldInterval != config.GlobalConfig.CheckInterval {
