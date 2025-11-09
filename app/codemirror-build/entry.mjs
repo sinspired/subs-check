@@ -505,12 +505,12 @@ const placeholderPlugin = ViewPlugin.fromClass(class {
   }
   update(update) {
     if (update.docChanged || update.viewportChanged) {
-      this.decorations = placeholderMatcher.updateDeco(update, this.decorations) || Decoration.none;
+      this.decorations = placeholderMatcher.createDeco(update.view) || Decoration.none;
     }
   }
 }, {
   decorations: v => v.decorations,
-  provide: plugin => EditorView.atomicRanges.of(v => v.decorations)
+  provide: plugin => EditorView.atomicRanges.of(view => view.plugin(plugin)?.decorations || Decoration.none)
 });
 
 // -------------------- 全局暴露 --------------------
