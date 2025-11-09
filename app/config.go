@@ -107,7 +107,7 @@ func (app *App) initConfigWatcher() error {
 								config.GlobalConfig.APIKey = apiKey
 							} else {
 								if initAPIKey != "" {
-									config.GlobalConfig.APIKey = GenerateSimpleKey()
+									config.GlobalConfig.APIKey = GenerateSimpleKey(10)
 									slog.Warn("未设置api-key，key，已随机生成", "api-key", config.GlobalConfig.APIKey)
 								} else {
 									config.GlobalConfig.APIKey = geneAPIKey
