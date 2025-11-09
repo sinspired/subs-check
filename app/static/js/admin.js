@@ -982,9 +982,6 @@
     loginBtn?.addEventListener('click', onLoginBtnClick);
 
     projectInfoBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      // const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
-      // window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer'); // 新标签打开
       // 检查是否已经是显示状态：如果是，则直接隐藏
       if (projectMenu.classList.contains("active")) {
         projectMenu.classList.remove("active");
@@ -1480,7 +1477,7 @@
     }
     if (projectMenu.classList.contains("active") &&
       !projectMenu.contains(e.target) &&
-      e.target.id !== "project-info") {
+      !projectInfoBtn.contains(e.target)) {
       projectMenu.classList.remove("active");
     }
   });
