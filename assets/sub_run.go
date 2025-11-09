@@ -1,11 +1,14 @@
 package assets
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"log/slog"
+	"math/big"
 	"net"
 	"net/url"
 	"os"
@@ -45,6 +48,7 @@ func RunSubStoreService(ctx context.Context) {
 	}
 }
 
+// migrateOldFiles 迁移旧文件
 func migrateOldFiles(srcDir, fileName, targetDir string) error {
 	src := filepath.Join(srcDir, fileName)
 	dst := filepath.Join(targetDir, fileName)
@@ -104,6 +108,7 @@ func startSubStore(ctx context.Context) error {
 
 	nodePath := filepath.Join(substoreDir, nodeName)
 	jsPath := filepath.Join(substoreDir, "sub-store.bundle.js")
+	frontDir := filepath.Join(substoreDir, "frontend")
 	overYamlPath := filepath.Join(saver.OutputPath, "ACL4SSR_Online_Full.yaml")
 	logPath := filepath.Join(substoreDir, "sub-store.log")
 
@@ -124,7 +129,8 @@ func startSubStore(ctx context.Context) error {
 	_ = os.Remove(nodePath)
 	_ = os.Remove(jsPath)
 	_ = os.Remove(overYamlPath)
-	if err := decodeZstd(nodePath, jsPath, overYamlPath); err != nil {
+	_ = os.RemoveAll(frontDir)
+	if err := decodeZstd(nodePath, jsPath, overYamlPath, frontDir); err != nil {
 		return err
 	}
 
@@ -210,12 +216,22 @@ func startSubStore(ctx context.Context) error {
 		if !strings.HasPrefix(config.GlobalConfig.SubStorePath, "/") {
 			config.GlobalConfig.SubStorePath = "/" + config.GlobalConfig.SubStorePath
 		}
-
-		cmd.Env = append(cmd.Env,
-			fmt.Sprintf("SUB_STORE_FRONTEND_BACKEND_PATH=%s", config.GlobalConfig.SubStorePath),
-		)
-		cmd.Env = append(cmd.Env, "SUB_STORE_BACKEND_MERGE=1")
+	} else {
+		// 生成一个随机的 SubStorePath
+		config.GlobalConfig.SubStorePath = "/" + generateRandomString(20)
+		slog.Info("已随机生成", "sub-store-path", config.GlobalConfig.SubStorePath)
 	}
+
+	// 设置后端path
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("SUB_STORE_FRONTEND_BACKEND_PATH=%s", config.GlobalConfig.SubStorePath),
+	)
+
+	// 设置前端文件夹
+	cmd.Env = append(cmd.Env, "SUB_STORE_BACKEND_MERGE=true")
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("SUB_STORE_FRONTEND_PATH=%s",frontDir),
+	)
 
 	// sub-store 环境变量: 后端上传文件至 gist
 	if config.GlobalConfig.SubStoreSyncCron != "" {
@@ -279,7 +295,7 @@ func startSubStore(ctx context.Context) error {
 // isLocalIP 检查IP是否是本地IP（127.0.0.1或局域网IP）
 func isLocalIP(host string) bool {
 	// 检查是否是localhost或127.0.0.1
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.Contains(host, ".local") {
 		return true
 	}
 
@@ -311,7 +327,7 @@ func isLocalIP(host string) bool {
 	return false
 }
 
-func decodeZstd(nodePath, jsPath, overYamlPath string) error {
+func decodeZstd(nodePath, jsPath, overYamlPath, frontDir string) error {
 	// 创建 zstd 解码器
 	zstdDecoder, err := zstd.NewReader(nil)
 	if err != nil {
@@ -331,16 +347,60 @@ func decodeZstd(nodePath, jsPath, overYamlPath string) error {
 		return fmt.Errorf("解压 node 二进制文件失败: %w", err)
 	}
 
-	// 解压 sub-store 脚本
+	// 解压 sub-store 后端脚本
 	jsFile, err := os.OpenFile(jsPath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("创建 sub-store 脚本文件失败: %w", err)
 	}
 	defer jsFile.Close()
 
-	zstdDecoder.Reset(bytes.NewReader(EmbeddedSubStore))
+	zstdDecoder.Reset(bytes.NewReader(EmbeddedSubStoreBackend))
 	if _, err := io.Copy(jsFile, zstdDecoder); err != nil {
 		return fmt.Errorf("解压 sub-store 脚本失败: %w", err)
+	}
+
+	// 解压 sub-store 前端文件夹
+	zstdDecoder.Reset(bytes.NewReader(EmbeddedSubStoreFrotend))
+	tarReader := tar.NewReader(zstdDecoder)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("读取tar头失败: %w", err)
+		}
+
+		// 移除 tar 文件中的顶层目录
+		parts := strings.Split(header.Name, "/")
+		if len(parts) <= 1 {
+			continue // 跳过顶层目录本身或空条目
+		}
+		relativePath := strings.Join(parts[1:], "/")
+		if relativePath == "" {
+			continue
+		}
+		target := filepath.Join(frontDir, relativePath)
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("创建目录失败: %w", err)
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return fmt.Errorf("创建父目录失败: %w", err)
+			}
+			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("创建文件失败: %w", err)
+			}
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				return fmt.Errorf("写入文件失败: %w", err)
+			}
+			outFile.Close()
+		}
 	}
 
 	// 解压 覆写文件
@@ -431,4 +491,17 @@ func KillNode() error {
 	}
 	slog.Debug("Sub-store service killed", "pid", pid)
 	return nil
+}
+
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			panic(err)
+		}
+		b[i] = charset[n.Int64()]
+	}
+	return string(b)
 }
