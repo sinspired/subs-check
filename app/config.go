@@ -56,7 +56,64 @@ func (app *App) loadConfig() error {
 func (app *App) createDefaultConfig() error {
 	slog.Info("配置文件不存在，创建默认配置文件")
 
-	if err := os.WriteFile(app.configPath, []byte(config.DefaultConfigTemplate), 0644); err != nil {
+	tpl := string(config.DefaultConfigTemplate)
+
+	// 定位未被注释的 sub-store-path 键并设置默认值
+	lines := strings.Split(tpl, "\n")
+	found := false
+	for i, line := range lines {
+		// 跳过整行注释
+		ltrim := strings.TrimLeft(line, " \t")
+		if ltrim == "" || strings.HasPrefix(ltrim, "#") {
+			continue
+		}
+		if strings.HasPrefix(ltrim, "sub-store-path:") {
+			found = true
+			// 保留原有缩进与冒号后的空白
+			indent := line[:len(line)-len(ltrim)]
+			colonIdx := strings.Index(ltrim, ":")
+			after := ltrim[colonIdx+1:] // 含原有空白与值
+			afterTrimLeft := strings.TrimLeft(after, " \t")
+			afterSpaces := after[:len(after)-len(afterTrimLeft)]
+			raw := strings.TrimSpace(after)
+
+			// 根据原逻辑判定是否需要生成随机路径
+			needRandom := false
+			if raw == "" || strings.HasPrefix(raw, "#") || raw == "\"\"" || raw == "''" {
+				needRandom = true
+			}
+
+			val := strings.Trim(raw, "'\"")
+			if val == "/" {
+				needRandom = true
+			}
+
+			if needRandom {
+				val = "/" + utils.GenerateRandomString(20)
+			} else {
+				if !strings.HasPrefix(val, "/") {
+					val = "/" + val
+				}
+			}
+
+			lines[i] = indent + "sub-store-path:" + afterSpaces + "\"" + val + "\""
+			slog.Info("已设置 sub-store-path", "path", val)
+			break
+		}
+	}
+
+	if !found {
+		// 模板中没有该键，追加在文件末尾
+		if !strings.HasSuffix(tpl, "\n") {
+			tpl += "\n"
+		}
+		tpl += fmt.Sprintf("sub-store-path: \"/%s\"\n", utils.GenerateRandomString(20))
+		lines = strings.Split(tpl, "\n")
+	}
+
+	tpl = strings.Join(lines, "\n")
+
+	if err := os.WriteFile(app.configPath, []byte(tpl), 0644); err != nil {
 		return fmt.Errorf("写入默认配置文件失败: %w", err)
 	}
 

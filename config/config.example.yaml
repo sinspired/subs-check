@@ -194,6 +194,7 @@ sub-store-port: ":8299"
 # 设置path之后，可以开启订阅分享功能，无需暴露真实的path
 # 订阅示例：http://127.0.0.1:8299/{sub-store-path}/api/file/mihomo
 # WebUI 支持分享订阅，直接复制订阅链接
+# {建议设置}：首次运行如未设置将自动生成随机路径
 # sub-store-path: "/path"
 sub-store-path: ""
 
