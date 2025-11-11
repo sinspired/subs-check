@@ -17,6 +17,7 @@ mihomo-check*
 bin/*
 test_*.*
 test_*/
+speed_*.csv
 
 *.old
 *.new

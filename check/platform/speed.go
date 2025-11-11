@@ -3,7 +3,9 @@ package platform
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 
 	"log/slog"
@@ -13,6 +15,17 @@ import (
 	"github.com/sinspired/subs-check/config"
 )
 
+var testURLs []string
+
+// 使用仅包含平均速度≥1024KB/s的URL列表
+func init() {
+	if len(fastSpeedTestURLs) > 0 {
+		// 使用聚合生成的列表
+		testURLs = fastSpeedTestURLs
+	}
+}
+
+// CheckSpeed 从可用测速链接中随机选取一个进行下载测速
 // networkLimitedReader 基于网络层字节计数器的大小限制 reader
 type networkLimitedReader struct {
 	reader      io.Reader
@@ -44,6 +57,16 @@ func (r *networkLimitedReader) Read(p []byte) (n int, err error) {
 // 需要调用方提供 getNetBytes 用于读取底层连接累计的网络读取字节数。
 // 返回速度单位为 KB/s，第二个返回值为此次测速期间的网络下载字节数。
 func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket, getNetBytes func() uint64) (int, int64, error) {
+	testOnceURL := config.GlobalConfig.SpeedTestURL
+
+	if strings.Contains(testOnceURL, "random") && len(testURLs) > 0{
+		testOnceURL = testURLs[rand.Intn(len(testURLs))]
+		slog.Debug(fmt.Sprintf("随机选择的测速URL: %s", testOnceURL))
+	} else {
+		testOnceURL = config.GlobalConfig.SpeedTestURL
+		slog.Debug(fmt.Sprintf("使用配置测速URL: %s", testOnceURL))
+	}
+
 	// 创建一个新的测速专用客户端，基于原有客户端的传输层
 	speedClient := &http.Client{
 		// 设置更长的超时时间用于测速
@@ -52,7 +75,7 @@ func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket, getNetBytes f
 		Transport: httpClient.Transport,
 	}
 
-	req, err := http.NewRequest("GET", config.GlobalConfig.SpeedTestURL, nil)
+	req, err := http.NewRequest("GET", testOnceURL, nil)
 	if err != nil {
 		return 0, 0, err
 	}
