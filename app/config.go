@@ -114,7 +114,7 @@ func (app *App) initConfigWatcher() error {
 								config.GlobalConfig.APIKey = apiKey
 							} else {
 								if initAPIKey != "" {
-									config.GlobalConfig.APIKey = GenerateSimpleKey(10)
+									config.GlobalConfig.APIKey = utils.GenerateRandomString(10)
 									slog.Warn("未设置api-key，key，已随机生成", "api-key", config.GlobalConfig.APIKey)
 								} else {
 									config.GlobalConfig.APIKey = geneAPIKey
@@ -130,11 +130,20 @@ func (app *App) initConfigWatcher() error {
 						// 如果sub-store路径变化，重启sub-store服务
 						if config.GlobalConfig.SubStorePath == "" {
 							if subStorePath := os.Getenv("SUB_STORE_PATH"); subStorePath != "" {
-								config.GlobalConfig.SubStorePath = subStorePath
+								if subStorePath != oldSubStorePath {
+									slog.Info("从环境变量获取sub-store路径", "sub-store-path", subStorePath)
+									config.GlobalConfig.SubStorePath = subStorePath
+									// 重启sub-store服务
+									if app.cancel != nil {
+										app.cancel()
+										app.ctx, app.cancel = context.WithCancel(context.Background())
+									}
+									assets.RunSubStoreService(app.ctx)
+								}
 							} else {
 								if assets.InitSubStorePath != "" {
 									slog.Warn("sub-store路径发生变化，正在重启sub-store服务")
-									config.GlobalConfig.SubStorePath = GenerateSimpleKey(20)
+									config.GlobalConfig.SubStorePath = utils.GenerateRandomString(20)
 									slog.Info("已随机生成", "sub-store-path", config.GlobalConfig.SubStorePath)
 
 									if app.cancel != nil {

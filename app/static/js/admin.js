@@ -994,14 +994,14 @@
 
         const p = r.payload;
         const yamlContent = p?.content ?? '';
-        const subStorePath = p?.sub_store_path ?? '';
+        const config = YAML.parse(yamlContent);
+        let subStorePath = p?.sub_store_path ?? '';
+        const yamlSubStorePath = (config["sub-store-path"] ?? "")
 
         if (!subStorePath) {
           showToast('请先设置 sub_store_path', 'error');
           return;
         }
-
-        const config = YAML.parse(yamlContent);
 
         // 获取并清理端口
         const port = (config["sub-store-port"] ?? "")
@@ -1011,7 +1011,7 @@
 
         // 确保 path 以 / 开头
         let path = subStorePath;
-        if (path && !path.startsWith('/')) {
+        if (path && !path.startsWith('/') && length(path) > 1) {
           path = '/' + path;
         }
 
@@ -1464,11 +1464,30 @@
         const p = r.payload;
         let yamlContent = '';
         if (p?.content !== undefined) yamlContent = p.content;
-
         const config = YAML.parse(yamlContent);
+        let subStorePath = p?.sub_store_path ?? '';
+        const yamlSubStorePath = (config["sub-store-path"] ?? "")
 
-        const port = config["sub-store-port"] || "";
-        const path = config["sub-store-path"] || "";
+        if (!subStorePath) {
+          showToast('请先设置 sub_store_path', 'error');
+          return;
+        }
+
+        if (!yamlSubStorePath || yamlSubStorePath.toString().trim() === '') {
+          showToast('请修改 config.yaml 设置sub-store-path，当前使用随机路径', 'warn');
+        }
+
+        // 获取并清理端口
+        const port = (config["sub-store-port"] ?? "")
+          .toString()
+          .trim()
+          .replace(/^:/, "");
+
+        // 确保 path 以 / 开头
+        let path = subStorePath;
+        if (path && !path.startsWith('/') && length(path) > 1) {
+          path = '/' + path;
+        }
 
         const d = v.payload;
         const latestSingboxVersion = d.latest;
@@ -1488,7 +1507,7 @@
         const shouldAddPort = currentPort && currentPort !== ''; // 非空即有显式端口
         const portToAdd = shouldAddPort ? port : ''; // 只在本地添加
 
-        const baseUrl = `${baseUrlWithoutPort}${portToAdd}${path}`;
+        const baseUrl = `${baseUrlWithoutPort}:${portToAdd}${path}`;
 
         // 4. 设置链接（存储到 data-link 属性）
         document.getElementById("commonSub-item").dataset.link = baseUrl + "/download/sub";

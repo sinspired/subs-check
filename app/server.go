@@ -2,13 +2,11 @@ package app
 
 import (
 	"bufio"
-	"crypto/rand"
 	"crypto/subtle"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"log/slog"
-	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -64,7 +62,7 @@ func (app *App) initHTTPServer() error {
 		if apiKey := os.Getenv("API_KEY"); apiKey != "" {
 			config.GlobalConfig.APIKey = apiKey
 		} else {
-			config.GlobalConfig.APIKey = GenerateSimpleKey(10)
+			config.GlobalConfig.APIKey = utils.GenerateRandomString(10)
 			geneAPIKey = config.GlobalConfig.APIKey
 			slog.Warn("未设置api-key，已随机生成", "api-key", config.GlobalConfig.APIKey)
 		}
@@ -428,17 +426,4 @@ func ReadLastNLines(filePath string, n int) ([]string, error) {
 	start := count % n
 	result := append(ring[start:], ring[:start]...)
 	return result, nil
-}
-
-func GenerateSimpleKey(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			panic(err)
-		}
-		b[i] = charset[n.Int64()]
-	}
-	return string(b)
 }

@@ -4,11 +4,9 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"crypto/rand"
 	"fmt"
 	"io"
 	"log/slog"
-	"math/big"
 	"net"
 	"net/url"
 	"os"
@@ -22,6 +20,7 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
+	"github.com/sinspired/subs-check/utils"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -163,7 +162,7 @@ func startSubStore(ctx context.Context) error {
 		Filename:   paths.logPath,
 		MaxSize:    10, // 每个日志文件最大 10MB
 		MaxBackups: 3,  // 保留 3 个旧文件
-		MaxAge:     14,  // 保留 7 天
+		MaxAge:     14, // 保留 7 天
 	}
 	defer logWriter.Close()
 
@@ -244,7 +243,7 @@ func startSubStore(ctx context.Context) error {
 		}
 	} else {
 		// 生成一个随机的 SubStorePath
-		config.GlobalConfig.SubStorePath = "/" + generateRandomString(20)
+		config.GlobalConfig.SubStorePath = "/" + utils.GenerateRandomString(20)
 		slog.Info("已随机生成", "sub-store-path", config.GlobalConfig.SubStorePath)
 	}
 
@@ -501,17 +500,4 @@ func KillNode() error {
 	}
 	slog.Debug("Sub-store service killed", "pid", pid)
 	return nil
-}
-
-func generateRandomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			panic(err)
-		}
-		b[i] = charset[n.Int64()]
-	}
-	return string(b)
 }
