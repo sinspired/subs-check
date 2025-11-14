@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"log/slog"
@@ -35,11 +36,22 @@ type R2Uploader struct {
 
 // NewR2Uploader 创建新的R2上传器
 func NewR2Uploader() *R2Uploader {
+	transport := &http.Transport{}
+
+	// 判断系统代理是否可用
 	useProxy := utils.GetSysProxy()
 
-	transport := &http.Transport{}
 	if useProxy {
-		transport.Proxy = http.ProxyFromEnvironment
+		proxyStr := config.GlobalConfig.SystemProxy
+		proxyURL, perr := url.Parse(proxyStr)
+		if perr != nil {
+			slog.Error("解析配置中的代理 URL 失败，将不使用代理", "proxy_url", proxyStr, "error", perr)
+			transport.Proxy = nil
+		} else {
+			transport.Proxy = http.ProxyURL(proxyURL)
+		}
+	} else {
+		transport.Proxy = nil
 	}
 
 	client := &http.Client{
