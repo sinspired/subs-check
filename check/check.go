@@ -374,7 +374,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	go pc.distributeJobs(proxies, ctx)
 	go pc.runAliveStage(ctx)
 	go pc.runSpeedStage(ctx, cancel)
-	pc.runMediaStageAndCollect(geoDB, ctx)
+	pc.runMediaStageAndCollect(geoDB, ctx, cancel)
 
 	// 确保进度显示到 100% 再打印收尾日志
 	if config.GlobalConfig.PrintProgress {
@@ -465,6 +465,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 	if speedON {
 		defer close(pc.speedChan)
 	} else {
+		close(pc.speedChan)
 		defer close(pc.mediaChan)
 	}
 
@@ -503,14 +504,17 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 						continue
 					}
 				}
+
 				// 记录存活
 				if atomic.CompareAndSwapInt32(&job.aliveMarked, 0, 1) {
 					pc.pt.CountAlive(true)
 				}
+
 				// 流转
 				if speedON {
 					select {
 					case pc.speedChan <- job:
+
 					case <-ctx.Done():
 						job.Close()
 					}
@@ -599,7 +603,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 }
 
 // 流媒体检测 + 收集结果
-func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx context.Context) {
+func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx context.Context, cancel context.CancelFunc) {
 	var wg sync.WaitGroup
 	resultLength := pc.mediaConcurrent
 	if config.GlobalConfig.SuccessLimit != 0 {
@@ -607,6 +611,9 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 	}
 
 	pc.resultChan = make(chan Result, resultLength)
+
+	// 设置成功数量限制
+	var stopOnce sync.Once
 
 	// 收集结果
 	var collectorWg sync.WaitGroup
@@ -621,11 +628,26 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 			for job := range pc.mediaChan {
 				if !speedON {
 					// 只在没开启测速时接受媒体检测停止信号
+					// 丢弃结果
 					if checkCtxDone(ctx) {
 						job.Close()
 						continue
 					}
+
+					// 设置成功数量限制
+					if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) >= config.GlobalConfig.SuccessLimit {
+						stopOnce.Do(func() {
+							if mediaON {
+								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
+							} else {
+								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
+							}
+
+							cancel()
+						})
+					}
 				}
+
 				if mediaON {
 					for _, plat := range config.GlobalConfig.Platforms {
 						mediaCheck(job, plat, db, ctx)
@@ -749,7 +771,7 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(res.Country, res.CountryCodeTag)
 		} else {
 			originName := res.Proxy["name"].(string)
-				res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(res.Country, res.CountryCodeTag) + originName
+			res.Proxy["name"] = config.GlobalConfig.NodePrefix + proxyutils.Rename(res.Country, res.CountryCodeTag) + originName
 		}
 	}
 
@@ -901,7 +923,7 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		return nil
 	}
 
-	defer proxy.Close()
+	defer proxy.Close() // 关闭临时代理实例，释放资源
 
 	// 全局可取消的 context
 	pcCtx, pcCancel := context.WithCancel(context.Background())
