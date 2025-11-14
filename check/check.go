@@ -107,8 +107,8 @@ type ProxyJob struct {
 func (j *ProxyJob) Close() {
 	j.doneOnce.Do(func() {
 		if j.Client != nil {
-			// 关闭 mihomo 客户端并清理资源
 			j.Client.Close()
+			j.Client = nil // 切断对底层资源的引用
 		}
 		// 切断map引用，释放内存
 		j.Result.Proxy = nil
@@ -587,6 +587,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 					})
 				}
 
+				// 流转
 				pc.mediaChan <- job
 			}
 		})
@@ -658,16 +659,11 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 func (pc *ProxyChecker) collectResults() {
 	for result := range pc.resultChan {
 		pc.results = append(pc.results, result)
-		result.Proxy = nil // 释放引用
 	}
 }
 
 // checkAlive 使用谷歌服务执行基本的存活检测。
 func checkAlive(job *ProxyJob) bool {
-	google, err := platform.CheckGoogle(job.Client.Client)
-	if err == nil && google {
-		return true
-	}
 	gstatic, err := platform.CheckGstatic(job.Client.Client)
 	if err == nil && gstatic {
 		return true
