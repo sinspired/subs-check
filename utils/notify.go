@@ -28,23 +28,8 @@ func Notify(request NotifyRequest) error {
 		return fmt.Errorf("构建请求体失败: %w", err)
 	}
 
-	// 不使用代理
-	client := &http.Client{
-		Transport: &http.Transport{
-			Proxy: nil, // 禁用代理
-		},
-		Timeout: 10 * time.Second,
-	}
-
-	// 构造请求
-	req, err := http.NewRequest(http.MethodPost, config.GlobalConfig.AppriseAPIServer, bytes.NewBuffer(body))
-	if err != nil {
-		return fmt.Errorf("构建请求失败: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
 	// 发送请求
-	resp, err := client.Do(req)
+	resp, err := http.Post(config.GlobalConfig.AppriseAPIServer, "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("发送请求失败: %w", err)
 	}
@@ -52,8 +37,8 @@ func Notify(request NotifyRequest) error {
 
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("通知失败，状态码: %d, 响应: %s", resp.StatusCode, string(respBody))
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("通知失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
 	}
 
 	return nil
