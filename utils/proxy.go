@@ -175,15 +175,6 @@ func checkGhProxyAvailable(githubProxy string) (bool, string) {
 		return false, githubProxy
 	}
 
-	// // 简单读取部分内容，确保不是空响应
-	// buf := make([]byte, 64)
-	// n, _ := resp.Body.Read(buf)
-	// if n > 0 {
-	// 	return true, githubProxy
-	// } else {
-	// 	return false, githubProxy
-	// }
-
 	// 读取完整响应体，确保下载完成
 	_, err = io.Copy(io.Discard, resp.Body)
 	if err != nil {

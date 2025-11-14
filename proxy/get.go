@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -64,10 +63,6 @@ func GetProxies() ([]map[string]any, int, int, error) {
 		slog.Info("只筛选用户设置的协议", "type", config.GlobalConfig.NodeType)
 	}
 
-	if len(config.GlobalConfig.NodeType) > 0 {
-		slog.Info("只筛选用户设置的协议", "type", config.GlobalConfig.NodeType)
-	}
-
 	var wg sync.WaitGroup
 	proxyChan := make(chan map[string]any, 1)                              // 缓冲通道存储解析的代理
 	concurrentLimit := make(chan struct{}, config.GlobalConfig.Concurrent) // 限制并发数
@@ -109,8 +104,9 @@ func GetProxies() ([]map[string]any, int, int, error) {
 			requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))
 			requiredSubStorePort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":"))
 
-			if (host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1") &&
-				port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
+			isLocal := isLocal(host)
+
+			if isLocal && port != "" && (port == requiredListenPort || port == requiredSubStorePort) {
 				if strings.HasSuffix(d.Path, "/all.yaml") || strings.HasSuffix(d.Path, "/all.yml") {
 					isSuccedProxiesURL = true
 				}
@@ -295,7 +291,7 @@ func resolveSubUrls() ([]string, int, int, int) {
 
 			if _, err := os.Stat(localLastSuccedFile); err == nil {
 				historyNum++
-				urls = append([]string{localLastSucced + "#KeepSucced"}, urls...)
+				urls = append([]string{localLastSucced + "#KeepSucceed"}, urls...)
 			}
 			if _, err := os.Stat(localHistoryFile); err == nil {
 				historyNum++
@@ -346,7 +342,6 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	// 优先尝试解析为字符串数组（YAML/JSON兼容）
 	var arr []string
 	if err := yaml.Unmarshal(data, &arr); err == nil && len(arr) > 0 {
@@ -369,165 +364,207 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 	return res, nil
 }
 
-// GetDateFromSubs 从订阅链接获取数据
-// 逻辑：
-// 1. 如果配置了代理，优先使用代理请求原始 URL（默认行为，无需显式设置）
-// 2. 如果失败，再尝试 githubproxy，但明确禁用代理直连
-// 3. 支持日期占位符
-func GetDateFromSubs(subURL string) ([]byte, error) {
-	type tryURL struct {
+func GetDateFromSubs(rawURL string) ([]byte, error) {
+	// 内部类型：单次尝试计划
+	type tryPlan struct {
 		url      string
-		useProxy bool
+		useProxy bool // true: 使用系统代理; false: 明确禁用代理
+		via      string
 	}
 
+	// 配置项与默认值
 	maxRetries := config.GlobalConfig.SubUrlsReTry
+	if maxRetries <= 0 {
+		maxRetries = 1
+	}
 	retryInterval := config.GlobalConfig.SubUrlsRetryInterval
-	if retryInterval == 0 {
+	if retryInterval <= 0 {
 		retryInterval = 1
 	}
 	timeout := config.GlobalConfig.SubUrlsTimeout
-	if timeout == 0 {
-		timeout = 15
+	if timeout <= 0 {
+		timeout = 10
 	}
+
+	// 占位符候选：今日 + 昨日（仅当存在占位符时）
+	candidates := buildCandidateURLs(rawURL)
 
 	var lastErr error
 
-	// 定义直连 Transport（禁用代理）
-	directTransport := &http.Transport{
-		Proxy: nil,
-	}
-
-	// 判断是否存在系统代理（环境变量）
-	useProxy := IsSysProxyAvailable
-
-	hasPlaceholder := strings.Contains(strings.ToLower(subURL), "{ymd}") || strings.Contains(strings.ToLower(subURL), "{y}")
-	var candidateURLs []string
-	if !hasPlaceholder {
-		candidateURLs = []string{subURL}
-	} else {
-		now := time.Now()
-		todayY, todayM, todayD := now.Date()
-		ymdToday := now.Format("20060102")
-		yest := now.AddDate(0, 0, -1)
-		yestY, yestM, yestD := yest.Date()
-		ymdYest := yest.Format("20060102")
-
-		replace := func(urlStr string, y, m, d int, ymdStr string) string {
-			ymdRe := regexp.MustCompile(`(?i)\{Ymd\}`)
-			s := ymdRe.ReplaceAllString(urlStr, ymdStr)
-			yRe := regexp.MustCompile(`(?i)\{Y\}`)
-			s = yRe.ReplaceAllString(s, strconv.Itoa(y))
-			mRe := regexp.MustCompile(`(?i)\{m\}`)
-			s = mRe.ReplaceAllString(s, fmt.Sprintf("%02d", m))
-			dRe := regexp.MustCompile(`(?i)\{d\}`)
-			s = dRe.ReplaceAllString(s, fmt.Sprintf("%02d", d))
-			return s
-		}
-
-		todayURL := replace(subURL, todayY, int(todayM), todayD, ymdToday)
-		yestURL := replace(subURL, yestY, int(yestM), yestD, ymdYest)
-		candidateURLs = []string{todayURL, yestURL}
-		slog.Debug("检测到日期占位符，将尝试今日和昨日日期")
-	}
-
-	// 重试逻辑
-	for i := range maxRetries {
+	for i := 0; i < maxRetries; i++ {
 		if i > 0 {
 			time.Sleep(time.Duration(retryInterval) * time.Second)
 		}
 
-		for _, candURL := range candidateURLs {
-			var localTryUrls []tryURL
+		for _, cand := range candidates {
+			// 构建尝试顺序：
+			// 1) 原始链接 + 系统代理（若可用），否则直连
+			// 2) GitHub 代理直连（仅当 WarpURL 确实发生变化且可用）
+			plans := make([]tryPlan, 0, 2)
 
-			// 如果配置了系统代理，优先尝试使用系统代理请求候选 URL
-			if useProxy {
-				slog.Debug(fmt.Sprintf("优先使用系统代理请求链接: %s", candURL))
-				localTryUrls = append(localTryUrls, tryURL{candURL, true})
+			normalized := ensureScheme(cand)
+
+			// 只要用户配置了系统代理，或探测为可用，都先走系统代理
+			if IsSysProxyAvailable {
+				plans = append(plans, tryPlan{url: normalized, useProxy: true, via: "sys-proxy"})
+			} else {
+				plans = append(plans, tryPlan{url: normalized, useProxy: false, via: "direct"})
 			}
 
-			// utils.WarpUrl 会自动添加 / 以及 http(s)://,并且根据 IsGhProxyAvailable 决定是否添加 githubproxy
-			warped := utils.WarpURL(candURL, IsGhProxyAvailable)
-			localTryUrls = append(localTryUrls, tryURL{warped, false})
+			gh := utils.WarpURL(normalized, IsGhProxyAvailable)
+			if IsGhProxyAvailable && gh != normalized {
+				plans = append(plans, tryPlan{url: gh, useProxy: false, via: "ghproxy-direct"})
+			}
 
-			for _, t := range localTryUrls {
-				subURL, err := u.Parse(t.url)
-				if err != nil {
-					lastErr = fmt.Errorf("解析URL失败: %w", err)
-					continue
+			for _, p := range plans {
+				body, err, terminal := fetchOnce(p.url, p.useProxy, timeout)
+				if err == nil {
+					return body, nil
 				}
-
-				req, err := http.NewRequest("GET", subURL.String(), nil)
-				if err != nil {
-					lastErr = err
-					continue
+				lastErr = err
+				if terminal {
+					// 明确错误（如 404/401）直接终止所有重试
+					return nil, lastErr
 				}
-				req.Header.Set("User-Agent", "clash.meta")
-
-				// 根据判断结果添加请求头或查询参数
-				isKeepSuccess := (strings.Contains(subURL.Fragment, "Success") || strings.Contains(subURL.Fragment, "Succed") || strings.Contains(subURL.Fragment, "History"))
-				var isLocal bool
-				host := subURL.Hostname()
-				if host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0" || host == "::1" {
-					isLocal = true
-				}
-				if isLocal && isKeepSuccess {
-					q := req.URL.Query()
-					if q.Get("from_subs_check") == "" {
-						q.Set("from_subs_check", "true")
-						req.URL.RawQuery = q.Encode()
-					}
-					req.Header.Set("X-From-Subs-Check", "true")
-					req.Header.Set("X-API-Key", config.GlobalConfig.APIKey)
-				}
-
-				// 根据是否走代理选择 Client
-				client := &http.Client{
-					Timeout: time.Duration(timeout) * time.Second,
-				}
-				if !t.useProxy {
-					client.Transport = directTransport // 禁用代理
-				}
-
-				resp, err := client.Do(req)
-				if err != nil {
-					if os.IsTimeout(err) {
-						lastErr = fmt.Errorf("订阅链接: %s 请求超时 [系统代理: %v]", req.URL.String(), t.useProxy)
-					} else {
-						lastErr = fmt.Errorf("订阅链接: %s 请求失败: %v", req.URL.String(), err)
-					}
-					continue
-				}
-				defer resp.Body.Close()
-
-				if resp.StatusCode != http.StatusOK {
-
-					switch resp.StatusCode {
-					case http.StatusNotFound, http.StatusGone, http.StatusUnavailableForLegalReasons:
-						lastErr = fmt.Errorf("\033[31m订阅链接已失效！\033[0m%s [系统代理: %v, 状态码: %d]", t.url, t.useProxy, resp.StatusCode)
-						// 404, 410, 451 → 明确失效, 终止对当前 candURL 的所有尝试
-						return nil, lastErr
-					case http.StatusUnauthorized, http.StatusForbidden:
-						// 401, 403 → 可能是权限问题, 终止对当前 candURL 的所有尝试
-						lastErr = fmt.Errorf("订阅: %s 权限不足或需要认证 (状态码: %d)", req.URL.String(), resp.StatusCode)
-						return nil, lastErr
-					default:
-						// 其他情况（如 5xx）继续重试
-						lastErr = fmt.Errorf("订阅: %s 状态码: %d", req.URL.String(), resp.StatusCode)
-						continue
-					}
-				}
-
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					lastErr = fmt.Errorf("读取订阅链接: %s 数据错误: %v", req.URL.String(), err)
-					continue
-				}
-				return body, nil
 			}
 		}
 	}
 
 	return nil, fmt.Errorf("重试%d次后失败: %v", maxRetries, lastErr)
+}
+
+// buildCandidateURLs 生成候选链接：
+// - 如果存在日期占位符，返回 [今日, 昨日]
+// - 否则返回 [原始]
+func buildCandidateURLs(u string) []string {
+	if !hasDatePlaceholder(u) {
+		return []string{u}
+	}
+	now := time.Now()
+	yest := now.AddDate(0, 0, -1)
+	today := replaceDatePlaceholders(u, now)
+	yesterday := replaceDatePlaceholders(u, yest)
+	slog.Debug("检测到日期占位符，将尝试今日和昨日日期")
+	return []string{today, yesterday}
+}
+
+// hasDatePlaceholder 粗略检查是否包含任意日期占位符
+func hasDatePlaceholder(s string) bool {
+	ls := strings.ToLower(s)
+	return strings.Contains(ls, "{ymd}") || strings.Contains(ls, "{y}") ||
+		strings.Contains(ls, "{m}") || strings.Contains(ls, "{d}") ||
+		strings.Contains(ls, "{y-m-d}") || strings.Contains(ls, "{y_m_d}")
+}
+
+// replaceDatePlaceholders 按时间替换日期占位符，大小写不敏感
+func replaceDatePlaceholders(s string, t time.Time) string {
+	// 统一处理多种格式
+	reMap := map[*regexp.Regexp]string{
+		regexp.MustCompile(`(?i)\{Ymd\}`):   t.Format("20060102"),
+		regexp.MustCompile(`(?i)\{Y-m-d\}`): t.Format("2006-01-02"),
+		regexp.MustCompile(`(?i)\{Y_m_d\}`): t.Format("2006_01_02"),
+		regexp.MustCompile(`(?i)\{Y\}`):     t.Format("2006"),
+		regexp.MustCompile(`(?i)\{m\}`):     t.Format("01"),
+		regexp.MustCompile(`(?i)\{d\}`):     t.Format("02"),
+	}
+	out := s
+	for re, val := range reMap {
+		out = re.ReplaceAllString(out, val)
+	}
+	return out
+}
+
+// ensureScheme 如果缺少协议，默认补为 http:// 或 https://（针对常见 host 做合理推断）
+func ensureScheme(u string) string {
+	s := strings.TrimSpace(u)
+	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+		return s
+	}
+	// 本地/内网使用 http
+	if strings.HasPrefix(s, "127.0.0.1:") || strings.HasPrefix(strings.ToLower(s), "localhost:") || strings.HasPrefix(s, "0.0.0.0:") || strings.HasPrefix(s, "[::1]:") {
+		return "http://" + s
+	}
+	// GitHub/raw 默认 https
+	if strings.HasPrefix(s, "raw.githubusercontent.com/") || strings.HasPrefix(s, "github.com/") {
+		return "https://" + s
+	}
+	// 默认 http
+	return "http://" + s
+}
+
+// fetchOnce 执行一次请求；返回 (body, err, terminal)
+// terminal=true 表示不应继续重试（如 404/401 等明确错误）
+func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, bool) {
+	parsed, err := u.Parse(target)
+	if err != nil {
+		return nil, fmt.Errorf("解析URL失败: %w", err), false
+	}
+
+	req, err := http.NewRequest("GET", parsed.String(), nil)
+	if err != nil {
+		return nil, err, false
+	}
+	req.Header.Set("User-Agent", "clash.meta")
+
+	// 本地 KeepSuccess / KeepHistory 请求需要附加 header 与 query
+	frag := parsed.Fragment
+	isKeep := strings.Contains(strings.ToLower(frag), "success") || strings.Contains(strings.ToLower(frag), "succeed") || strings.Contains(strings.ToLower(frag), "history")
+	host := parsed.Hostname()
+	isLocal := isLocal(host)
+	if isLocal && isKeep {
+		q := req.URL.Query()
+		if q.Get("from_subs_check") == "" {
+			q.Set("from_subs_check", "true")
+			req.URL.RawQuery = q.Encode()
+		}
+		req.Header.Set("X-From-Subs-Check", "true")
+		req.Header.Set("X-API-Key", config.GlobalConfig.APIKey)
+	}
+
+	// HTTP Client
+	client := &http.Client{Timeout: time.Duration(timeoutSec) * time.Second}
+	if useProxy {
+		// 优先使用用户显式配置的系统代理，其次回退到环境变量
+		if p := strings.TrimSpace(config.GlobalConfig.SystemProxy); p != "" {
+			if pu, perr := u.Parse(p); perr == nil {
+				client.Transport = &http.Transport{Proxy: http.ProxyURL(pu)}
+			} else {
+				client.Transport = &http.Transport{Proxy: http.ProxyFromEnvironment}
+			}
+		} else {
+			client.Transport = &http.Transport{Proxy: http.ProxyFromEnvironment}
+		}
+	} else {
+		client.Transport = &http.Transport{Proxy: nil}
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		if os.IsTimeout(err) {
+			return nil, fmt.Errorf("订阅: %s 请求超时 [代理: %v]", req.URL.String(), useProxy), false
+		}
+		return nil, fmt.Errorf("订阅: %s 请求失败: %v", req.URL.String(), err), false
+	}
+	// 确保及时关闭，避免泄露
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		switch resp.StatusCode {
+		case http.StatusNotFound, http.StatusGone, http.StatusUnavailableForLegalReasons:
+			// 明确失效，直接终止
+			return nil, fmt.Errorf("\u001b[31m订阅链接已失效！\u001b[0m %s [代理: %v, 状态码: %d]", req.URL.String(), useProxy, resp.StatusCode), true
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return nil, fmt.Errorf("订阅: %s 权限不足或需要认证 (状态码: %d)", req.URL.String(), resp.StatusCode), true
+		default:
+			return nil, fmt.Errorf("订阅: %s 状态码: %d", req.URL.String(), resp.StatusCode), false
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取订阅链接: %s 数据错误: %v", req.URL.String(), err), false
+	}
+	return body, nil, false
 }
 
 // 生成唯一 key，按 server、port、type 三个字段
@@ -549,4 +586,9 @@ func generateProxyKey(p map[string]any) string {
 	}
 	// 使用 '|' 分隔构建 key
 	return server + "|" + port + "|" + typ + "|" + servername + "|" + password
+}
+
+// isLocal 判断是否为本地地址
+func isLocal(host string) bool {
+	return host == "127.0.0.1" || strings.EqualFold(host, "localhost") || host == "0.0.0.0" || host == "::1" || strings.Contains(host, ".local") || !strings.Contains(host, ".")
 }
