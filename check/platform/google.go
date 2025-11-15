@@ -7,8 +7,8 @@ import (
 )
 
 func CheckGoogle(httpClient *http.Client) (bool, error) {
-	if success, err := checkGoogleEndpoint(httpClient, "https://gstatic.com/generate_204", 204); err == nil && success {
-		return checkGoogleEndpoint(httpClient, "https://www.google.com/generate_204", 204) 
+	if success, err := checkGoogleEndpoint(httpClient, "https://www.google.com/generate_204", 204); err == nil && success {
+		return true, nil
 	}
 	return false, nil
 }
@@ -19,7 +19,6 @@ func CheckGstatic(httpClient *http.Client) (bool, error) {
 	}
 	return false, nil
 }
-
 
 func checkGoogleEndpoint(httpClient *http.Client, url string, statusCode int) (bool, error) {
 	req, err := http.NewRequest("GET", url, nil)
