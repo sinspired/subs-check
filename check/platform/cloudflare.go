@@ -223,7 +223,6 @@ func checkCFEndpoint(httpClient *http.Client, url string, expectedStatus int) (b
 		return false, err
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body) // 确保读完
 
 	if resp.StatusCode != expectedStatus {
 		if resp.StatusCode == 403 {
