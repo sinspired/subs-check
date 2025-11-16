@@ -137,10 +137,20 @@ func GetProxies() ([]map[string]any, int, int, error) {
 			if err != nil {
 				proxyList, err := convert.ConvertsV2Ray(data)
 				if err != nil {
-					slog.Error(fmt.Sprintf("解析proxy错误: %v", err), "url", url)
-					return
+					// 如果转换失败,进行一次提取
+					links := extractV2RayLinks(data)
+					if len(links) == 0 {
+						return
+					}
+					// 将提取到的链接按换行拼接，走 V2Ray 转换逻辑
+					extractedData := []byte(strings.Join(links, "\n"))
+					proxyList, err = convert.ConvertsV2Ray(extractedData)
+					if err != nil {
+						slog.Error(fmt.Sprintf("解析提取的V2Ray链接错误: %v", err), "url", url)
+						return
+					}
+					slog.Debug(fmt.Sprintf("获取订阅链接(文本提取): %s，有效节点数量: %d", url, len(proxyList)))
 				}
-				slog.Debug(fmt.Sprintf("获取订阅链接: %s，有效节点数量: %d", url, len(proxyList)))
 				for _, proxy := range proxyList {
 					// 只测试指定协议
 					if t, ok := proxy["type"].(string); ok {
@@ -162,6 +172,61 @@ func GetProxies() ([]map[string]any, int, int, error) {
 
 			proxyInterface, ok := con["proxies"]
 			if !ok || proxyInterface == nil {
+				// 在判断订阅链接为空前，尝试从已解析内容中提取以 v2ray 系列协议开头的链接
+				links := extractV2RayLinks(con)
+
+				if len(links) > 0 {
+					// 将提取到的链接按换行拼接，走 V2Ray 转换逻辑
+					extractedData := []byte(strings.Join(links, "\n"))
+					proxyList, err := convert.ConvertsV2Ray(extractedData)
+					if err != nil {
+						slog.Error(fmt.Sprintf("解析提取的V2Ray链接错误: %v", err), "url", url)
+						return
+					}
+					slog.Debug(fmt.Sprintf("从订阅中提取V2Ray链接: %s，有效节点数量: %d", url, len(proxyList)))
+					for _, proxy := range proxyList {
+						// 只测试指定协议
+						if t, ok := proxy["type"].(string); ok {
+							if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+								continue
+							}
+						}
+
+						// 为每个节点添加订阅链接来源信息和备注
+						proxy["sub_url"] = url
+						proxy["sub_tag"] = tag
+						proxy["sub_was_succeed"] = wasSucced
+						proxy["sub_from_history"] = wasHistory
+						proxyChan <- proxy
+					}
+					return
+				}
+
+				// 结构化提取失败时，回退到对原始文本进行正则提取
+				fallbackLinks := extractV2RayLinks(data)
+				if len(fallbackLinks) > 0 {
+					extractedData := []byte(strings.Join(fallbackLinks, "\n"))
+					proxyList, err := convert.ConvertsV2Ray(extractedData)
+					if err != nil {
+						slog.Error(fmt.Sprintf("解析回退文本中提取的V2Ray链接错误: %v", err), "url", url)
+						return
+					}
+					slog.Debug(fmt.Sprintf("从订阅原始文本中提取V2Ray链接: %s，有效节点数量: %d", url, len(proxyList)))
+					for _, proxy := range proxyList {
+						if t, ok := proxy["type"].(string); ok {
+							if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+								continue
+							}
+						}
+						proxy["sub_url"] = url
+						proxy["sub_tag"] = tag
+						proxy["sub_was_succeed"] = wasSucced
+						proxy["sub_from_history"] = wasHistory
+						proxyChan <- proxy
+					}
+					return
+				}
+
 				slog.Warn(fmt.Sprintf("订阅链接为空: %s", url))
 				return
 			}
@@ -607,4 +672,137 @@ func generateProxyKey(p map[string]any) string {
 // isLocal 判断是否为本地地址
 func isLocal(host string) bool {
 	return host == "127.0.0.1" || strings.EqualFold(host, "localhost") || host == "0.0.0.0" || host == "::1" || strings.Contains(host, ".local") || !strings.Contains(host, ".")
+}
+
+// 支持的 V2Ray/代理链接协议前缀（小写匹配）
+var v2raySchemePrefixes = []string{
+	"vmess://",
+	"vless://",
+	"trojan://",
+	"ss://",
+	"ssr://",
+	// hysteria 系列
+	"hysteria://",
+	"hysteria2://",
+	"hy2://",
+	// tuic 系列
+	"tuic://",
+	"tuic5://",
+	// socks 系列（部分订阅可能会混入）
+	"socks://",
+	"socks5://",
+	"socks5h://",
+	// 其他扩展协议（尽量兼容）
+	"anytls://",
+}
+
+// 从任意已反序列化的数据结构中递归提取 V2Ray/代理链接
+func extractV2RayLinks(v any) []string {
+	links := make([]string, 0, 8)
+	var walk func(any)
+	walk = func(x any) {
+		switch vv := x.(type) {
+		case nil:
+			return
+		case string:
+			links = append(links, extractV2RayLinksFromTextInternal(vv)...)
+		case []byte:
+			links = append(links, extractV2RayLinksFromTextInternal(string(vv))...)
+		case []any:
+			for _, it := range vv {
+				walk(it)
+			}
+		case map[string]any:
+			for _, it := range vv {
+				walk(it)
+			}
+		}
+	}
+	walk(v)
+	return normalizeExtractedLinks(uniqueStrings(links))
+}
+
+func uniqueStrings(in []string) []string {
+	if len(in) <= 1 {
+		return in
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	return out
+}
+
+// 使用正则从纯文本中提取 V2Ray/代理链接
+var (
+	v2rayRegexOnce         sync.Once
+	v2rayLinkRegexCompiled *regexp.Regexp
+)
+
+func getV2RayLinkRegex() *regexp.Regexp {
+	v2rayRegexOnce.Do(func() {
+		// 由前缀动态构建 scheme 正则，避免重复维护
+		names := make([]string, 0, len(v2raySchemePrefixes))
+		seen := make(map[string]struct{}, len(v2raySchemePrefixes))
+		for _, p := range v2raySchemePrefixes {
+			scheme := strings.TrimSpace(strings.TrimSuffix(strings.ToLower(p), "://"))
+			if scheme == "" {
+				continue
+			}
+			if _, ok := seen[scheme]; ok {
+				continue
+			}
+			seen[scheme] = struct{}{}
+			names = append(names, regexp.QuoteMeta(scheme))
+		}
+		pattern := `(?i)\b(` + strings.Join(names, `|`) + `)://[^\s"'<>\)\]]+`
+		v2rayLinkRegexCompiled = regexp.MustCompile(pattern)
+	})
+	return v2rayLinkRegexCompiled
+}
+
+func extractV2RayLinksFromTextInternal(s string) []string {
+	if s == "" {
+		return nil
+	}
+	re := getV2RayLinkRegex()
+	matches := re.FindAllString(s, -1)
+	return matches
+}
+
+// 规范化提取到的链接：
+// - 去除首尾空白
+// - 去除首尾引号 " ' `
+// - 去除行首常见列表符号（- * • 等）
+// - 去除行尾常见分隔符（, ， ; ；）
+func normalizeExtractedLinks(in []string) []string {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		t := strings.TrimSpace(s)
+		// 去掉包裹引号
+		t = strings.Trim(t, "\"'`")
+		// 去掉行首的列表符号
+		for {
+			tt := strings.TrimLeft(t, " -\t\u00A0\u2003\u2002\u2009\u3000•*·")
+			if tt == t {
+				break
+			}
+			t = tt
+		}
+		// 去掉行尾常见分隔符
+		t = strings.TrimRight(t, ",，;；")
+		if t == "" {
+			continue
+		}
+		out = append(out, t)
+	}
+	return uniqueStrings(out)
 }
