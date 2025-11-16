@@ -7,8 +7,8 @@ import (
 
 type SingBoxConfig struct {
 	Version string   `yaml:"version"`
-	JSON []string `yaml:"json"`
-	JS   []string `yaml:"js"`
+	JSON    []string `yaml:"json"`
+	JS      []string `yaml:"js"`
 }
 
 type Config struct {
@@ -48,6 +48,7 @@ type Config struct {
 	SubUrlsTimeout       int      `yaml:"sub-urls-timeout"`
 	SubUrlsRemote        []string `yaml:"sub-urls-remote"`
 	SubUrls              []string `yaml:"sub-urls"`
+	SubURLsStats         bool     `yaml:"sub-urls-stats"`
 	SuccessRate          float32  `yaml:"success-rate"`
 	MihomoAPIURL         string   `yaml:"mihomo-api-url"`
 	MihomoAPISecret      string   `yaml:"mihomo-api-secret"`
@@ -87,7 +88,7 @@ type Config struct {
 
 	// 新增 singbox的ios版本停留在1.11，这里进行兼容
 	SingboxLatest SingBoxConfig `yaml:"singbox-latest"`
-	SingboxOld SingBoxConfig `yaml:"singbox-old"`
+	SingboxOld    SingBoxConfig `yaml:"singbox-old"`
 }
 
 var GlobalConfig = &Config{

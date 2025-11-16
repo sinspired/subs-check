@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -73,9 +74,19 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	var historyProxies []map[string]any
 	var syncProxies []map[string]any
 
+	// 记录成功解析出节点的订阅链接（去重）
+	validSubs := make(map[string]struct{})
+	// 统计每个订阅链接解析出的节点数量
+	subNodeCounts := make(map[string]int)
+
 	done := make(chan struct{})
 	go func() {
 		for proxy := range proxyChan {
+			// 收到任一节点即标记该订阅链接为有效
+			if su, ok := proxy["sub_url"].(string); ok && su != "" {
+				validSubs[su] = struct{}{}
+				subNodeCounts[su]++
+			}
 			switch {
 			case proxy["sub_from_history"] == true:
 				historyProxies = append(historyProxies, proxy)
@@ -313,6 +324,54 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	}
 	syncProxies = nil
 	runtime.GC() // 提示 GC 回收
+
+	// 如开启订阅链接筛选，保存有效订阅链接到本地文件
+	if true && config.GlobalConfig.SubURLsStats {
+		list := make([]string, 0, len(validSubs))
+		for su := range validSubs {
+			list = append(list, su)
+		}
+		sort.Strings(list)
+		// 以父级键 sub-urls 包装，生成如下结构：
+		// sub-urls:
+		//   - url1
+		//   - url2
+		wrapped := map[string]any{
+			"sub-urls": list,
+		}
+		if data, err := yaml.Marshal(wrapped); err != nil {
+			slog.Warn("序列化有效订阅链接失败", "err", err)
+		} else if err := method.SaveToStats(data, "subs-valid.yaml"); err != nil {
+			slog.Warn("保存有效订阅链接失败", "err", err)
+		}
+
+		// 保存每个订阅链接的节点统计到 subs-stats.yaml（按数量降序）
+		type pair struct {
+			URL   string
+			Count int
+		}
+		pairs := make([]pair, 0, len(subNodeCounts))
+		for u, c := range subNodeCounts {
+			pairs = append(pairs, pair{URL: u, Count: c})
+		}
+		sort.Slice(pairs, func(i, j int) bool {
+			if pairs[i].Count == pairs[j].Count {
+				return pairs[i].URL < pairs[j].URL
+			}
+			return pairs[i].Count > pairs[j].Count
+		})
+		// 保存为合法 YAML：每行一个条目，键为 URL，值为 count
+		// 例如：
+		// - "https://example.com/sub.txt": 123
+		var sb strings.Builder
+		sb.WriteString("订阅链接:\n")
+		for _, p := range pairs {
+			sb.WriteString(fmt.Sprintf("- %q: %d\n", p.URL, p.Count))
+		}
+		if err := method.SaveToStats([]byte(sb.String()), "subs-stats.yaml"); err != nil {
+			slog.Warn("保存订阅统计失败", "err", err)
+		}
+	}
 
 	// 返回时用去重后的历史数量
 	return mihomoProxies, succedCount, historyCount, nil

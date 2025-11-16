@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,8 @@ import (
 	"github.com/sinspired/subs-check/check/platform"
 	"github.com/sinspired/subs-check/config"
 	proxyutils "github.com/sinspired/subs-check/proxy"
+	"github.com/sinspired/subs-check/save/method"
+	"gopkg.in/yaml.v3"
 )
 
 // 对外暴露变量，兼容GUI调用
@@ -904,6 +907,54 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 					"成功节点数", stats.success,
 					"成功占比", fmt.Sprintf("%.2f%%", successRate*100))
 			}
+		}
+	}
+
+	// 根据用户配置，过滤出成功率>0的订阅并保存两个文件：
+	// 1) 仅包含URL列表：subs-filtered.yaml
+	// 2) 包含URL与成功率的统计：subs-filtered-stats.yaml（按成功率降序）
+	if config.GlobalConfig.SubURLsStats {
+		type pair struct {
+			URL     string
+			Rate    float64
+			Total   int
+			Success int
+		}
+		filtered := make([]string, 0, len(subStats))
+		pairs := make([]pair, 0, len(subStats))
+
+		for u, st := range subStats {
+			if st.total <= 0 || st.success <= 0 {
+				continue
+			}
+			r := float64(st.success) / float64(st.total)
+			filtered = append(filtered, u)
+			pairs = append(pairs, pair{URL: u, Rate: r, Total: st.total, Success: st.success})
+		}
+
+		// 排序：按成功率降序，再按URL升序
+		sort.Slice(pairs, func(i, j int) bool {
+			if pairs[i].Rate == pairs[j].Rate {
+				return pairs[i].URL < pairs[j].URL
+			}
+			return pairs[i].Rate > pairs[j].Rate
+		})
+
+		// URL 列表保存为标准 YAML 数组
+		if data, err := yaml.Marshal(filtered); err != nil {
+			slog.Warn("序列化过滤后的订阅链接失败", "err", err)
+		} else if err := method.SaveToStats(data, "subs-filtered.yaml"); err != nil {
+			slog.Warn("保存过滤后的订阅链接失败", "err", err)
+		}
+
+		// 统计文件：每行一个条目，列表中为单键映射：- "<url>": <rate>
+		// rate 保留4位小数，便于人眼阅读与程序解析
+		var sb strings.Builder
+		for _, p := range pairs {
+			sb.WriteString(fmt.Sprintf("- %q: %d/%d (%.3f%%)\n", p.URL, p.Success, p.Total, p.Rate*100))
+		}
+		if err := method.SaveToStats([]byte(sb.String()), "subs-filtered-stats.yaml"); err != nil {
+			slog.Warn("保存过滤后的订阅统计失败", "err", err)
 		}
 	}
 }
