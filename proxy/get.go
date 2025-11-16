@@ -4,6 +4,7 @@ package proxies
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -522,7 +523,22 @@ func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, boo
 	}
 
 	// HTTP Client
-	client := &http.Client{Timeout: time.Duration(timeoutSec) * time.Second}
+	client := &http.Client{
+		Timeout: time.Duration(timeoutSec) * time.Second,
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			DisableKeepAlives:     false,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+
 	if useProxy {
 		// 优先使用用户显式配置的系统代理，其次回退到环境变量
 		if p := strings.TrimSpace(config.GlobalConfig.SystemProxy); p != "" {
