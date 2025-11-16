@@ -66,8 +66,10 @@ func GetProxies() ([]map[string]any, int, int, error) {
 	}
 
 	var wg sync.WaitGroup
-	proxyChan := make(chan map[string]any, 1)                              // 缓冲通道存储解析的代理
-	concurrentLimit := make(chan struct{}, config.GlobalConfig.Concurrent) // 限制并发数
+	proxyChan := make(chan map[string]any, 1) // 缓冲通道存储解析的代理
+
+	getSubsConcurrent := min(config.GlobalConfig.Concurrent, 100)
+	concurrentLimit := make(chan struct{}, getSubsConcurrent) // 限制并发数
 
 	// 启动收集结果的协程（将之前成功节点和其他订阅分别收集以便将之前成功节点放前面）
 	var succedProxies []map[string]any
