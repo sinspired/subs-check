@@ -63,6 +63,7 @@
   const dockerUrlBtn = document.getElementById('dockerUrlBtn');
   const telegramUrlBtn = document.getElementById('telegramUrlBtn');
   const subStoreBtn = document.getElementById('sub-store');
+  const subStoreBtnMobile = document.getElementById('btnSubStore');
 
   // 上次检测结果
   const lastCheckResult = $('#lastCheckResult');
@@ -1045,6 +1046,65 @@
       }
     });
 
+    subStoreBtnMobile?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        if (!sessionKey) { showLogin(true); return; }
+        const r = await sfetch(API.config);
+        if (!r.ok) { showToast('读取配置失败', 'warn'); return; }
+
+        const p = r.payload;
+        const yamlContent = p?.content ?? '';
+        const config = YAML.parse(yamlContent);
+        let subStorePath = p?.sub_store_path ?? '';
+        const yamlSubStorePath = (config["sub-store-path"] ?? "")
+
+        if (!subStorePath) {
+          showToast('请先设置 sub_store_path', 'error');
+          return;
+        }
+
+        // 获取并清理端口
+        const port = (config["sub-store-port"] ?? "")
+          .toString()
+          .trim()
+          .replace(/^:/, "");
+
+        // 确保 path 以 / 开头
+        let path = subStorePath;
+        if (path && !path.startsWith('/') && length(path) > 1) {
+          path = '/' + path;
+        }
+
+        // 基础 URL
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const baseUrlWithoutPort = protocol + '//' + hostname;
+
+        const currentPort = window.location.port;
+        const shouldAddPort = currentPort && currentPort !== '';
+        const portToAdd = (shouldAddPort && port) ? ':' + port : '';
+
+        // 判断是否第一次或 subStorePath 变化
+        const isFirstTime = lastSubStorePath === null;
+        const isPathChanged = lastSubStorePath !== subStorePath;
+
+        let url;
+        if (isFirstTime || isPathChanged) {
+          url = baseUrlWithoutPort + portToAdd + '?api=' + path;
+        } else {
+          url = baseUrlWithoutPort + portToAdd;
+        }
+
+        // 更新记录
+        lastSubStorePath = subStorePath;
+
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (err) {
+        console.error("打开订阅管理失败", err);
+        showToast('打开失败，请检查配置或后台日志', 'error');
+      }
+    });
 
     // 查看项目信息点击事件
     projectInfoBtn?.addEventListener('click', (e) => {

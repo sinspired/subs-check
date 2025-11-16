@@ -800,7 +800,7 @@ main {
 }
 
 #btnHistoryExit,
-#btnShare {
+#btnShare,#btnSubStore {
   display: none;
 }
 
@@ -1512,7 +1512,7 @@ main {
 
   /* 小屏显示退出和分享按钮 */
   #btnHistoryExit,
-  #btnShare {
+  #btnShare,#btnSubStore {
     display: inline-block;
   }
 
