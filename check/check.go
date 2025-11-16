@@ -558,7 +558,8 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 					job.Close()
 					continue
 				}
-				speed, _, err := platform.CheckSpeed(job.Client.Client, Bucket)
+				getBytes := func() uint64 { return atomic.LoadUint64(&job.Client.Transport.BytesRead) }
+				speed, _, err := platform.CheckSpeed(job.Client.Client, Bucket, getBytes)
 				success := err == nil && speed >= config.GlobalConfig.MinSpeed
 				if atomic.CompareAndSwapInt32(&job.speedMarked, 0, 1) {
 					pc.pt.CountSpeed(success)
@@ -917,18 +918,25 @@ type ProxyClient struct {
 // CreateClient 创建独立的代理客户端
 func CreateClient(mapping map[string]any) *ProxyClient {
 	resolver.DisableIPv6 = false
-	proxy, err := adapter.ParseProxy(mapping)
+	mihomoProxy, err := adapter.ParseProxy(mapping)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("底层mihomo创建代理Client失败: %v", err))
 		return nil
 	}
 
-	defer proxy.Close() // 关闭临时代理实例，释放资源
+	defer mihomoProxy.Close() // 关闭临时代理实例，释放资源
 
 	// 全局可取消的 context
 	pcCtx, pcCancel := context.WithCancel(context.Background())
 
-	baseTransport := &http.Transport{
+	// 统计传输层字节的 Transport（会在拨号阶段包裹 net.Conn）
+	statsTransport := &StatsTransport{}
+
+	// 将 baseTransport 与网络限速开关拆分声明，以便在创建后根据 Transport 的配置检测是否可能启用 HTTP/2
+	var baseTransport *http.Transport
+	networkLimitDefault := true
+
+	baseTransport = &http.Transport{
 		DialContext: func(reqCtx context.Context, network, addr string) (net.Conn, error) {
 			// 合并请求级别 ctx 和全局 ctx
 			mergedCtx, mergedCancel := context.WithCancel(reqCtx)
@@ -946,10 +954,20 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 			if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
 				u16Port = uint16(port)
 			}
-			return proxy.DialContext(mergedCtx, &constant.Metadata{
+			rawConn, err := mihomoProxy.DialContext(mergedCtx, &constant.Metadata{
 				Host:    host,
 				DstPort: u16Port,
 			})
+			if err != nil {
+				return nil, err
+			}
+			// 用计数连接包裹，统计真实网络传输字节（含压缩/加密）
+			return &countingConn{
+				Conn:         rawConn,
+				readCounter:  &statsTransport.BytesRead,
+				writeCounter: &statsTransport.BytesWritten,
+				networkLimit: networkLimitDefault,
+			}, nil
 		},
 		DisableKeepAlives:   false,
 		Proxy:               nil,
@@ -957,7 +975,12 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		MaxIdleConnsPerHost: 5,
 	}
 
-	statsTransport := &StatsTransport{Base: baseTransport}
+	// 创建完 baseTransport 后，再以启发式方式判断是否可能启用 HTTP/2/连接复用
+	if baseTransport.ForceAttemptHTTP2 || len(baseTransport.TLSNextProto) > 0 {
+		networkLimitDefault = false
+	}
+
+	statsTransport.Base = baseTransport
 
 	return &ProxyClient{
 		Client: &http.Client{
@@ -981,10 +1004,8 @@ func (pc *ProxyClient) Close() {
 	if pc.Transport != nil {
 		TotalBytes.Add(atomic.LoadUint64(&pc.Transport.BytesRead))
 		if pc.Transport.Base != nil {
-			if transport, ok := pc.Transport.Base.(*http.Transport); ok {
-				transport.CloseIdleConnections()
-				transport.DisableKeepAlives = true
-			}
+			pc.Transport.Base.CloseIdleConnections()
+			pc.Transport.Base.DisableKeepAlives = true
 		}
 	}
 
@@ -1009,22 +1030,43 @@ func (c *countingReadCloser) Read(p []byte) (int, error) {
 
 // StatsTransport 是一个 http.RoundTripper 的封装，用于统计从响应体中读取的字节数。
 type StatsTransport struct {
-	Base      http.RoundTripper
-	BytesRead uint64
+	Base         *http.Transport
+	BytesRead    uint64
+	BytesWritten uint64
 }
 
 // RoundTrip 为 StatsTransport 实现 http.RoundTripper 接口。
 func (s *StatsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := s.Base.RoundTrip(req)
-	if err != nil {
-		return nil, err
+	return s.Base.RoundTrip(req)
+}
+
+// countingConn 包裹 net.Conn，在网络连接层统计读/写字节数。
+type countingConn struct {
+	net.Conn
+	readCounter  *uint64
+	writeCounter *uint64
+	networkLimit bool
+}
+
+func (c *countingConn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	if n > 0 {
+		atomic.AddUint64(c.readCounter, uint64(n))
+		// 在连接层消耗 token 以实现更精确的网络速率限制（当全局 Bucket 可用时）
+		if Bucket != nil && c.networkLimit {
+			// 阻塞直到可消费 n 个 token（以字节为单位）
+			Bucket.Wait(int64(n))
+		}
 	}
-	if resp != nil && resp.Body != nil {
-		resp.Body = &countingReadCloser{
-			ReadCloser: resp.Body,
-			counter:    &s.BytesRead}
+	return n, err
+}
+
+func (c *countingConn) Write(b []byte) (int, error) {
+	n, err := c.Conn.Write(b)
+	if n > 0 {
+		atomic.AddUint64(c.writeCounter, uint64(n))
 	}
-	return resp, nil
+	return n, err
 }
 
 // 工具函数

@@ -3,7 +3,6 @@ package platform
 import (
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"time"
 
@@ -14,7 +13,37 @@ import (
 	"github.com/sinspired/subs-check/config"
 )
 
-func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket) (int, int64, error) {
+// networkLimitedReader 基于网络层字节计数器的大小限制 reader
+type networkLimitedReader struct {
+	reader      io.Reader
+	getNetBytes func() uint64
+	startBytes  uint64
+	limit       uint64
+}
+
+func (r *networkLimitedReader) Read(p []byte) (n int, err error) {
+	if r.getNetBytes != nil && r.limit > 0 {
+		current := r.getNetBytes()
+		if current < r.startBytes {
+			// 如果出现回绕（极少见），重置起始点
+			r.startBytes = current
+		}
+		networkRead := current - r.startBytes
+		if networkRead >= r.limit {
+			return 0, io.EOF
+		}
+		remaining := r.limit - networkRead
+		if uint64(len(p)) > remaining {
+			p = p[:remaining]
+		}
+	}
+	return r.reader.Read(p)
+}
+
+// CheckSpeed 执行下载测速。为保证统计的是“网络传输层”的真实字节数（含压缩），
+// 需要调用方提供 getNetBytes 用于读取底层连接累计的网络读取字节数。
+// 返回速度单位为 KB/s，第二个返回值为此次测速期间的网络下载字节数。
+func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket, getNetBytes func() uint64) (int, int64, error) {
 	// 创建一个新的测速专用客户端，基于原有客户端的传输层
 	speedClient := &http.Client{
 		// 设置更长的超时时间用于测速
@@ -36,22 +65,35 @@ func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket) (int, int64, 
 	}
 	defer resp.Body.Close()
 
-	var totalBytes int64
-	var limitSize int64
+	var copiedBytes int64
+	// 开始计时
 	startTime := time.Now()
 
-	// 下载速度限制
-	bucketReader := ratelimit.Reader(resp.Body, bucket)
-	// 根据配置决定是否限制下载大小
-	if config.GlobalConfig.DownloadMB > 0 {
-		limitSize = int64(config.GlobalConfig.DownloadMB) * 1024 * 1024
-	} else {
-		limitSize = math.MaxInt64
+	// 在拿到响应（resp）后再采样起始的网络字节计数，避免把握手/连接建立的字节计入下载统计。
+	var startNetBytes uint64
+	if getNetBytes != nil {
+		startNetBytes = getNetBytes()
 	}
-	limitedReader := io.LimitReader(bucketReader, limitSize)
-	totalBytes, err = io.Copy(io.Discard, limitedReader)
-	if err != nil && totalBytes == 0 {
-		slog.Debug(fmt.Sprintf("totalBytes: %d, 读取数据时发生错误: %v", totalBytes, err))
+
+	// 计算网络层的大小限制（基于配置的 DownloadMB）
+	var limitSize uint64
+	if config.GlobalConfig.DownloadMB > 0 {
+		limitSize = uint64(config.GlobalConfig.DownloadMB) * 1024 * 1024
+	} else {
+		limitSize = 0 // 0 表示不限制
+	}
+
+	// 基于网络字节计数器的 reader：在每次 Read 前会检查网络层已读字节并在超过 limit 时返回 EOF
+	limitedReader := &networkLimitedReader{
+		reader:      resp.Body,
+		getNetBytes: getNetBytes,
+		startBytes:  startNetBytes,
+		limit:       limitSize,
+	}
+
+	copiedBytes, err = io.Copy(io.Discard, limitedReader)
+	if err != nil && copiedBytes == 0 {
+		slog.Debug(fmt.Sprintf("copiedBytes: %d, 读取数据时发生错误: %v", copiedBytes, err))
 		return 0, 0, err
 	}
 
@@ -59,6 +101,20 @@ func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket) (int, int64, 
 	duration := time.Since(startTime).Milliseconds()
 	if duration == 0 {
 		duration = 1 // 避免除以零
+	}
+
+	// 使用网络连接层的字节增量作为统计值（含压缩/加密后的真实传输量）
+	var totalBytes int64
+	if getNetBytes != nil {
+		endNetBytes := getNetBytes()
+		if endNetBytes >= startNetBytes {
+			totalBytes = int64(endNetBytes - startNetBytes)
+		} else {
+			totalBytes = 0
+		}
+	} else {
+		// 兜底：若未提供网络层统计函数，则退回到应用层统计（可能受解压影响）
+		totalBytes = copiedBytes
 	}
 
 	// 计算速度（KB/s）
