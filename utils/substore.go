@@ -369,6 +369,9 @@ func WarpURL(url string, isGhProxyAvailable bool) string {
 	if strings.HasPrefix(url, "https://raw.githubusercontent.com") && isGhProxyAvailable {
 		return config.GlobalConfig.GithubProxy + url
 	}
+	if strings.Contains(url, "/raw") && strings.Contains(url, "github.com/") {
+		return config.GlobalConfig.GithubProxy + url
+	}
 	return url
 }
 
