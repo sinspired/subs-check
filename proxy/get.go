@@ -457,6 +457,10 @@ func resolveSubUrls() ([]string, int, int, int) {
 	return out, localNum, remoteNum, historyNum
 }
 
+type SubUrls struct {
+	SubUrls []string `yaml:"sub-urls" json:"sub-urls"`
+}
+
 // fetchRemoteSubUrls 从远程地址读取订阅URL清单
 // 支持两种格式：
 // 1) 纯文本，按换行分隔，支持以 # 开头的注释与空行
@@ -469,19 +473,29 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	// 优先尝试解析为字符串数组（YAML/JSON兼容）
+
+	// 1) 优先尝试解析为对象形式 (sub-urls: [...])
+	var obj SubUrls
+	if err := yaml.Unmarshal(data, &obj); err == nil && len(obj.SubUrls) > 0 {
+		return obj.SubUrls, nil
+	}
+
+	// 2) 尝试解析为数组形式 ([...])
 	var arr []string
 	if err := yaml.Unmarshal(data, &arr); err == nil && len(arr) > 0 {
 		return arr, nil
 	}
 
-	// 回退为按行解析
+	// 3) 回退为按行解析 (纯文本)
 	res := make([]string, 0, 16)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
+		}
+		if after, ok := strings.CutPrefix(line, "-"); ok {
+			line = strings.TrimSpace(after)
 		}
 		res = append(res, line)
 	}
