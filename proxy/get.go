@@ -31,6 +31,8 @@ import (
 var (
 	IsSysProxyAvailable bool
 	IsGhProxyAvailable  bool
+	// ErrIgnore 用作内部特殊标记，表示某些情况下无需记录日志的“非错误”返回
+	ErrIgnore = errors.New("error-ignore")
 )
 
 func GetProxies() ([]map[string]any, int, int, error) {
@@ -136,7 +138,9 @@ func GetProxies() ([]map[string]any, int, int, error) {
 
 			data, err := GetDateFromSubs(url)
 			if err != nil {
-				slog.Error(fmt.Sprintf("%v", err))
+				if !errors.Is(err, ErrIgnore) {
+					slog.Error(fmt.Sprintf("%v", err))
+				}
 				return
 			}
 
@@ -393,7 +397,9 @@ func resolveSubUrls() ([]string, int, int, int) {
 		for _, subURLRemote := range config.GlobalConfig.SubUrlsRemote {
 			warped := utils.WarpURL(subURLRemote, IsGhProxyAvailable)
 			if remote, err := fetchRemoteSubUrls(warped); err != nil {
-				slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
+				if !errors.Is(err, ErrIgnore) {
+					slog.Warn("获取远程订阅清单失败，已忽略", "err", err)
+				}
 			} else {
 				remoteNum += len(remote)
 				urls = append(urls, remote...)
@@ -528,7 +534,7 @@ func GetDateFromSubs(rawURL string) ([]byte, error) {
 	}
 
 	// 占位符候选：今日 + 昨日（仅当存在占位符时）
-	candidates := buildCandidateURLs(rawURL)
+	candidates, hasDatePlaceholder := buildCandidateURLs(rawURL)
 
 	var lastErr error
 
@@ -564,6 +570,10 @@ func GetDateFromSubs(rawURL string) ([]byte, error) {
 				}
 				lastErr = err
 				if terminal {
+					if hasDatePlaceholder {
+						return nil, ErrIgnore
+					}
+
 					// 明确错误（如 404/401）直接终止所有重试
 					return nil, lastErr
 				}
@@ -577,16 +587,16 @@ func GetDateFromSubs(rawURL string) ([]byte, error) {
 // buildCandidateURLs 生成候选链接：
 // - 如果存在日期占位符，返回 [今日, 昨日]
 // - 否则返回 [原始]
-func buildCandidateURLs(u string) []string {
+func buildCandidateURLs(u string) ([]string, bool) {
 	if !hasDatePlaceholder(u) {
-		return []string{u}
+		return []string{u}, false
 	}
 	now := time.Now()
 	yest := now.AddDate(0, 0, -1)
 	today := replaceDatePlaceholders(u, now)
 	yesterday := replaceDatePlaceholders(u, yest)
 	slog.Debug("检测到日期占位符，将尝试今日和昨日日期")
-	return []string{today, yesterday}
+	return []string{today, yesterday}, true
 }
 
 // hasDatePlaceholder 粗略检查是否包含任意日期占位符
