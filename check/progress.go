@@ -321,7 +321,7 @@ func (pc *ProxyChecker) renderProgressString() string {
 		percent = 100
 	}
 
-	barWidth := 45
+	barWidth := 40
 	barFilled := int(percent / 100 * float64(barWidth))
 
 	return fmt.Sprintf("\r进度: [%-*s] %.1f%% (%d/%d) 可用: %d",
