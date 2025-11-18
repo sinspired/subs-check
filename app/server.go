@@ -127,6 +127,14 @@ func (app *App) initHTTPServer() error {
 		})
 	}
 
+	// 确保 自由分享 文件夹存在
+	moreDirPath := filepath.Join(saver.OutputPath, "more")
+	if _, err := os.Stat(moreDirPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(moreDirPath, 0755); err != nil {
+			slog.Error(fmt.Sprintf("创建 %s/more 文件夹失败", saver.OutputPath))
+		}
+	}
+
 	// 提供一个用户自由分享目录
 	router.GET("/more/*filepath", func(c *gin.Context) {
 		relPath := c.Param("filepath") // 带前缀的路径，如 "/abc.txt"
@@ -165,7 +173,7 @@ func (app *App) initHTTPServer() error {
 		}
 
 		// 拼接绝对路径
-		absPath := filepath.Join(saver.OutputPath, "more", relPath)
+		absPath := filepath.Join(moreDirPath, relPath)
 
 		// 判断文件是否存在
 		info, err := os.Stat(absPath)
@@ -285,7 +293,7 @@ func (app *App) getConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"content": string(configData),
+		"content":        string(configData),
 		"sub_store_path": config.GlobalConfig.SubStorePath,
 	})
 }
