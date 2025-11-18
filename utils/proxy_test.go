@@ -533,4 +533,5 @@ var GhProxies = []string{
 	"tube.20140301.xyz",
 	"vps.pansen626.com",
 	"wfgithub.xiaonuomi.ie.eu.org",
+	"github.dpik.top",
 }
