@@ -234,9 +234,9 @@ func startSubStore(ctx context.Context) error {
 	// 增加body限制，默认1M
 	cmd.Env = append(cmd.Env, "SUB_STORE_BODY_JSON_LIMIT=30mb")
 
-	InitSubStorePath = config.GlobalConfig.SubStorePath
+	InitSubStorePath = strings.TrimSpace(config.GlobalConfig.SubStorePath)
 	// 增加自定义访问路径
-	if config.GlobalConfig.SubStorePath != "" {
+	if strings.TrimSpace(config.GlobalConfig.SubStorePath) != "" {
 		// 如果不是以 "/" 开头，则补上
 		if !strings.HasPrefix(config.GlobalConfig.SubStorePath, "/") {
 			config.GlobalConfig.SubStorePath = "/" + config.GlobalConfig.SubStorePath
