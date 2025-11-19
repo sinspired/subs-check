@@ -84,29 +84,65 @@ func (app *App) initHTTPServer() error {
 				c.String(200, `
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
-    <title>Subs-Check 文件分享（通过分享密码）</title>
+    <title>Subs-Check 文件分享（通过分享码）</title>
     <style>
-        body { font-family: sans-serif; margin: 2em; background: #fafafa; }
-        .box { padding: 1.5em; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
-        h2 { color: #d9534f; }
-        p { margin: 0.5em 0; }
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background: #fafafa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .box {
+            padding: 2em;
+            border: 1px solid #cccccca7;
+            border-radius: 12px;
+            background: #fff;
+            max-width: 800px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        }
+
+        h2 {
+            color: #009768;
+        }
+
+        p {
+            margin: 0.5em 0;
+        }
+
+        code {
+            background: #f7f7f5;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-family: "Menlo", "Monaco", monospace;
+            color: #5d5454;
+            font-size: 0.9em;
+            word-break: break-all;
+            border: 1px solid #eee;
+        }
     </style>
 </head>
+
 <body>
     <div class="box">
-        <h2>⚠️ 注意</h2>
-        <p>您正在访问 <b>/output/</b>。</p>
+        <h2>🔒 订阅分享</h2>
+        <p>您正在通过<code>share-password</code>访问 <b>/output/</b>。</p>
         <p>请输入正确的文件名访问，例如：<code>{share-password}/sub/filename.txt</code></p>
-		</br>
-		<p>请勿将本网址随意分享给他人！</p>
-		</br>
-		<p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code> 即可</p>
-		</br>
-		<p>🚨 请勿在该目录存放敏感文件，请勿暴露外网，以免资源泄露！</p>
+        </br>
+        <b>💡 提示：</b>
+        <p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code></p>
+        </br>
+        <p>🚨 请请勿将本网址随意分享给他人！</p>
+        <p style="font-size: 0.9em; color: #999;">🚦 建议定期更换分享码。</p>
     </div>
 </body>
+
 </html>
         `)
 				return
@@ -149,22 +185,26 @@ func (app *App) initHTTPServer() error {
     <meta charset="UTF-8">
     <title>Subs-Check 文件分享</title>
     <style>
-        body { font-family: sans-serif; margin: 2em; background: #fafafa; }
-        .box { padding: 1.5em; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
+        body { font-family: sans-serif; margin: 0; background: #fafafa; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .box { padding: 2em; border: 1px solid #cccccca7; border-radius: 12px; background: #fff; max-width: 800px; box-shadow: 0 10px 25px rgba(0,0,0,0.05);  }
         h2 { color: #d9534f; }
         p { margin: 0.5em 0; }
+        code {    
+            background: #f7f7f5; padding: 3px 8px; border-radius: 6px; font-family: "Menlo", "Monaco", monospace; color: #5d5454; font-size: 0.9em; word-break: break-all; border: 1px solid #eee;  
+        }  
     </style>
 </head>
 <body>
     <div class="box">
         <h2>⚠️ 注意</h2>
-        <p>您正在访问 <b>用户自由分享目录</b>。</p>
+        <p>您正在访问 <b>无密码保护的目录</b>。</p>
         <p>请输入正确的文件名访问，例如：<code>/more/filename.txt</code></p>
-		<p>建议仅在局域网使用！</p>
 		</br>
-		<p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code> 即可</p>
+		<b>💡 提示：</b>
+        <p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code></p>
 		</br>
-		<p>🚨 请勿在该目录存放敏感文件，请勿暴露外网，以免资源泄露！</p>
+		<p>🚨 请勿在该目录存放敏感文件，以免资源泄露！</p>
+        <p style="font-size: 0.9em; color: #999;">🚦 除非文件确实没啥泄露价值。</p>
     </div>
 </body>
 </html>
