@@ -611,7 +611,7 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 		}
 	}
 
-	// 3) 回退为按行解析 (纯文本)
+	// 3) 回退为按行解析 (纯文本) + 快速 URL 校验
 	res := make([]string, 0, 16)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
@@ -622,7 +622,15 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 		if after, ok := strings.CutPrefix(line, "-"); ok {
 			line = strings.TrimSpace(after)
 		}
-		res = append(res, line)
+		line = strings.Trim(line, "\"'")
+
+		// 必须显式包含协议，仅接受 http/https
+		if parsed, perr := u.Parse(line); perr == nil {
+			scheme := strings.ToLower(parsed.Scheme)
+			if (scheme == "http" || scheme == "https") && parsed.Host != "" {
+				res = append(res, line)
+			}
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
