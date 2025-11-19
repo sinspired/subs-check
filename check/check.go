@@ -350,6 +350,14 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 		)
 	}
 
+	if config.GlobalConfig.KeepSuccessProxies {
+		args = append(args, "keep-success-proxies", config.GlobalConfig.KeepSuccessProxies)
+	}
+
+	if config.GlobalConfig.SubURLsStats {
+		args = append(args, "sub-urls-stats", config.GlobalConfig.SubURLsStats)
+	}
+
 	// 最终日志调用
 	slog.Info("当前参数", args...)
 
