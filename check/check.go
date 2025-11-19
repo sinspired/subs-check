@@ -311,14 +311,23 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 		args = append(args,
 			"auto-concurrent", true, "concurrent", config.GlobalConfig.Concurrent,
 			":alive", pc.aliveConcurrent,
-			":speed", pc.speedConcurrent,
-			":media", pc.mediaConcurrent)
+		)
+		if speedON {
+			args = append(args, ":speed", pc.speedConcurrent)
+		}
+		if mediaON {
+			args = append(args, ":media", pc.mediaConcurrent)
+		}
 	} else {
 		args = append(args,
 			"concurrent", config.GlobalConfig.Concurrent,
-			":alive", pc.aliveConcurrent,
-			":speed", pc.speedConcurrent,
-			":media", pc.mediaConcurrent)
+			":alive", pc.aliveConcurrent)
+		if speedON {
+			args = append(args, ":speed", pc.speedConcurrent)
+		}
+		if mediaON {
+			args = append(args, ":media", pc.mediaConcurrent)
+		}
 	}
 	// 只有在 >0 时才输出
 	if config.GlobalConfig.SuccessLimit > 0 {
