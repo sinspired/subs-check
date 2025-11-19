@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	u "net/url"
 	"os"
@@ -214,6 +215,24 @@ func GetProxies() ([]map[string]any, int, int, error) {
 							return
 						}
 					}
+				}
+
+				// 3) 免费代理 JSON 列表风格：{"http":["ip:port",...], "socks5":[...], "socks4":[...]}
+				if converted := convertUnStandandJsonViaConvert(con); len(converted) > 0 {
+					slog.Debug(fmt.Sprintf("从free-proxies JSON(加协议头→ConvertsV2Ray)解析: %s，有效节点数量: %d", url, len(converted)))
+					for _, proxy := range converted {
+						if t, ok := proxy["type"].(string); ok {
+							if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+								continue
+							}
+						}
+						proxy["sub_url"] = url
+						proxy["sub_tag"] = tag
+						proxy["sub_was_succeed"] = wasSucced
+						proxy["sub_from_history"] = wasHistory
+						proxyChan <- proxy
+					}
+					return
 				}
 
 				// 在判断订阅链接为空前，尝试从已解析内容中提取以 v2ray 系列协议开头的链接
@@ -1087,4 +1106,107 @@ func toIntPort(v any) int {
 		}
 	}
 	return 0
+}
+
+// 支持解析免费代理 JSON 列表结构
+// 形如：{"http":["ip:port",...], "https":[...], "socks5":[...], "socks4":[...]}
+// 返回 mihomo/clash 兼容节点，仅包含 http 与 socks5；socks4 暂不支持（底层不兼容），将忽略。
+func convertUnStandandJsonViaConvert(con map[string]any) []map[string]any {
+	if len(con) == 0 {
+		return nil
+	}
+
+	links := make([]string, 0, 256)
+
+	// 收集 http / https → http://ip:port
+	collect := func(kind string, arr any) {
+		vals := make([]string, 0)
+		switch vv := arr.(type) {
+		case []any:
+			for _, it := range vv {
+				if s, ok := it.(string); ok {
+					vals = append(vals, strings.TrimSpace(s))
+				}
+			}
+		case []string:
+			for _, s := range vv {
+				vals = append(vals, strings.TrimSpace(s))
+			}
+		}
+		for _, hp := range vals {
+			if hp == "" {
+				continue
+			}
+			host, portStr := splitHostPortLoose(hp)
+			if host == "" || portStr == "" {
+				continue
+			}
+			if _, err := strconv.Atoi(portStr); err != nil {
+				continue
+			}
+			switch kind {
+			case "http":
+				links = append(links, fmt.Sprintf("http://%s:%s", host, portStr))
+			case "https":
+				links = append(links, fmt.Sprintf("https://%s:%s", host, portStr))
+			case "socks5":
+				links = append(links, fmt.Sprintf("socks5://%s:%s", host, portStr))
+			case "tuic":
+				links = append(links, fmt.Sprintf("tuic://%s:%s", host, portStr))
+			case "shadowsocks":
+				links = append(links, fmt.Sprintf("shadowsocks://%s:%s", host, portStr))
+			case "vmess":
+				links = append(links, fmt.Sprintf("vmess://%s:%s", host, portStr))
+			case "vless":
+				links = append(links, fmt.Sprintf("vless://%s:%s", host, portStr))
+			case "trojan":
+				links = append(links, fmt.Sprintf("trojan://%s:%s", host, portStr))
+			case "hysteria2":
+				links = append(links, fmt.Sprintf("hysteria2://%s:%s", host, portStr))
+			case "anytls":
+				links = append(links, fmt.Sprintf("anytls://%s:%s", host, portStr))
+			default:
+				links = append(links, fmt.Sprintf("https://%s:%s", host, portStr))
+			}
+		}
+	}
+
+	if v, ok := con["http"]; ok && v != nil {
+		collect("http", v)
+	}
+	if v, ok := con["https"]; ok && v != nil {
+		collect("https", v)
+	}
+	if v, ok := con["socks5"]; ok && v != nil {
+		collect("socks5", v)
+	}
+	// socks4 暂不处理
+
+	if len(links) == 0 {
+		return nil
+	}
+
+	data := []byte(strings.Join(links, "\n"))
+	proxyList, err := convert.ConvertsV2Ray(data)
+	if err != nil || len(proxyList) == 0 {
+		return nil
+	}
+	return proxyList
+}
+
+// 更宽松的 host:port 分割，优先使用 net.SplitHostPort，失败则回退到最后一个冒号分割
+func splitHostPortLoose(hp string) (string, string) {
+	if hp == "" {
+		return "", ""
+	}
+	if strings.Contains(hp, ":") {
+		if h, p, err := net.SplitHostPort(hp); err == nil {
+			return h, p
+		}
+		idx := strings.LastIndex(hp, ":")
+		if idx > 0 && idx < len(hp)-1 {
+			return hp[:idx], hp[idx+1:]
+		}
+	}
+	return hp, ""
 }
