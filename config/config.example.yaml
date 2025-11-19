@@ -1,3 +1,4 @@
+# --------------------进度显示--------------------
 # 是否显示检测进度（终端）
 print-progress: false
 # 进度条显示模式:
@@ -5,6 +6,86 @@ print-progress: false
 # "stage": 每个阶段完成,显示下一阶段剩余任务
 progress-mode: "auto"
 
+# --------------------计划任务--------------------
+# 支持标准cron表达式，如：
+# "0 */6 * * *" 表示每6小时的整点执行
+# "0 0 */2 * *" 表示每2天的0点执行
+# "0 0 1 * *" 表示每月1日0点执行
+# "*/30 * * * *" 表示每30分钟执行一次
+# "0 4,16 * * *" 表示每天凌晨4点和16点执行一次
+
+# cron表达式，如果配置了此项，将忽略check-interval
+# cron-expression: "0 4,16 * * *"
+
+# 检查间隔(分钟)
+# 建议使用 cron-expression 表达式，每天凌晨4点和16点执行一次
+# 高峰期检测意义真的不大，节点少，而且不稳定
+check-interval: 720
+
+# --------------------检测参数--------------------
+# 流水线任务并发数,如不知怎么设置，可将以下任意一个设为 0，将自动设置
+# 测活任务受限于CPU和路由器芯片,占用带宽较小,可适当大一点,量力而行
+# 测速阶段占用带宽,如果要设大,建议设置total-speed-limit避免拉满带宽
+# 测速设置了最低两倍缓冲通道,通道占满会阻塞测活任务
+# 测活-测速-媒体检测并行,缓冲通道占满后会成为瓶颈
+
+# 测活阶段，建议：10-1000
+alive-concurrent: 200
+# 测速阶段，建议：4-32
+speed-concurrent: 8
+# 媒体解锁检测，建议：10-200
+media-concurrent: 100
+
+# 超时时间(毫秒)(节点的最大延迟)，主要影响测活任务
+timeout: 6000
+
+# 并发线程数，用于未设置测活、测速、媒体解锁检测时，自动计算并发数的基准
+# 主要影响获取订阅任务，超过100会设置为100
+concurrent: 20
+
+# 保存几个成功的节点，为0代表不限制
+# 如果你的并发数量超过这个参数，那么成功的结果可能会大于这个数值
+# success-limit <= success <= success-limit+concurrent
+success-limit: 200
+
+# 此选项将保存并加载 {上次检测成功的节点} 和 {历次检测成功的节点}
+# 如果为true，则保留之前测试成功的节点，这样就不会因为上游链接更新，导致可用的节点被清除掉
+# 本项目已移除未经验证的 /all.yaml /sub/all.yaml访问
+# 可放心设置CF Tunnel隧道,在外网访问、修改配置、分享订阅
+keep-success-proxies: true
+
+# --------------------下载参数--------------------
+# 注意: 节点可能被测速测死(暂时或永久), 经过多次测试, 不用怀疑!
+# 强烈建议设置较低的 min-speed, 强烈建议保留 download-timeout 和 download-mb
+# 最低测速结果舍弃(KB/s)
+min-speed: 128
+# 下载测试时间(s)(与下载链接大小相关，默认最大测试10s)
+download-timeout: 10
+# 单节点测速下载数据大小(MB)限制，0为不限
+download-mb: 20
+# 总下载速度速度限制(MB/s)，0为不限
+# 限制与实际情况可能会有一定误差
+total-speed-limit: 0
+
+# 测速地址(注意 并发数*节点速度<最大网速 否则测速结果不准确)
+# 尽量不要使用Speedtest，Cloudflare提供的下载链接，因为很多节点屏蔽测速网站
+# 如果找不到稳定的测速地址，可以自建测速地址
+# speed-test-url: "https://github.com/2dust/v2rayN/releases/download/7.16.2/v2rayN-windows-64-SelfContained.zip"
+# speed-test-url: "random"
+# (留空关闭测速，如节点数量少，网络环境差，请确保测速功能关闭)
+# 建议在深夜、早上、下午等空闲时段检测，避开网络拥堵的晚高峰
+# 出口水管就那么大，运营商只能优先保障直播、影视和游戏之类的正常流量
+speed-test-url: ""
+
+# 相似度阈值(Threshold)大致对应网段
+# 1.00 /32（完全相同 IP）
+# 0.75 /24（前三段相同）
+# 0.50 /16（前两段相同）
+# 0.25 /8（第一段相同）
+# 以下设置仅能 [减少] 节点被测速测死的概率, 无法避免被 "反代机房" 中断节点
+threshold: 0.75
+
+# --------------------版本更新--------------------
 # 是否开启新版本更新
 # 支持启动时检查更新及定时更新任务,无缝升级新版本
 # 支持apprise API通知渠道
@@ -22,69 +103,7 @@ prerelease: false
 # 请输入整数
 update-timeout: 2
 
-# 并发线程数，用于未设置测活、测速、媒体解锁检测时，自动计算并发数的基准
-# 获取订阅时的并发数，超过100会设置为100
-concurrent: 20
-
-# 流水线任务并发数,为0会自动设置
-# 测活任务受限于CPU和路由器芯片,占用带宽较小,可适当大一点,量力而行
-# 测速阶段占用带宽,如果要设大,建议设置total-speed-limit避免拉满带宽
-# 测速设置了最低两倍缓冲通道,通道占满会阻塞测活任务
-# 测活-测速-媒体检测并行,缓冲通道占满后会成为瓶颈
-
-# 测活阶段，建议：10-1000
-alive-concurrent: 200
-# 测速阶段，建议：4-32
-speed-concurrent: 8
-# 媒体解锁检测，建议：10-200
-media-concurrent: 100
-
-# 检查间隔(分钟)
-check-interval: 720
-# cron表达式，如果配置了此项，将忽略check-interval
-# 支持标准cron表达式，如：
-# "0 */6 * * *" 表示每6小时的整点执行
-# "0 0 */2 * *" 表示每2天的0点执行
-# "0 0 1 * *" 表示每月1日0点执行
-# "*/30 * * * *" 表示每30分钟执行一次
-# "0 4,16 * * *" 表示每天凌晨4点和16点执行一次
-# cron-expression: "0 4,16 * * *"
-
-# 保存几个成功的节点，为0代表不限制
-# 如果你的并发数量超过这个参数，那么成功的结果可能会大于这个数值
-# success-limit <= success <= success-limit+concurrent
-success-limit: 200
-
-# 超时时间(毫秒)(节点的最大延迟)
-timeout: 6000
-# 测速地址(注意 并发数*节点速度<最大网速 否则测速结果不准确)
-# 尽量不要使用Speedtest，Cloudflare提供的下载链接，因为很多节点屏蔽测速网站
-# 如果找不到稳定的测速地址，可以自建测速地址
-# speed-test-url: "https://github.com/2dust/v2rayN/releases/download/7.16.2/v2rayN-windows-64-SelfContained.zip"
-# speed-test-url: "random"
-# (留空关闭测速，如节点数量少，网络环境差，请确保测速功能关闭)
-speed-test-url: ""
-
-# 注意: 节点可能被测速测死(暂时或永久), 经过多次测试, 不用怀疑!
-# 强烈建议设置较低的 min-speed, 强烈建议保留 download-timeout 和 download-mb
-# 最低测速结果舍弃(KB/s)
-min-speed: 128
-# 下载测试时间(s)(与下载链接大小相关，默认最大测试10s)
-download-timeout: 10
-# 单节点测速下载数据大小(MB)限制，0为不限
-download-mb: 20
-# 总下载速度速度限制(MB/s)，0为不限
-# 限制与实际情况可能会有一定误差
-total-speed-limit: 0
-
-# 相似度阈值(Threshold)大致对应网段
-# 1.00 /32（完全相同 IP）
-# 0.75 /24（前三段相同）
-# 0.50 /16（前两段相同）
-# 0.25 /8（第一段相同）
-# 以下设置仅能 [减少] 节点被测速测死的概率, 无法避免被 "反代机房" 中断节点
-threshold: 0.75
-
+# --------------------WebUI--------------------
 # 监听端口，用于直接返回节点信息，方便订阅转换
 # 注意：为方便小白默认监听0.0.0.0:8199，请自行修改
 # 更新需重启程序
@@ -107,89 +126,10 @@ api-key: ""
 # 订阅访问地址格式：http://127.0.0.1:8199/{share-password}/sub/filename.yaml
 # 文件位置放在 output/filename.yaml
 # 比如: http://127.0.0.1:8199/{share-password}/sub/all.yaml
+# 首次设置需重启生效
 share-password: ""
 
-# 以节点IP查询位置重命名节点
-# 质量差的节点可能造成IP查询失败，造成整体检查速度稍微变慢，默认true
-rename-node: true
-# 节点前缀，依赖rename-node为true才生效
-node-prefix: ""
-
-# 只测试指定协议的节点
-node-type:
-  # - ss
-  # - vmess
-  # - vless
-
-# 是否开启流媒体检测，其中IP欺诈依赖重命名
-media-check: true
-platforms:
-  - iprisk
-  - openai
-  - gemini
-  - youtube
-  # - tiktok
-  # - netflix
-  # - disney
-  # - x
-
-# 是否丢弃无法访问 cloudflare 的节点(可正常访问Google等,默认保留,修改会导致可用节点急剧减少,且有大概率误杀)
-# true: 丢弃
-# false: 保留
-drop-bad-cf-nodes: false
-
-# 增强的位置显示开关,默认开启
-# 无法访问 CF 的 CF 节点: HK⁻¹
-# 正常访问 CF: a.出口位置与cdn位置一致: HK¹⁺; b.位置不一致: HK¹-US⁰
-# 非 CF 节点,直接显示: HK²
-# 未获取到位置: HKˣ (使用原方案)
-# 前两位字母是实际浏览网站识别的位置,-US⁰为使用CF CDN服务的网站识别的位置,比如GPT, X等
-enhanced-tag: true
-
-# MaxMind 地理数据库路径
-# 如果为空，则使用内置的数据库文件（解压到output目录）
-# 可以指定本地数据库文件路径，如：/path/to/GeoLite2-Country.mmdb
-maxmind-db-path: ""
-
-# 输出目录
-# 如果为空，则为程序所在目录的config目录
-output-dir: ""
-
-# 此选项将保存并加载 {上次检测成功的节点} 和 {历次检测成功的节点}
-# 如果为true，则保留之前测试成功的节点，这样就不会因为上游链接更新，导致可用的节点被清除掉
-# 本项目已移除未经验证的 /all.yaml /sub/all.yaml访问
-# 可放心设置CF Tunnel隧道,在外网访问、修改配置、分享订阅
-keep-success-proxies: true
-
-# 检测完成后执行的回调脚本路径
-# 脚本将在检测完成后执行，可用于自定义通知或其他操作
-# 例如: "/path/to/your/script.sh" 或 'C:\path\to\your\script.bat'
-# Linux请在脚本开头添加对应的：#!/bin/bash、#!/bin/sh、#!/usr/bin/env bash 等，编写标准的脚本
-# 注意如果使用docker，目前docker使用的alpine，只有sh，不支持bash
-callback-script: ""
-
-# 配置通知渠道，将自动发送检测结果通知，新版本通知
-# 复制 https://vercel.com/new/clone?repository-url=https://github.com/sinspired/apprise_vercel 到浏览器
-# 按提示部署，建议为 Vercel 项目设置自定义域名（国内访问 Vercel 可能受限）。
-# 填写搭建的apprise API server 地址
-# 示例：https://notify.xxxx.us.kg/notify
-# 内置apprise服务，不想搭建仅需填写 recipient-url 即可
-apprise-api-server: "https://apprised.netlib.re/notify"
-# 通知渠道
-# 支持100+ 个通知渠道，详细格式请参照 https://github.com/caronc/apprise
-# 格式参考：
-# telegram格式：tgram://{bot_token}/{chat_id}
-# 钉钉格式：dingtalk://{Secret}@{ApiKey}
-# QQ邮箱：mailto://{QQ号}:{邮箱授权码}@qq.com
-# 邮箱授权码：设置-账号-POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务-开通-继续获取授权码
-recipient-url:
-  # - tgram://xxxxxx/-1002149239223
-  # - dingtalk://xxxxxx@xxxxxxx
-  # - mailto://xxxxx:xxxxxx@qq.com
-
-# 自定义通知标题
-notify-title: "🔔 节点状态更新"
-
+# --------------------SUB-STORE--------------------
 # sub-store的启动端口，为空则不启动sub-store
 # 更新需重启程序，不可监听局域网IP，只有三种写法 :8299, 127.0.0.1:8299, 0.0.0.0:8299
 sub-store-port: ":8299"
@@ -242,6 +182,84 @@ sub-store-produce-cron: 0 */2 * * *,sub,sub
 # 苹果 App Store 下载 Brak，APP内获取 token
 sub-store-push-service: ""
 
+# --------------------节点处理--------------------
+# 以节点IP查询位置重命名节点
+# 质量差的节点可能造成IP查询失败，造成整体检查速度稍微变慢，默认true
+rename-node: true
+# 节点前缀，依赖rename-node为true才生效
+node-prefix: ""
+
+# 只测试指定协议的节点
+node-type:
+  # - ss
+  # - vmess
+  # - vless
+
+# 是否丢弃无法访问 cloudflare 的节点(可正常访问Google等,默认保留,修改会导致可用节点急剧减少,且有大概率误杀)
+# true: 丢弃
+# false: 保留
+drop-bad-cf-nodes: false
+
+# 是否开启流媒体检测，其中IP欺诈依赖重命名
+media-check: true
+platforms:
+  - iprisk
+  - openai
+  - gemini
+  - youtube
+  # - tiktok
+  # - netflix
+  # - disney
+  # - x
+
+# 增强的位置显示开关,默认开启
+# 无法访问 CF 的 CF 节点: HK⁻¹
+# 正常访问 CF: a.出口位置与cdn位置一致: HK¹⁺; b.位置不一致: HK¹-US⁰
+# 非 CF 节点,直接显示: HK²
+# 未获取到位置: HKˣ (使用原方案)
+# 前两位字母是实际浏览网站识别的位置,-US⁰为使用CF CDN服务的网站识别的位置,比如GPT, X等
+enhanced-tag: true
+
+# MaxMind 地理数据库路径
+# 如果为空，则使用内置的数据库文件（解压到output目录）
+# 可以指定本地数据库文件路径，如：/path/to/GeoLite2-Country.mmdb
+maxmind-db-path: ""
+
+# 检测完成后执行的回调脚本路径
+# 脚本将在检测完成后执行，可用于自定义通知或其他操作
+# 例如: "/path/to/your/script.sh" 或 'C:\path\to\your\script.bat'
+# Linux请在脚本开头添加对应的：#!/bin/bash、#!/bin/sh、#!/usr/bin/env bash 等，编写标准的脚本
+# 注意如果使用docker，目前docker使用的alpine，只有sh，不支持bash
+callback-script: ""
+
+# --------------------通知设置--------------------
+# 配置通知渠道，将自动发送检测结果通知，新版本通知
+# 复制 https://vercel.com/new/clone?repository-url=https://github.com/sinspired/apprise_vercel 到浏览器
+# 按提示部署，建议为 Vercel 项目设置自定义域名（国内访问 Vercel 可能受限）。
+# 填写搭建的apprise API server 地址
+# 示例：https://notify.xxxx.us.kg/notify
+# 内置apprise服务，不想搭建仅需填写 recipient-url 即可
+apprise-api-server: "https://apprised.netlib.re/notify"
+# 通知渠道
+# 支持100+ 个通知渠道，详细格式请参照 https://github.com/caronc/apprise
+# 格式参考：
+# telegram格式：tgram://{bot_token}/{chat_id}
+# 钉钉格式：dingtalk://{Secret}@{ApiKey}
+# QQ邮箱：mailto://{QQ号}:{邮箱授权码}@qq.com
+# 邮箱授权码：设置-账号-POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务-开通-继续获取授权码
+recipient-url:
+  # - tgram://xxxxxx/-1002149239223
+  # - dingtalk://xxxxxx@xxxxxxx
+  # - mailto://xxxxx:xxxxxx@qq.com
+
+# 自定义通知标题
+notify-title: "🔔 节点状态更新"
+
+# --------------------存储参数--------------------
+# 输出目录
+# 如果为空，则为程序所在目录的config目录
+output-dir: ""
+
 # 保存方法
 # 目前支持的保存方法: r2, local, gist, webdav, s3
 save-method: local
@@ -276,6 +294,7 @@ s3-use-ssl: false
 # 可选值：auto, path, dns
 s3-bucket-lookup: auto
 
+# --------------------代理环境--------------------
 # 优先级 1.system-proxy;2.github-proxy;3.ghproxy-group
 # 即使未设置,也会检测常见端口(v2ray\clash)的系统代理自动设置
 
@@ -290,27 +309,39 @@ system-proxy: ""
 github-proxy: ""
 # GitHub 代理列表：程序会自动筛选可用的 GitHub 代理
 ghproxy-group:
-  - https://gh.518298.xyz/
+  - https://github.intellisensing.tech/
+  - https://ghproxy.wjsphy.top/
+  - https://githubacc.caiaiwan.com/
+  - https://l0l0l.cc/
+  - https://cdn-gh.141888.xyz/
+  - https://ghjs.131412.eu.org/
+  - https://gh.dev.438250.xyz/
+  - https://git-clone.ccrui.dev/
   - https://b.yesican.top/
-  - https://ghproxy.053000.xyz/
-  - https://github.xiongmx.com/
-  - https://proxy.fakups.cn/
-  - https://ccgit2.5gyh.cf/
-  - https://github.9394961.xyz/
-  - https://ghp.opendatahub.xyz/
+  - https://hub.why-ing.top/
+  - https://q-github.cnxiaobai.com/
+  - https://g.108964.xyz/
+  - https://git.maomao.ovh/
   - https://git.llvho.com/
+  - https://ghp.opendatahub.xyz/
   - https://privateghproxy.iil.im/
   - https://gh.mtx72.cc/
-  - https://g.108964.xyz/
   - https://git.loushi.site/
   - https://ghproxy.gopher.ink/
   - https://gh.tou.lu/
   - https://gh.aurzex.top/
 
+# --------------------获取订阅--------------------
 # 重试次数(获取订阅失败后重试次数)
 sub-urls-retry: 3
 # 网络实在太差，就调高一点，比如 15
 sub-urls-timeout: 10
+# 符合条件节点数量的占比，低于此值会将订阅链接打印出来，用于排查质量差的订阅
+success-rate: 0
+# 统计订阅链接有效性和成功率
+# 为 true 会在 ./output/stats/ 生成订阅链接统计，每个订阅节点数量，可用节点数量，成功率
+sub-urls-stats: false
+
 # 远程订阅清单地址；用于集中维护多个订阅链接，避免频繁修改本地文件
 # 支持两种格式：
 # 1) 纯文本：按行分隔，支持 # 注释与空行
@@ -326,17 +357,11 @@ sub-urls-remote:
   - https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/cm.txt
   - https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/scan.txt
 
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l2.yaml
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f2.yaml
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f.yaml
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_spr.yaml
   - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l.yaml
-
-# 符合条件节点数量的占比，低于此值会将订阅链接打印出来，用于排查质量差的订阅
-success-rate: 0
-# 统计订阅链接有效性和成功率
-# 为 true 会在output\stats生成订阅链接统计文件
-sub-urls-stats: false
+  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l2.yaml
+  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f.yaml
+  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f2.yaml
+  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_spr.yaml
 
 # 订阅地址 支持 clash/mihomo/v2ray/base64 格式的订阅链接
 # 如果用户想明确使用clash类型，那可以在支持的订阅链接结尾加上 &flag=clash.meta
