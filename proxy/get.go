@@ -159,6 +159,23 @@ func GetProxies() ([]map[string]any, int, int, error) {
 					// 如果转换失败,进行一次提取
 					links := extractV2RayLinks(data)
 					if len(links) == 0 {
+						// 尝试解析自定义 [Type]Name = type, server, port, k=v 文本格式
+						if parsed := parseBracketKVProxies(data); len(parsed) > 0 {
+							slog.Debug(fmt.Sprintf("从方括号KV格式解析: %s，有效节点数量: %d", url, len(parsed)))
+							for _, proxy := range parsed {
+								if t, ok := proxy["type"].(string); ok {
+									if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+										continue
+									}
+								}
+								proxy["sub_url"] = url
+								proxy["sub_tag"] = tag
+								proxy["sub_was_succeed"] = wasSucced
+								proxy["sub_from_history"] = wasHistory
+								proxyChan <- proxy
+							}
+							return
+						}
 						// 尝试将无协议的 ip:port 列表按 URL 猜测协议头，再交给 ConvertsV2Ray 解析
 						if guessed := convertUnStandandTextViaConvert(url, data); len(guessed) > 0 {
 							for _, proxy := range guessed {
@@ -181,6 +198,23 @@ func GetProxies() ([]map[string]any, int, int, error) {
 					extractedData := []byte(strings.Join(links, "\n"))
 					proxyList, err = convert.ConvertsV2Ray(extractedData)
 					if err != nil {
+						// 尝试解析自定义 [Type]Name = type, server, port, k=v 文本格式
+						if parsed := parseBracketKVProxies(data); len(parsed) > 0 {
+							slog.Debug(fmt.Sprintf("从方括号KV格式解析: %s，有效节点数量: %d", url, len(parsed)))
+							for _, proxy := range parsed {
+								if t, ok := proxy["type"].(string); ok {
+									if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+										continue
+									}
+								}
+								proxy["sub_url"] = url
+								proxy["sub_tag"] = tag
+								proxy["sub_was_succeed"] = wasSucced
+								proxy["sub_from_history"] = wasHistory
+								proxyChan <- proxy
+							}
+							return
+						}
 						slog.Error(fmt.Sprintf("解析提取的V2Ray链接错误: %v", err), "url", url)
 						return
 					}
@@ -1050,6 +1084,197 @@ func normalizeExtractedLinks(in []string) []string {
 		out = append(out, t)
 	}
 	return uniqueStrings(out)
+}
+
+// 解析形如：
+// [Type] Name = type, server, port, k=v, ...
+// 的自定义文本格式为 mihomo/clash 兼容的 proxy map
+func parseBracketKVProxies(data []byte) []map[string]any {
+	res := make([]map[string]any, 0, 16)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// 仅处理包含 '=' 的行
+		eq := strings.Index(line, "=")
+		if eq <= 0 || eq >= len(line)-1 {
+			continue
+		}
+		left := strings.TrimSpace(line[:eq])
+		right := strings.TrimSpace(line[eq+1:])
+
+		// 提取名称，去掉左侧前缀的 [Type]
+		name := left
+		if strings.HasPrefix(left, "[") {
+			if r := strings.Index(left, "]"); r >= 0 {
+				name = strings.TrimSpace(left[r+1:])
+			}
+		}
+
+		// 拆分逗号参数：type, server, port, k=v...
+		rawParts := strings.Split(right, ",")
+		parts := make([]string, 0, len(rawParts))
+		for _, p := range rawParts {
+			pp := strings.TrimSpace(p)
+			if pp != "" {
+				parts = append(parts, pp)
+			}
+		}
+		if len(parts) < 3 {
+			continue
+		}
+
+		typ := strings.ToLower(parts[0])
+		server := parts[1]
+		portStr := parts[2]
+		port, perr := strconv.Atoi(strings.TrimSpace(portStr))
+		if perr != nil || port <= 0 {
+			continue
+		}
+
+		m := make(map[string]any)
+		m["name"] = name
+		m["server"] = strings.TrimSpace(server)
+		m["port"] = port
+		switch typ {
+		case "shadowsocks":
+			m["type"] = "ss"
+		case "ss":
+			m["type"] = "ss"
+		case "trojan":
+			m["type"] = "trojan"
+		case "vmess":
+			m["type"] = "vmess"
+		case "vless":
+			m["type"] = "vless"
+		case "hysteria2", "hy2":
+			m["type"] = "hysteria2"
+		default:
+			// 未知类型跳过
+			continue
+		}
+
+		// 可选参数解析
+		var wsOpts map[string]any
+		for _, kv := range parts[3:] {
+			idx := strings.Index(kv, "=")
+			if idx <= 0 {
+				continue
+			}
+			key := strings.ToLower(strings.TrimSpace(kv[:idx]))
+			val := strings.TrimSpace(kv[idx+1:])
+			val = strings.Trim(val, "\"'")
+
+			switch key {
+			case "username", "uuid":
+				if m["type"] == "vmess" || m["type"] == "vless" {
+					m["uuid"] = val
+				}
+			case "password", "passwd":
+				m["password"] = val
+			case "encrypt-method", "method", "cipher":
+				if m["type"] == "ss" {
+					m["cipher"] = val
+				}
+			case "sni", "servername":
+				m["servername"] = val
+			case "skip-cert-verify", "skip_cert_verify":
+				if b, ok := parseBoolLoose(val); ok {
+					m["skip-cert-verify"] = b
+				}
+			case "udp-relay", "udp":
+				if b, ok := parseBoolLoose(val); ok {
+					m["udp"] = b
+				}
+			case "tfo":
+				if b, ok := parseBoolLoose(val); ok {
+					m["tfo"] = b
+				}
+			case "tls":
+				if b, ok := parseBoolLoose(val); ok {
+					m["tls"] = b
+				}
+			case "ws":
+				if b, ok := parseBoolLoose(val); ok && b {
+					m["network"] = "ws"
+				}
+			case "ws-path", "wspath", "path":
+				if wsOpts == nil {
+					wsOpts = map[string]any{}
+				}
+				wsOpts["path"] = val
+				if _, ok := m["network"]; !ok {
+					m["network"] = "ws"
+				}
+			case "ws-headers", "wsheader":
+				if val != "" {
+					// 形如 Host:example.com 或 key:value
+					k, v := parseHeaderKV(val)
+					if k != "" {
+						if wsOpts == nil {
+							wsOpts = map[string]any{}
+						}
+						h := map[string]any{k: v}
+						wsOpts["headers"] = h
+					}
+				}
+			case "vmess-aead", "tls13":
+				// 忽略或留作以后扩展
+			default:
+				// 未识别键忽略
+			}
+		}
+		if wsOpts != nil {
+			m["ws-opts"] = wsOpts
+		}
+
+		// 基础必需项校验（尽力）
+		valid := true
+		switch m["type"] {
+		case "ss":
+			if m["cipher"] == nil || m["password"] == nil {
+				valid = false
+			}
+		case "trojan":
+			if m["password"] == nil {
+				valid = false
+			}
+		case "vmess", "vless":
+			if m["uuid"] == nil {
+				valid = false
+			}
+		}
+		if !valid {
+			continue
+		}
+
+		res = append(res, m)
+	}
+	return res
+}
+
+func parseHeaderKV(s string) (string, string) {
+	idx := strings.Index(s, ":")
+	if idx <= 0 {
+		return "", ""
+	}
+	k := strings.TrimSpace(s[:idx])
+	v := strings.TrimSpace(s[idx+1:])
+	return k, v
+}
+
+func parseBoolLoose(s string) (bool, bool) {
+	ls := strings.ToLower(strings.TrimSpace(s))
+	switch ls {
+	case "1", "true", "yes", "on":
+		return true, true
+	case "0", "false", "no", "off":
+		return false, true
+	default:
+		return false, false
+	}
 }
 
 // 将 sing-box outbounds 转为 mihomo/clash 兼容的 proxies
