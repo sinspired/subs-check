@@ -603,6 +603,14 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 		return arr, nil
 	}
 
+	// 2.5) 解析为通用 map，尝试从 Clash/Mihomo 配置中提取 proxy-providers.*.url
+	var generic map[string]any
+	if err := yaml.Unmarshal(data, &generic); err == nil && len(generic) > 0 {
+		if urls := extractClashProviderURLs(generic); len(urls) > 0 {
+			return urls, nil
+		}
+	}
+
 	// 3) 回退为按行解析 (纯文本)
 	res := make([]string, 0, 16)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
@@ -620,6 +628,39 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+// 从 Clash/Mihomo 配置中提取 proxy-providers 的 url 字段
+func extractClashProviderURLs(m map[string]any) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	// 支持的可能命名
+	keys := []string{"proxy-providers", "proxy_providers", "proxyproviders"}
+	out := make([]string, 0, 8)
+	for _, k := range keys {
+		v, ok := m[k]
+		if !ok || v == nil {
+			continue
+		}
+		providers, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, prov := range providers {
+			pm, ok := prov.(map[string]any)
+			if !ok {
+				continue
+			}
+			if u, ok := pm["url"].(string); ok {
+				u = strings.TrimSpace(u)
+				if u != "" {
+					out = append(out, u)
+				}
+			}
+		}
+	}
+	return out
 }
 
 func GetDateFromSubs(rawURL string) ([]byte, error) {
