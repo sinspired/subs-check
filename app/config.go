@@ -209,7 +209,7 @@ func (app *App) initConfigWatcher() error {
 									}
 									assets.RunSubStoreService(app.ctx)
 								} else {
-									config.GlobalConfig.SubStorePath = assets.InitSubStorePath
+									config.GlobalConfig.SubStorePath = oldSubStorePath
 									slog.Debug("保留首次运行自动生成的sub-store路径", "sub-store-path", config.GlobalConfig.SubStorePath)
 								}
 							}
