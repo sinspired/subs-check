@@ -159,6 +159,22 @@ func GetProxies() ([]map[string]any, int, int, error) {
 					// 如果转换失败,进行一次提取
 					links := extractV2RayLinks(data)
 					if len(links) == 0 {
+						// 尝试将无协议的 ip:port 列表按 URL 猜测协议头，再交给 ConvertsV2Ray 解析
+						if guessed := convertUnStandandTextViaConvert(url, data); len(guessed) > 0 {
+							for _, proxy := range guessed {
+								if t, ok := proxy["type"].(string); ok {
+									if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+										continue
+									}
+								}
+								proxy["sub_url"] = url
+								proxy["sub_tag"] = tag
+								proxy["sub_was_succeed"] = wasSucced
+								proxy["sub_from_history"] = wasHistory
+								proxyChan <- proxy
+							}
+							return
+						}
 						return
 					}
 					// 将提取到的链接按换行拼接，走 V2Ray 转换逻辑
@@ -274,6 +290,23 @@ func GetProxies() ([]map[string]any, int, int, error) {
 						slog.Error(fmt.Sprintf("解析回退文本中提取的V2Ray链接错误: %v", err), "url", url)
 						return
 					}
+
+					// 最终回退：将按 URL 猜测协议头处理纯文本/数组
+					if guessed := convertUnStandandTextViaConvert(url, data); len(guessed) > 0 {
+						for _, proxy := range guessed {
+							if t, ok := proxy["type"].(string); ok {
+								if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+									continue
+								}
+							}
+							proxy["sub_url"] = url
+							proxy["sub_tag"] = tag
+							proxy["sub_was_succeed"] = wasSucced
+							proxy["sub_from_history"] = wasHistory
+							proxyChan <- proxy
+						}
+						return
+					}
 					slog.Debug(fmt.Sprintf("从订阅原始文本中提取V2Ray链接: %s，有效节点数量: %d", url, len(proxyList)))
 					for _, proxy := range proxyList {
 						if t, ok := proxy["type"].(string); ok {
@@ -297,6 +330,38 @@ func GetProxies() ([]map[string]any, int, int, error) {
 			proxyList, ok := proxyInterface.([]any)
 			if !ok {
 				return
+			}
+			// 若 proxies 是字符串数组（ip:port），按 URL 猜测协议头后统一走 ConvertsV2Ray
+			{
+				strArr := make([]string, 0, len(proxyList))
+				for _, it := range proxyList {
+					if s, ok := it.(string); ok {
+						s = strings.TrimSpace(s)
+						if s != "" {
+							strArr = append(strArr, s)
+						}
+					}
+				}
+				if len(strArr) > 0 {
+					con2 := map[string]any{guessSchemeByURL(url): strArr}
+					converted := convertUnStandandJsonViaConvert(con2)
+					if len(converted) > 0 {
+						slog.Debug(fmt.Sprintf("proxies为字符串数组，已按URL猜测协议转换: %s，数量: %d", url, len(converted)))
+						for _, proxy := range converted {
+							if t, ok := proxy["type"].(string); ok {
+								if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+									continue
+								}
+							}
+							proxy["sub_url"] = url
+							proxy["sub_tag"] = tag
+							proxy["sub_was_succeed"] = wasSucced
+							proxy["sub_from_history"] = wasHistory
+							proxyChan <- proxy
+						}
+						return
+					}
+				}
 			}
 			slog.Debug(fmt.Sprintf("获取订阅链接: %s，有效节点数量: %d", url, len(proxyList)))
 			for _, proxy := range proxyList {
@@ -1209,4 +1274,57 @@ func splitHostPortLoose(hp string) (string, string) {
 		}
 	}
 	return hp, ""
+}
+
+// 根据 URL 进行协议猜测：优先匹配 socks5/https/http 关键字，默认 http
+func guessSchemeByURL(raw string) string {
+	u, err := u.Parse(raw)
+	if err != nil {
+		return "http"
+	}
+	base := strings.ToLower(filepath.Base(u.Path))
+	name := base
+	if dot := strings.Index(base, "."); dot > 0 {
+		name = base[:dot]
+	}
+	if strings.Contains(name, "socks5") || strings.Contains(name, "socks") {
+		return "socks5"
+	}
+	if strings.Contains(name, "https") {
+		return "https"
+	}
+	if strings.Contains(name, "http") {
+		return "http"
+	}
+	return "http"
+}
+
+// 将无协议的纯文本/JSON数组 ip:port 列表，按 URL 猜测协议头后交给 ConvertsV2Ray
+func convertUnStandandTextViaConvert(rawURL string, data []byte) []map[string]any {
+	// 优先尝试 JSON 数组
+	var arr []string
+	if err := yaml.Unmarshal(data, &arr); err == nil && len(arr) > 0 {
+		kind := guessSchemeByURL(rawURL)
+		con := map[string]any{kind: arr}
+		return convertUnStandandJsonViaConvert(con)
+	}
+
+	// 其次当作纯文本换行分隔
+	lines := make([]string, 0, 128)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// 去掉可能的列表符号
+		line = strings.TrimLeft(line, "- ")
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	kind := guessSchemeByURL(rawURL)
+	con := map[string]any{kind: lines}
+	return convertUnStandandJsonViaConvert(con)
 }
