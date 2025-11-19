@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -187,8 +188,34 @@ func GetProxies() ([]map[string]any, int, int, error) {
 				return
 			}
 
+			// 1) mihomo/clash 风格：proxies
 			proxyInterface, ok := con["proxies"]
 			if !ok || proxyInterface == nil {
+				// 2) sing-box 风格：outbounds
+				if outIf, ok := con["outbounds"]; ok && outIf != nil {
+					if outList, ok := outIf.([]any); ok && len(outList) > 0 {
+						converted := convertSingBoxOutbounds(outList)
+						if len(converted) > 0 {
+							slog.Debug(fmt.Sprintf("从sing-box outbounds解析: %s，有效节点数量: %d", url, len(converted)))
+							for _, proxy := range converted {
+								// 只测试指定协议
+								if t, ok := proxy["type"].(string); ok {
+									if len(config.GlobalConfig.NodeType) > 0 && !lo.Contains(config.GlobalConfig.NodeType, t) {
+										continue
+									}
+								}
+								// 附加来源信息
+								proxy["sub_url"] = url
+								proxy["sub_tag"] = tag
+								proxy["sub_was_succeed"] = wasSucced
+								proxy["sub_from_history"] = wasHistory
+								proxyChan <- proxy
+							}
+							return
+						}
+					}
+				}
+
 				// 在判断订阅链接为空前，尝试从已解析内容中提取以 v2ray 系列协议开头的链接
 				links := extractV2RayLinks(con)
 
@@ -890,4 +917,174 @@ func normalizeExtractedLinks(in []string) []string {
 		out = append(out, t)
 	}
 	return uniqueStrings(out)
+}
+
+// 将 sing-box outbounds 转为 mihomo/clash 兼容的 proxies
+func convertSingBoxOutbounds(outbounds []any) []map[string]any {
+	res := make([]map[string]any, 0, len(outbounds))
+
+	aggregators := map[string]struct{}{
+		"selector": {},
+		"urltest":  {},
+		"direct":   {},
+		"block":    {},
+		"dns":      {},
+	}
+
+	for _, ob := range outbounds {
+		m, ok := ob.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		typ := strings.ToLower(strings.TrimSpace(fmt.Sprint(m["type"])))
+		if _, skip := aggregators[typ]; skip {
+			continue
+		}
+
+		conv := make(map[string]any)
+		// 映射基本字段
+		server := strings.TrimSpace(fmt.Sprint(m["server"]))
+		if server == "" {
+			// 有的会写在 "server_address" 之类，尽量兼容
+			if s := strings.TrimSpace(fmt.Sprint(m["server_address"])); s != "" {
+				server = s
+			}
+		}
+		conv["server"] = server
+		conv["port"] = toIntPort(m["server_port"]) // mihomo 期望 "port"
+
+		if tag := strings.TrimSpace(fmt.Sprint(m["tag"])); tag != "" {
+			conv["name"] = tag
+		}
+
+		// 类型映射
+		switch typ {
+		case "shadowsocks":
+			conv["type"] = "ss"
+			if method := strings.TrimSpace(fmt.Sprint(m["method"])); method != "" {
+				conv["cipher"] = method
+			}
+			if pwd := strings.TrimSpace(fmt.Sprint(m["password"])); pwd != "" {
+				conv["password"] = pwd
+			}
+		case "vmess":
+			conv["type"] = "vmess"
+			if uuid := strings.TrimSpace(fmt.Sprint(m["uuid"])); uuid != "" {
+				conv["uuid"] = uuid
+			}
+			if aid := strings.TrimSpace(fmt.Sprint(m["alter_id"])); aid != "" {
+				conv["alterId"] = aid
+			}
+			// 默认 cipher 交给底层，或设为 auto
+			conv["cipher"] = "auto"
+		case "vless":
+			conv["type"] = "vless"
+			if uuid := strings.TrimSpace(fmt.Sprint(m["uuid"])); uuid != "" {
+				conv["uuid"] = uuid
+			}
+			if flow := strings.TrimSpace(fmt.Sprint(m["flow"])); flow != "" {
+				conv["flow"] = flow
+			}
+		case "trojan":
+			conv["type"] = "trojan"
+			if pwd := strings.TrimSpace(fmt.Sprint(m["password"])); pwd != "" {
+				conv["password"] = pwd
+			}
+		case "hysteria2", "hy2":
+			conv["type"] = "hysteria2"
+			if pwd := strings.TrimSpace(fmt.Sprint(m["password"])); pwd != "" {
+				conv["password"] = pwd
+			}
+			// sing-box 常见 obfs 写法：obfs {password}
+			if obfs, ok := m["obfs"].(map[string]any); ok {
+				if p := strings.TrimSpace(fmt.Sprint(obfs["password"])); p != "" {
+					conv["obfs-password"] = p
+				}
+			}
+		default:
+			// 其他类型先按原样尝试，底层 mihomo 可能支持
+			conv["type"] = typ
+		}
+
+		// 传输层（ws/grpc）
+		if tr, ok := m["transport"].(map[string]any); ok {
+			if t := strings.ToLower(strings.TrimSpace(fmt.Sprint(tr["type"]))); t != "" {
+				switch t {
+				case "ws":
+					conv["network"] = "ws"
+					wsopts := make(map[string]any)
+					if p := strings.TrimSpace(fmt.Sprint(tr["path"])); p != "" {
+						wsopts["path"] = p
+					}
+					if h, ok := tr["headers"].(map[string]any); ok {
+						// 直接透传 headers
+						wsopts["headers"] = h
+					}
+					if len(wsopts) > 0 {
+						conv["ws-opts"] = wsopts
+					}
+				case "grpc":
+					conv["network"] = "grpc"
+					gops := make(map[string]any)
+					if sn := strings.TrimSpace(fmt.Sprint(tr["service_name"])); sn != "" {
+						gops["grpc-service-name"] = sn
+					} else if sn := strings.TrimSpace(fmt.Sprint(tr["serviceName"])); sn != "" {
+						gops["grpc-service-name"] = sn
+					}
+					if len(gops) > 0 {
+						conv["grpc-opts"] = gops
+					}
+				}
+			}
+		}
+
+		// TLS / Reality
+		if tlsm, ok := m["tls"].(map[string]any); ok {
+			conv["tls"] = true
+			if sn := strings.TrimSpace(fmt.Sprint(tlsm["server_name"])); sn != "" {
+				conv["servername"] = sn
+			}
+			if r, ok := tlsm["reality"].(map[string]any); ok {
+				if en, ok := r["enabled"].(bool); ok && en {
+					ro := make(map[string]any)
+					if pk := strings.TrimSpace(fmt.Sprint(r["public_key"])); pk != "" {
+						ro["public-key"] = pk
+					}
+					if sid := strings.TrimSpace(fmt.Sprint(r["short_id"])); sid != "" {
+						ro["short-id"] = sid
+					}
+					if len(ro) > 0 {
+						conv["reality-opts"] = ro
+					}
+				}
+			}
+		}
+
+		res = append(res, conv)
+	}
+
+	return res
+}
+
+func toIntPort(v any) int {
+	if v == nil {
+		return 0
+	}
+	switch vv := v.(type) {
+	case int:
+		return vv
+	case int64:
+		return int(vv)
+	case float64:
+		return int(vv)
+	case string:
+		if vv == "" {
+			return 0
+		}
+		if n, err := strconv.Atoi(vv); err == nil {
+			return n
+		}
+	}
+	return 0
 }
