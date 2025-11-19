@@ -1183,7 +1183,7 @@ func convertUnStandandJsonViaConvert(con map[string]any) []map[string]any {
 
 	links := make([]string, 0, 256)
 
-	// 收集 http / https → http://ip:port
+	// 收集不同类型 → 拼接相应协议头
 	collect := func(kind string, arr any) {
 		vals := make([]string, 0)
 		switch vv := arr.(type) {
@@ -1209,13 +1209,25 @@ func convertUnStandandJsonViaConvert(con map[string]any) []map[string]any {
 			if _, err := strconv.Atoi(portStr); err != nil {
 				continue
 			}
-			switch kind {
+			switch strings.ToLower(kind) {
 			case "http":
 				links = append(links, fmt.Sprintf("http://%s:%s", host, portStr))
 			case "https":
 				links = append(links, fmt.Sprintf("https://%s:%s", host, portStr))
 			case "socks5":
 				links = append(links, fmt.Sprintf("socks5://%s:%s", host, portStr))
+			case "socks5h":
+				links = append(links, fmt.Sprintf("socks5h://%s:%s", host, portStr))
+			case "socks4":
+				links = append(links, fmt.Sprintf("socks4://%s:%s", host, portStr))
+			case "socks":
+				// 默认为 socks5
+				links = append(links, fmt.Sprintf("socks://%s:%s", host, portStr))
+			case "mieru":
+				links = append(links, fmt.Sprintf("mieru://%s:%s", host, portStr))
+			case "anytls":
+				links = append(links, fmt.Sprintf("anytls://%s:%s", host, portStr))
+			// 下列协议一般需要额外参数，若上游真提供对应 key，则尝试构造，但多数会被 ConvertsV2Ray 忽略
 			case "tuic":
 				links = append(links, fmt.Sprintf("tuic://%s:%s", host, portStr))
 			case "shadowsocks":
@@ -1228,10 +1240,8 @@ func convertUnStandandJsonViaConvert(con map[string]any) []map[string]any {
 				links = append(links, fmt.Sprintf("trojan://%s:%s", host, portStr))
 			case "hysteria2":
 				links = append(links, fmt.Sprintf("hysteria2://%s:%s", host, portStr))
-			case "anytls":
-				links = append(links, fmt.Sprintf("anytls://%s:%s", host, portStr))
 			default:
-				links = append(links, fmt.Sprintf("https://%s:%s", host, portStr))
+				links = append(links, fmt.Sprintf("http://%s:%s", host, portStr))
 			}
 		}
 	}
@@ -1244,6 +1254,18 @@ func convertUnStandandJsonViaConvert(con map[string]any) []map[string]any {
 	}
 	if v, ok := con["socks5"]; ok && v != nil {
 		collect("socks5", v)
+	}
+	if v, ok := con["socks5h"]; ok && v != nil {
+		collect("socks5h", v)
+	}
+	if v, ok := con["socks4"]; ok && v != nil {
+		collect("socks4", v)
+	}
+	if v, ok := con["socks"]; ok && v != nil {
+		collect("socks", v)
+	}
+	if v, ok := con["mieru"]; ok && v != nil {
+		collect("mieru", v)
 	}
 	// socks4 暂不处理
 
@@ -1287,10 +1309,26 @@ func guessSchemeByURL(raw string) string {
 	if dot := strings.Index(base, "."); dot > 0 {
 		name = base[:dot]
 	}
-	if strings.Contains(name, "socks5") || strings.Contains(name, "socks") {
+	// 更全面的关键词匹配
+	if strings.Contains(name, "socks5h") {
+		return "socks5h"
+	}
+	if strings.Contains(name, "socks5") {
 		return "socks5"
 	}
-	if strings.Contains(name, "https") {
+	if strings.Contains(name, "socks4") {
+		return "socks4"
+	}
+	if strings.Contains(name, "socks") {
+		return "socks"
+	}
+	if strings.Contains(name, "mieru") {
+		return "mieru"
+	}
+	if strings.Contains(name, "anytls") {
+		return "anytls"
+	}
+	if strings.Contains(name, "https") || strings.Contains(name, "http2") {
 		return "https"
 	}
 	if strings.Contains(name, "http") {
