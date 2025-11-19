@@ -59,7 +59,7 @@ func (r *networkLimitedReader) Read(p []byte) (n int, err error) {
 func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket, getNetBytes func() uint64) (int, int64, error) {
 	testOnceURL := config.GlobalConfig.SpeedTestURL
 
-	if strings.Contains(testOnceURL, "random") && len(testURLs) > 0{
+	if strings.Contains(testOnceURL, "random") && len(testURLs) > 0 {
 		testOnceURL = testURLs[rand.Intn(len(testURLs))]
 		slog.Debug(fmt.Sprintf("随机选择的测速URL: %s", testOnceURL))
 	} else {
@@ -80,6 +80,8 @@ func CheckSpeed(httpClient *http.Client, bucket *ratelimit.Bucket, getNetBytes f
 		return 0, 0, err
 	}
 	req.Header.Set("User-Agent", convert.RandUserAgent())
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("sec-ch-ua-mobile", "?1")
 
 	resp, err := speedClient.Do(req)
 	if err != nil {
