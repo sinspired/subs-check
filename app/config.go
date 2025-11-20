@@ -42,11 +42,12 @@ func (app *App) loadConfig() error {
 	}
 
 	// 为避免旧配置残留，反序列化到新的实例，然后替换全局配置
-	newConfig := new(config.Config)
-	if err := yaml.Unmarshal(yamlFile, newConfig); err != nil {
+	// 先拷贝一份默认值
+	newConfig := *config.OriginDefaultConfig
+	if err := yaml.Unmarshal(yamlFile, &newConfig); err != nil {
 		return fmt.Errorf("解析配置文件失败: %w", err)
 	}
-	*config.GlobalConfig = *newConfig
+	*config.GlobalConfig = newConfig
 
 	slog.Info("配置文件读取成功")
 	return nil

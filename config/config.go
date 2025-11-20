@@ -91,14 +91,26 @@ type Config struct {
 	SingboxOld    SingBoxConfig `yaml:"singbox-old"`
 }
 
-var GlobalConfig = &Config{
+var OriginDefaultConfig = &Config{
 	// 新增配置，给未更改配置文件的用户一个默认值
 	ListenPort:         ":8199",
 	NotifyTitle:        "🔔 节点状态更新",
 	MihomoOverwriteURL: "http://127.0.0.1:8199/ACL4SSR_Online_Full.yaml",
-	Platforms:          []string{"openai", "youtube", "netflix", "disney", "gemini", "iprisk"},
-	DownloadMB:         20,
+	Platforms: []string{
+		"iprisk",
+		"openai",
+		"gemini",
+		"youtube",
+		// "netflix",
+		// "disney",
+	},
+	DownloadMB: 20,
+	EnableSelfUpdate:true,
+	CronCheckUpdate: "0 0,9,21 * * *",
 }
+
+// GlobalConfig 指向当前生效配置
+var GlobalConfig = &Config{} // 初始化为空，首次加载后赋值
 
 //go:embed config.example.yaml
 var DefaultConfigTemplate []byte
