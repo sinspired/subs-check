@@ -54,6 +54,7 @@ const configCompletions = [
   { label: "listen-port", type: "property", detail: "WebUI端口", section: "Web UI", isArray: false },
   { label: "enable-web-ui", type: "property", detail: "是否启用Web控制面板", section: "Web UI", isArray: false },
   { label: "api-key", type: "property", detail: "Web控制面板的api-key", section: "Web UI", isArray: false },
+  { label: "share-password", type: "property", detail: "分享码", section: "Web UI", isArray: false },
   { label: "callback-script", type: "property", detail: "回调脚本路径", section: "回调脚本", isArray: false },
   { label: "apprise-api-server", type: "property", detail: "apprise API server 地址", section: "通知设置", isArray: false, info: "示例: https://notify.xxxx.us.kg/notify" },
   { label: "recipient-url", type: "property", detail: "apprise 通知目标", section: "通知设置", isArray: true, info: "详细格式请参照 https://github.com/caronc/apprise" },
@@ -85,6 +86,8 @@ const configCompletions = [
   { label: "github-proxy", type: "property", detail: "Github 代理", section: "代理设置", isArray: false, info: "获取订阅、添加覆写地址时使用" },
   { label: "ghproxy-group", type: "property", detail: "GitHub 代理列表", section: "代理设置", isArray: true, info: "程序会自动筛选可用的 GitHub 代理" },
   { label: "sub-urls-retry", type: "property", detail: "重试次数(获取订阅失败后重试次数)", section: "订阅设置", isArray: false },
+  { label: "sub-urls-timeout", type: "property", detail: "获取订阅超时(默认10s)", section: "订阅设置", isArray: false },
+  { label: "sub-urls-stats", type: "property", detail: "统计订阅链接有效性和成功率", section: "订阅设置", isArray: false },
   { label: "success-rate", type: "property", detail: "节点订阅成功率", section: "订阅设置", isArray: false },
   { label: "sub-urls-remote", type: "property", detail: "远程订阅清单地址", section: "订阅设置", isArray: true },
   { label: "sub-urls", type: "property", detail: "订阅地址", section: "订阅设置", isArray: true },
@@ -459,7 +462,7 @@ const placeholderMatcher = new MatchDecorator({
   regexp: new RegExp(
     [
       // 匹配所有 configCompletions 中的 label
-      '(?<=^[ \t]*)(print-progress|progress-mode|update|update-on-startup|cron-check-update|prerelease|update-timeout|concurrent|alive-concurrent|speed-concurrent|media-concurrent|check-interval|cron-expression|success-limit|timeout|speed-test-url|min-speed|download-timeout|download-mb|total-speed-limit|threshold|rename-node|node-prefix|node-type|media-check|platforms|drop-bad-cf-nodes|enhanced-tag|maxmind-db-path|output-dir|keep-success-proxies|listen-port|enable-web-ui|api-key|callback-script|apprise-api-server|recipient-url|notify-title|sub-store-port|sub-store-path|mihomo-overwrite-url|singbox-latest|singbox-old|sub-store-sync-cron|sub-store-produce-cron|sub-store-push-service|save-method|webdav-url|webdav-username|webdav-password|github-gist-id|github-token|github-api-mirror|worker-url|worker-token|s3-endpoint|s3-access-id|s3-secret-key|s3-bucket|s3-use-ssl|s3-bucket-lookup|system-proxy|github-proxy|ghproxy-group|sub-urls-retry|success-rate|sub-urls-remote|sub-urls)(?=\s*:\s*)',
+      '(?<=^[ \t]*)(print-progress|progress-mode|update|update-on-startup|cron-check-update|prerelease|update-timeout|concurrent|alive-concurrent|speed-concurrent|media-concurrent|check-interval|cron-expression|success-limit|timeout|speed-test-url|min-speed|download-timeout|download-mb|total-speed-limit|threshold|rename-node|node-prefix|node-type|media-check|platforms|drop-bad-cf-nodes|enhanced-tag|maxmind-db-path|output-dir|keep-success-proxies|listen-port|enable-web-ui|api-key|share-password|callback-script|apprise-api-server|recipient-url|notify-title|sub-store-port|sub-store-path|mihomo-overwrite-url|singbox-latest|singbox-old|sub-store-sync-cron|sub-store-produce-cron|sub-store-push-service|save-method|webdav-url|webdav-username|webdav-password|github-gist-id|github-token|github-api-mirror|worker-url|worker-token|s3-endpoint|s3-access-id|s3-secret-key|s3-bucket|s3-use-ssl|s3-bucket-lookup|system-proxy|github-proxy|ghproxy-group|sub-urls-retry|sub-urls-timeout|sub-urls-stats|success-rate|sub-urls-remote|sub-urls)(?=\s*:\s*)',
 
       // 列表项：- openai / - "openai"
       '(?<=^[ \\t]*-\\s*["\']?)(openai|iprisk|gemini|tiktok|youtube|disney|netflix|x|ss|trojan|vless|vmess|shadowsocks)(?=["\']?\\b)',
