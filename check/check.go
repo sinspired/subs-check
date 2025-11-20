@@ -90,20 +90,25 @@ type ProxyChecker struct {
 
 // ProxyJob 在测活-测速-流媒体检测任务间传输信息
 type ProxyJob struct {
-	Client *ProxyClient
-	Result Result
+    // 先放所有需要 8 字节对齐的字段（包括 sync.Once、string、*ProxyClient、chan、slice、map 等）
+    doneOnce sync.Once      // 必须放在前面！保证其内部 uint64 对齐
+    Client   *ProxyClient   // 指针 4→8 对齐
 
-	NeedCF         bool
-	IsCfAccessible bool
-	CfLoc, CfIP    string
-	Speed          int // 单位: KB/s
+    CfLoc string             // string 需要 8 字节对齐
+    CfIP  string
 
-	// 防重复标记：每阶段只记一次（0→1）
-	aliveMarked int32
-	speedMarked int32
-	mediaMarked int32
+    // 然后放 Result（里面有 string 和 map，也需要对齐）
+    Result Result
 
-	doneOnce sync.Once
+    // 最后放不需要严格对齐的小字段
+    Speed int                 // int 在32位是4字节
+
+    NeedCF         bool
+    IsCfAccessible bool
+
+    aliveMarked int32
+    speedMarked int32
+    mediaMarked int32
 }
 
 // Close 确保 ProxyJob 的底层资源(mihomo客户端)被正确释放一次。
