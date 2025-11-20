@@ -168,10 +168,10 @@ const valueCompletions = {
     { label: "\"0 */6 * * *\"", detail: "每6小时检查" }
   ],
   "cron-expression": [
-    { label: "\"0 */2 * * *\"", detail: "每2小时的整点执行" },
+    { label: "\"0 */12 * * *\"", detail: "每12小时的整点执行" },
     { label: "\"0 0 */2 * *\"", detail: "每2天的0点执行" },
     { label: "\"0 0 1 * *\"", detail: "每月1日0点执行" },
-    { label: "\"*/30 * * * *\"", detail: "每30分钟执行一次" }
+    { label: "\"* 4,16 * * *\"", detail: "每天4点、16点执行" }
   ],
   "sub-store-sync-cron": [
     { label: "\"55 23 * * *\"", detail: "每天 23 点 55 分(避开部分机场后端每天0点定时重启)" },
@@ -227,21 +227,21 @@ const arrayItemCompletions = {
     { label: "mailto://xxxxx:xxxxxx@qq.com", detail: "QQ邮箱：mailto://QQ号:邮箱授权码@qq.com" }
   ],
   "ghproxy-group": [
-    { label: "https://ghp.yeye.f5.si/", detail: "GHProxy 代理 1" },
-    { label: "https://git.llvho.com/", detail: "GHProxy 代理 2" },
-    { label: "https://hub.885666.xyz/", detail: "GHProxy 代理 3" },
-    { label: "https://p.jackyu.cn/", detail: "GHProxy 代理 4" },
-    { label: "https://github.cnxiaobai.com/", detail: "GHProxy 代理 5" }
+    { label: "https://ghproxy.net/", detail: "GHProxy 代理 1" },
+    // { label: "https://git.llvho.com/", detail: "GHProxy 代理 2" },
+    // { label: "https://hub.885666.xyz/", detail: "GHProxy 代理 3" },
+    // { label: "https://p.jackyu.cn/", detail: "GHProxy 代理 4" },
+    // { label: "https://github.cnxiaobai.com/", detail: "GHProxy 代理 5" }
   ],
   "sub-urls-remote": [
     { label: "https://example.com/sub-list.txt", detail: "纯文本订阅清单（按行分隔）" },
     { label: "https://example.com/sub-list.yaml", detail: "YAML 订阅清单" },
-    { label: "https://raw.githubusercontent.com/beck-8/sub-urls/main/%E5%B0%8F%E8%80%8C%E7%BE%8E.txt", detail: "示例远程订阅文件，支持 # 注释" }
+    // { label: "https://raw.githubusercontent.com/beck-8/sub-urls/main/%E5%B0%8F%E8%80%8C%E7%BE%8E.txt", detail: "示例远程订阅文件，支持 # 注释" }
   ],
   "sub-urls": [
-    { label: "https://example.com/sub.txt", detail: "基础订阅链接（clash/mihomo/v2ray/base64）" },
-    { label: "https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a", detail: "带 token 的订阅" },
-    { label: "https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a&flag=clash.meta", detail: "Clash Meta 格式订阅" },
+    // { label: "https://example.com/sub.txt", detail: "基础订阅链接（clash/mihomo/v2ray/base64）" },
+    // { label: "https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a", detail: "带 token 的订阅" },
+    // { label: "https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a&flag=clash.meta", detail: "Clash Meta 格式订阅" },
     { label: "https://raw.githubusercontent.com/example/repo/main/config/{Ymd}.yaml", detail: "带时间占位符的订阅" },
     { label: "https://example.com/sub.txt#我是备注", detail: "带备注的订阅（备注加到节点命名）" }
   ]
