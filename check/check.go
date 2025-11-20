@@ -665,8 +665,10 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 						stopOnce.Do(func() {
 							if mediaON {
 								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
+								slog.Warn("测活模式将丢弃多余结果")
 							} else {
 								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
+								slog.Warn("测活模式将丢弃多余结果")
 							}
 
 							cancel()
