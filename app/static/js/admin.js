@@ -1615,6 +1615,10 @@
 
 
   // 初始化分享按钮
+  // 1. 在函数外部定义缓存变量
+  let cachedConfigPayload = null;
+  let cachedSingboxVersions = null;
+
   function setupShareButton(btnId) {
     const btn = document.getElementById(btnId);
     if (!btn) return;
@@ -1625,6 +1629,7 @@
       const shareMenu = document.getElementById("shareMenu");
       if (!shareMenu) return console.warn("shareMenu 元素不存在");
 
+      // 如果菜单已打开，点击则关闭，直接返回
       if (shareMenu.classList.contains("active")) {
         shareMenu.classList.remove("active");
         return;
@@ -1633,13 +1638,27 @@
       try {
         if (!sessionKey) { showLogin(true); return; }
 
-        const r = await sfetch(API.config);
-        if (!r.ok) return showToast('读取配置失败', 'warn');
+        // 2. 检查配置缓存，如果没有则请求
+        if (!cachedConfigPayload) {
+          const r = await sfetch(API.config);
+          if (!r.ok) return showToast('读取配置失败', 'warn');
+          cachedConfigPayload = r.payload; // 存入缓存
+          console.log("读取配置")
+        }
 
-        const v = await sfetch(API.singboxVersions);
-        if (!v.ok) return showToast('读取singbox版本', 'warn');
+        // 3. 检查版本缓存，如果没有则请求
+        if (!cachedSingboxVersions) {
+          const v = await sfetch(API.singboxVersions);
+          if (!v.ok) return showToast('读取singbox版本', 'warn');
+          cachedSingboxVersions = v.payload; // 存入缓存
+          console.log("获取singbox版本")
+        }
 
-        const p = r.payload;
+        // 使用缓存的数据
+        const p = cachedConfigPayload;
+        const d = cachedSingboxVersions;
+        console.log("使用缓存")
+
         const config = YAML.parse(p?.content ?? "");
         let subStorePath = p?.sub_store_path ?? '';
         const yamlSubStorePath = config["sub-store-path"] ?? "";
@@ -1650,7 +1669,6 @@
         const port = (config["sub-store-port"] ?? "").toString().trim().replace(/^:/, "");
         let path = subStorePath.startsWith("/") ? subStorePath : `/${subStorePath}`;
 
-        const d = v.payload;
         const latestSingboxName = `singbox-${d.latest}`;
         const oldSingboxName = `singbox-${d.old}`;
 
@@ -1679,8 +1697,15 @@
         }
         shareMenu.style.transform = "none";
         shareMenu.classList.add("active");
+
       } catch (e) {
         console.error("获取订阅链接失败", e);
+
+        // 4. 发生异常时清空缓存，确保下次点击时重新获取最新数据
+        cachedConfigPayload = null;
+        cachedSingboxVersions = null;
+
+        showToast('获取失败，请重试', 'error');
       }
     });
   }
