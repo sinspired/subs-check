@@ -287,10 +287,9 @@ speed-test-url: https://custom-domain/speedtest?bytes=1073741824
 | `sub_store_for_subs_check.你的域名.com/*`| `localhost:8299`| ❗必须    |
 | `sub.你的域名.com/{sub-store-path}`| `localhost:8299`  | sub-store后端  |
 | `sub.你的域名.com/share`           | `localhost:8299`  | sub-store分享  |
-
 | ⚠️ 如无暴露需求，以下不建议设置 | | |
-| `sub.你的域名.com/sub`             | `localhost:8199`  | 分享码分享     |
-| `sub.你的域名.com/more`            | `localhost:8199`  | 无密码分享     |
+| `sub.你的域名.com/sub`             | `localhost:8199`  | 🔒分享码分享     |
+| `sub.你的域名.com/more`            | `localhost:8199`  | 🔓无密码分享     |
 
 #### 🌐 使用子域映射端口
 
