@@ -69,13 +69,12 @@ func (app *App) initHTTPServer() error {
 	}
 
 	// 提供一个相对安全暴露 output 文件夹的方案
-	// router.Static("/"+config.GlobalConfig.APIKey+"/sub/", saver.OutputPath)
 	// TODO: 不使用output目录,使用output/subs目录
 	if config.GlobalConfig.SharePassword != "" {
-		slog.Info("启用订阅分享目录", "path", fmt.Sprintf("http://ip:port/%s/sub/filename.yaml", config.GlobalConfig.SharePassword))
+		slog.Info("启用订阅分享目录", "path", fmt.Sprintf("http://ip:port/sub/%s/filename.yaml", config.GlobalConfig.SharePassword))
 
 		// 提供一个用户自由分享目录
-		router.GET("/"+config.GlobalConfig.SharePassword+"/sub/*filepath", func(c *gin.Context) {
+		router.GET("/sub/"+config.GlobalConfig.SharePassword+"/*filepath", func(c *gin.Context) {
 			relPath := c.Param("filepath") // 带前缀的路径，如 "/abc.txt"
 
 			if relPath == "" || relPath == "/" {
@@ -133,7 +132,7 @@ func (app *App) initHTTPServer() error {
     <div class="box">
         <h2>🔒 订阅分享</h2>
         <p>您正在通过<code>share-password</code>访问 <b>/output/</b>。</p>
-        <p>请输入正确的文件名访问，例如：<code>{share-password}/sub/filename.txt</code></p>
+        <p>请输入正确的文件名访问，例如：<code>/sub/{share-password}/filename.txt</code></p>
         </br>
         <b>💡 提示：</b>
         <p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code></p>

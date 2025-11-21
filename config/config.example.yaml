@@ -123,9 +123,9 @@ enable-web-ui: true
 api-key: ""
 
 # 如果你要分享订阅，请设置订阅分享密码
-# 订阅访问地址格式：http://127.0.0.1:8199/{share-password}/sub/filename.yaml
+# 订阅访问地址格式：http://127.0.0.1:8199/sub/{share-password}/filename.yaml
 # 文件位置放在 output/filename.yaml
-# 比如: http://127.0.0.1:8199/{share-password}/sub/all.yaml
+# 比如: http://127.0.0.1:8199/sub/{share-password}/all.yaml
 # 首次设置需重启生效
 share-password: ""
 
