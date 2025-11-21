@@ -979,8 +979,77 @@
     return { ok: false, error: 'timeout' };
   }
 
-  // lastSubStorePath 设置变量避免重复设置sub-store 后端
-  let lastSubStorePath;
+  // --- 全局变量 ---
+  let _cachedSubStoreConfig = null; // 用于缓存配置 { subStorePath, port }
+  let lastSubStorePath = null;      // 用于判断是否需要拼接参数
+
+  //  buildSubStoreUrl 辅助函数：根据配置和当前环境构造跳转 URL
+  function buildSubStoreUrl(config) {
+    const { subStorePath, portStr } = config;
+
+    if (!subStorePath) {
+      throw new Error("配置中未找到 sub_store_path");
+    }
+
+    // 1. 处理 Path
+    let path = subStorePath;
+    if (path && !path.startsWith('/') && path.length > 1) {
+      path = '/' + path;
+    }
+
+    // 2. 处理 Port
+    const cleanPort = (portStr ?? "").toString().trim().replace(/^:/, "");
+
+    // 3. 处理 Hostname & Protocol (基于当前窗口)
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    const currentPort = window.location.port;
+
+    // 判断是否需要添加端口
+    const shouldAddPort = currentPort && currentPort !== '';
+    const portToAdd = (shouldAddPort && cleanPort) ? ':' + cleanPort : '';
+
+    // 判断是否需要修改 Hostname (针对二级域名逻辑)
+    let sub_store_hostname = hostname;
+    if (!shouldAddPort) {
+      const parts = hostname.split(".");
+      if (parts.length > 1) {
+        sub_store_hostname = parts.length === 2
+          ? "sub_store_for_subs_check." + sub_store_hostname
+          : "sub_store_for_subs_check." + parts.slice(1).join(".");
+      }
+    }
+
+    const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
+
+    // 4. 决定最终 URL
+    const isFirstTime = lastSubStorePath === null;
+    const isPathChanged = lastSubStorePath !== subStorePath;
+
+    let url;
+    if (isFirstTime || isPathChanged) {
+      url = baseUrlWithoutPort + portToAdd + '?api=' + path;
+    } else {
+      url = baseUrlWithoutPort + portToAdd;
+    }
+
+    return { url, subStorePath }; // 返回 URL 和 path 用于更新全局状态
+  }
+
+  // fetchSubStoreConfig 辅助函数：从后端拉取并解析配置
+  async function fetchSubStoreConfig() {
+    const r = await sfetch(API.config);
+    if (!r.ok) throw new Error("读取配置失败");
+
+    const p = r.payload;
+    const yamlContent = p?.content ?? '';
+    const parsedYaml = YAML.parse(yamlContent); // 假设你有 YAML 解析库
+
+    return {
+      subStorePath: p?.sub_store_path ?? '',
+      portStr: parsedYaml["sub-store-port"]
+    };
+  }
 
   // handleOpenSubStore 跳转sub-store前端并一键设置后端api地址
   async function handleOpenSubStore(e) {
@@ -991,11 +1060,10 @@
 
     if (newWindow) {
       newWindow.document.title = "正在打开sub-store...";
-      // 增加一个稍微好看点的 Loading 样式，并提供一个手动关闭按钮
       newWindow.document.body.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
-        <h3 id="status-text">正在获取配置并跳转...</h3>
-        <p style="color:#666;font-size:14px;">请稍候，如果长时间无反应请关闭窗口重试。</p>
+        <h3 id="status-text">正在跳转...</h3>
+        <p style="color:#666;font-size:14px;">正在解析配置，请稍候。</p>
       </div>
     `;
     } else {
@@ -1003,34 +1071,25 @@
       return;
     }
 
-    // 用于超时控制的标志位
+    // 用于超时控制
     let isFinished = false;
-
-    // 2. 设置 10 秒超时逻辑
     const timeoutTimer = setTimeout(() => {
-      if (isFinished) return; // 如果已经完成则忽略
+      if (isFinished) return;
       isFinished = true;
-
-      // 【处理超时】
-      console.warn("获取配置超时");
+      console.warn("SubStore跳转超时");
       if (newWindow && !newWindow.closed) {
-        // 方案 A: 直接关闭窗口
-        // newWindow.close(); 
-        // showToast('请求超时，请重试', 'warn');
-
-        // 方案 B (推荐): 在新窗口内显示错误，引导用户
         newWindow.document.body.innerHTML = `
         <div style="text-align:center;padding:50px;font-family:sans-serif;">
-          <h3 style="color:red;">跳转超时，请不必惊慌</h3>
-          <p>获取配置耗时过长，这可能由CF隧道抽风、dns污染、网络波动等引起。</p>
-          <button onclick="window.close()" style="padding:10px 20px;font-size:16px;cursor:pointer;">关闭窗口</button>
+          <h3 style="color:red;">跳转超时</h3>
+          <p>获取配置耗时过长，请关闭重试。</p>
+          <button onclick="window.close()" style="padding:10px 20px;cursor:pointer;">关闭窗口</button>
         </div>
       `;
       }
-    }, 10000); // 10秒
+    }, 10000);
 
     try {
-      // 检查登录状态
+      // 检查登录 (这是一个同步检查，很快)
       if (!sessionKey) {
         if (newWindow) newWindow.close();
         showLogin(true);
@@ -1038,73 +1097,66 @@
         return;
       }
 
-      // 3. 执行异步请求
-      const r = await sfetch(API.config);
+      let finalUrl = '';
 
-      if (isFinished) return; // 如果已经超时了，后续逻辑就不跑了
-
-      if (!r.ok) {
-        throw new Error("读取配置失败");
-      }
-
-      const p = r.payload;
-      const yamlContent = p?.content ?? '';
-      const config = YAML.parse(yamlContent);
-      let subStorePath = p?.sub_store_path ?? '';
-
-      if (!subStorePath) {
-        throw new Error("未设置 sub_store_path");
-      }
-
-      // --- URL 构造逻辑 (保持你原有的逻辑不变) ---
-      const port = (config["sub-store-port"] ?? "").toString().trim().replace(/^:/, "");
-      let path = subStorePath;
-      if (path && !path.startsWith('/') && path.length > 1) {
-        path = '/' + path;
-      }
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      const currentPort = window.location.port;
-      const shouldAddPort = currentPort && currentPort !== '';
-      const portToAdd = (shouldAddPort && port) ? ':' + port : '';
-      let sub_store_hostname = hostname;
-      if (!shouldAddPort) {
-        const parts = hostname.split(".");
-        if (parts.length > 1) {
-          sub_store_hostname = parts.length === 2
-            ? "sub_store_for_subs_check." + sub_store_hostname
-            : "sub_store_for_subs_check." + parts.slice(1).join(".");
+      // --- 核心优化 ---
+      try {
+        // 步骤 A: 尝试使用缓存
+        if (_cachedSubStoreConfig) {
+          const result = buildSubStoreUrl(_cachedSubStoreConfig);
+          finalUrl = result.url;
+          // 更新 lastSubStorePath 状态
+          lastSubStorePath = result.subStorePath;
+        } else {
+          // 无缓存，抛出错误进入 catch 流程去 fetch
+          throw new Error("No Cache");
         }
-      }
-      const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
-      const isFirstTime = lastSubStorePath === null; // 注意：需确保 lastSubStorePath 初始已定义
-      const isPathChanged = lastSubStorePath !== subStorePath;
-      let url;
-      if (isFirstTime || isPathChanged) {
-        url = baseUrlWithoutPort + portToAdd + '?api=' + path;
-      } else {
-        url = baseUrlWithoutPort + portToAdd;
-      }
-      lastSubStorePath = subStorePath;
-      // ----------------------------------------
+      } catch (cacheErr) {
+        // 步骤 B: 缓存不存在 或 缓存数据导致构建失败 -> 发起网络请求
+        if (cacheErr.message !== "No Cache") {
+          console.warn("缓存配置异常，尝试重新获取:", cacheErr);
+        }
 
-      // 4. 成功跳转
+        // 如果已经超时，就不发请求了
+        if (isFinished) return;
+
+        // 更新 UI 提示用户正在联网获取
+        if (newWindow && !newWindow.closed) {
+          const statusEl = newWindow.document.getElementById('status-text');
+          if (statusEl) statusEl.innerText = "正在获取最新配置...";
+        }
+
+        // 重新 Fetch
+        const configData = await fetchSubStoreConfig();
+
+        // 更新全局缓存
+        _cachedSubStoreConfig = configData;
+
+        // 再次构建 URL
+        const result = buildSubStoreUrl(configData);
+        finalUrl = result.url;
+        lastSubStorePath = result.subStorePath;
+      }
+      // --- 核心优化结束 ---
+
+      if (isFinished) return;
+
+      // 2. 执行跳转
       isFinished = true;
-      clearTimeout(timeoutTimer); // 清除超时计时器
+      clearTimeout(timeoutTimer);
 
       if (newWindow && !newWindow.closed) {
-        // 关键：重定向现有的窗口
-        newWindow.location.href = url;
+        newWindow.location.href = finalUrl;
       }
 
     } catch (err) {
-      if (isFinished) return; // 如果是超时导致的错误，已经在 setTimeout 里处理了
+      if (isFinished) return;
       isFinished = true;
       clearTimeout(timeoutTimer);
 
       console.error("打开订阅管理失败", err);
 
-      // 错误处理：直接在窗口展示错误信息
+      // 错误兜底显示
       if (newWindow && !newWindow.closed) {
         newWindow.document.body.innerHTML = `
         <div style="text-align:center;padding:50px;font-family:sans-serif;">
@@ -1643,7 +1695,6 @@
           const r = await sfetch(API.config);
           if (!r.ok) return showToast('读取配置失败', 'warn');
           cachedConfigPayload = r.payload; // 存入缓存
-          console.log("读取配置")
         }
 
         // 3. 检查版本缓存，如果没有则请求
@@ -1651,13 +1702,11 @@
           const v = await sfetch(API.singboxVersions);
           if (!v.ok) return showToast('读取singbox版本', 'warn');
           cachedSingboxVersions = v.payload; // 存入缓存
-          console.log("获取singbox版本")
         }
 
         // 使用缓存的数据
         const p = cachedConfigPayload;
         const d = cachedSingboxVersions;
-        console.log("使用缓存")
 
         const config = YAML.parse(p?.content ?? "");
         let subStorePath = p?.sub_store_path ?? '';
