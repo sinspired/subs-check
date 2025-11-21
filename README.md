@@ -276,13 +276,16 @@ speed-test-url: https://custom-domain/speedtest?bytes=1073741824
 
 #### 🔀 使用路径映射端口
   
-| 🌐 外网访问地址                  | 🎯 本地服务地址      |
-|----------------------------------|----------------------|
-| `sub.你的域名.com/admin`         | `localhost:8199`     |
-| `sub.你的域名.com/static`        | `localhost:8199`     |
-| `sub.你的域名.com/api`           | `localhost:8199`     |
-| `sub.你的域名.com/share`         | `localhost:8299`     |
-| `sub.你的域名.com/sub-store-path`| `localhost:8299`     |
+| 🌐 外网访问地址                    | 🎯 本地服务地址   | 💡 用途说明    |
+|-----------------------------------|------------------|----------------|
+| `sub.你的域名.com/admin`           | `localhost:8199`  | 配置管理主页    |
+| `sub.你的域名.com/static`          | `localhost:8199`  | ico,js,css文件 |
+| `sub.你的域名.com/api`             | `localhost:8199`  | 软件运行状态|
+| `sub.你的域名.com/share`           | `localhost:8299`  | sub-store分享  |
+| `sub.你的域名.com/{sub-store-path}`| `localhost:8299`  | sub-store前后端|
+| ⚠️ 如无暴露需求，以下不建议设置 | | |
+| `sub.你的域名.com/sub`             | `localhost:8199`  | 分享码分享     |
+| `sub.你的域名.com/more`            | `localhost:8199`  | 无密码分享     |
 
 > [!tip]
 >
@@ -384,34 +387,34 @@ notify-title: "🔔 节点状态更新"
 
 ```bash
 # 通用订阅
-http://127.0.0.1:8299/download/sub
+http://127.0.0.1:8299/{sub-store-path}/download/sub
 
 # URI 订阅
-http://127.0.0.1:8299/download/sub?target=URI
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=URI
 
 # Mihomo/ClashMeta
-http://127.0.0.1:8299/download/sub?target=ClashMeta
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=ClashMeta
 
 # Clash
-http://127.0.0.1:8299/download/sub?target=Clash
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=Clash
 
 # V2Ray
-http://127.0.0.1:8299/download/sub?target=V2Ray
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=V2Ray
 
 # ShadowRocket
-http://127.0.0.1:8299/download/sub?target=ShadowRocket
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=ShadowRocket
 
 # Quantumult
-http://127.0.0.1:8299/download/sub?target=QX
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=QX
 
 # Sing-Box
-http://127.0.0.1:8299/download/sub?target=sing-box
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=sing-box
 
 # Surge
-http://127.0.0.1:8299/download/sub?target=Surge
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=Surge
 
 # Surfboard
-http://127.0.0.1:8299/download/sub?target=Surfboard
+http://127.0.0.1:8299/{sub-store-path}/download/sub?target=Surfboard
 ```
 
 ### 🚀 Mihomo/Clash 订阅（带分流规则）
@@ -472,13 +475,13 @@ singbox-old:
 
 ```yaml
 # 如果你要分享订阅，请设置订阅分享密码
-# 订阅访问地址格式：http://127.0.0.1:8199/{share-password}/sub/filename.yaml
+# 订阅访问地址格式：http://127.0.0.1:8199/sub/{share-password}/filename.yaml
 # 文件位置放在 output/filename.yaml
-# 比如: http://127.0.0.1:8199/{share-password}/sub/all.yaml
+# 比如: http://127.0.0.1:8199/sub/{share-password}/all.yaml
 share-password: ""
 ```
 
-通过 `http://127.0.0.1:8199/{share-password}/sub/all.yaml` 访问
+通过 `http://127.0.0.1:8199/sub/{share-password}/all.yaml` 访问
 
 ![share-with-password](./doc/images/share-with-password.png)
 
@@ -490,10 +493,10 @@ share-password: ""
 
 | 服务地址                                                   | 格式说明                      | 来源说明                      |
 | --------------------------------------------------------- | ----------------------------- | ---------------------------- |
-| `http://127.0.0.1:8199/{share-password}/sub/all.yaml`     | Clash 格式节点                 | 由subs-check直接生成          |
-| `http://127.0.0.1:8199/{share-password}/sub/mihomo.yaml`  | 带分流规则的 Mihomo/Clash 订阅  | 从上方sub-store转换下载后提供  |
-| `http://127.0.0.1:8199/{share-password}/sub/base64.txt`   | Base64 格式订阅                | 从上方sub-store转换下载后提供  |
-| `http://127.0.0.1:8199/{share-password}/sub/history.yaml` | Clash 格式节点                 | 历次检测可用节点               |
+| `http://127.0.0.1:8199/sub/{share-password}/all.yaml`     | Clash 格式节点                 | 由subs-check直接生成          |
+| `http://127.0.0.1:8199/sub/{share-password}/mihomo.yaml`  | 带分流规则的 Mihomo/Clash 订阅  | 从上方sub-store转换下载后提供  |
+| `http://127.0.0.1:8199/sub/{share-password}/base64.txt`   | Base64 格式订阅                | 从上方sub-store转换下载后提供  |
+| `http://127.0.0.1:8199/sub/{share-password}/history.yaml` | Clash 格式节点                 | 历次检测可用节点               |
 
 ## **✨ 新增功能和性能优化详情**
 
