@@ -979,37 +979,72 @@
     return { ok: false, error: 'timeout' };
   }
 
-  let lastSubStorePath
-  // 提取公共处理函数
+  // lastSubStorePath 设置变量避免重复设置sub-store 后端
+  let lastSubStorePath;
+
+  // handleOpenSubStore 跳转sub-store前端并一键设置后端api地址
   async function handleOpenSubStore(e) {
     e.preventDefault();
 
-    // 立即打开一个空白窗口（或者加载页），绕过移动端对异步弹窗的拦截
-    // 如果用户开启了强力拦截，可能返回 null，需要判断
+    // 1. 立即打开空白窗口 (持有引用)
     const newWindow = window.open('', '_blank');
 
     if (newWindow) {
-      // 可以在新窗口先显示加载状态，体验更好
-      newWindow.document.title = "正在跳转...";
-      newWindow.document.body.innerHTML = "<h3 style='padding:20px;text-align:center;'>正在获取sub-store配置并跳转，请稍候...</h3>";
+      newWindow.document.title = "正在打开sub-store...";
+      // 增加一个稍微好看点的 Loading 样式，并提供一个手动关闭按钮
+      newWindow.document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+        <h3 id="status-text">正在获取配置并跳转...</h3>
+        <p style="color:#666;font-size:14px;">请稍候，如果长时间无反应请关闭窗口重试。</p>
+      </div>
+    `;
     } else {
       showToast('窗口弹出被拦截，请检查浏览器设置', 'warn');
       return;
     }
 
+    // 用于超时控制的标志位
+    let isFinished = false;
+
+    // 2. 设置 10 秒超时逻辑
+    const timeoutTimer = setTimeout(() => {
+      if (isFinished) return; // 如果已经完成则忽略
+      isFinished = true;
+
+      // 【处理超时】
+      console.warn("获取配置超时");
+      if (newWindow && !newWindow.closed) {
+        // 方案 A: 直接关闭窗口
+        // newWindow.close(); 
+        // showToast('请求超时，请重试', 'warn');
+
+        // 方案 B (推荐): 在新窗口内显示错误，引导用户
+        newWindow.document.body.innerHTML = `
+        <div style="text-align:center;padding:50px;font-family:sans-serif;">
+          <h3 style="color:red;">跳转超时，请不必惊慌</h3>
+          <p>获取配置耗时过长，这可能由CF隧道抽风、dns污染、网络波动等引起。</p>
+          <button onclick="window.close()" style="padding:10px 20px;font-size:16px;cursor:pointer;">关闭窗口</button>
+        </div>
+      `;
+      }
+    }, 10000); // 10秒
+
     try {
       // 检查登录状态
       if (!sessionKey) {
-        if (newWindow) newWindow.close(); // 没登录，关掉刚才开的窗
+        if (newWindow) newWindow.close();
         showLogin(true);
+        clearTimeout(timeoutTimer);
         return;
       }
 
+      // 3. 执行异步请求
       const r = await sfetch(API.config);
+
+      if (isFinished) return; // 如果已经超时了，后续逻辑就不跑了
+
       if (!r.ok) {
-        if (newWindow) newWindow.close();
-        showToast('读取配置失败', 'warn');
-        return;
+        throw new Error("读取配置失败");
       }
 
       const p = r.payload;
@@ -1018,34 +1053,20 @@
       let subStorePath = p?.sub_store_path ?? '';
 
       if (!subStorePath) {
-        if (newWindow) newWindow.close();
-        showToast('请先设置 sub_store_path', 'error');
-        return;
+        throw new Error("未设置 sub_store_path");
       }
 
-      // 获取并清理端口
-      const port = (config["sub-store-port"] ?? "")
-        .toString()
-        .trim()
-        .replace(/^:/, "");
-
-      // 确保 path 以 / 开头
+      // --- URL 构造逻辑 (保持你原有的逻辑不变) ---
+      const port = (config["sub-store-port"] ?? "").toString().trim().replace(/^:/, "");
       let path = subStorePath;
-      // 注意：原代码中 length(path) 写法可能是错的，JS 中应为 path.length
       if (path && !path.startsWith('/') && path.length > 1) {
         path = '/' + path;
       }
-
-      // 基础 URL 构造逻辑
       const protocol = window.location.protocol;
       const hostname = window.location.hostname;
       const currentPort = window.location.port;
-
-      // 只有当当前页面有端口（开发环境或非标准端口），且配置了 sub-store-port 时才拼接端口
-      // 逻辑保持原意，但建议检查是否符合预期：通常生产环境不需要带端口
       const shouldAddPort = currentPort && currentPort !== '';
       const portToAdd = (shouldAddPort && port) ? ':' + port : '';
-
       let sub_store_hostname = hostname;
       if (!shouldAddPort) {
         const parts = hostname.split(".");
@@ -1055,33 +1076,46 @@
             : "sub_store_for_subs_check." + parts.slice(1).join(".");
         }
       }
-
       const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
-
-      // 判断是否第一次或 subStorePath 变化
-      const isFirstTime = lastSubStorePath === null;
+      const isFirstTime = lastSubStorePath === null; // 注意：需确保 lastSubStorePath 初始已定义
       const isPathChanged = lastSubStorePath !== subStorePath;
-
       let url;
       if (isFirstTime || isPathChanged) {
         url = baseUrlWithoutPort + portToAdd + '?api=' + path;
       } else {
         url = baseUrlWithoutPort + portToAdd;
       }
-
-      // 更新记录
       lastSubStorePath = subStorePath;
+      // ----------------------------------------
 
-      // 【关键修复 2】: 异步任务完成后，将之前打开的窗口重定向到目标 URL
-      if (newWindow) {
+      // 4. 成功跳转
+      isFinished = true;
+      clearTimeout(timeoutTimer); // 清除超时计时器
+
+      if (newWindow && !newWindow.closed) {
+        // 关键：重定向现有的窗口
         newWindow.location.href = url;
       }
 
     } catch (err) {
+      if (isFinished) return; // 如果是超时导致的错误，已经在 setTimeout 里处理了
+      isFinished = true;
+      clearTimeout(timeoutTimer);
+
       console.error("打开订阅管理失败", err);
-      // 发生异常时关闭预打开的窗口
-      if (newWindow) newWindow.close();
-      showToast('打开失败，请检查配置或后台日志', 'error');
+
+      // 错误处理：直接在窗口展示错误信息
+      if (newWindow && !newWindow.closed) {
+        newWindow.document.body.innerHTML = `
+        <div style="text-align:center;padding:50px;font-family:sans-serif;">
+          <h3 style="color:red;">发生错误</h3>
+          <p>${err.message || '未知错误'}</p>
+          <button onclick="window.close()" style="padding:8px 16px;">关闭</button>
+        </div>
+      `;
+      } else {
+        showToast(err.message || '打开失败', 'error');
+      }
     }
   }
 
