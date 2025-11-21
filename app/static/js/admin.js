@@ -979,153 +979,120 @@
     return { ok: false, error: 'timeout' };
   }
 
+  let lastSubStorePath
+  // 提取公共处理函数
+  async function handleOpenSubStore(e) {
+    e.preventDefault();
+
+    // 立即打开一个空白窗口（或者加载页），绕过移动端对异步弹窗的拦截
+    // 如果用户开启了强力拦截，可能返回 null，需要判断
+    const newWindow = window.open('', '_blank');
+
+    if (newWindow) {
+      // 可以在新窗口先显示加载状态，体验更好
+      newWindow.document.title = "正在跳转...";
+      newWindow.document.body.innerHTML = "<h3 style='padding:20px;text-align:center;'>正在获取sub-store配置并跳转，请稍候...</h3>";
+    } else {
+      showToast('窗口弹出被拦截，请检查浏览器设置', 'warn');
+      return;
+    }
+
+    try {
+      // 检查登录状态
+      if (!sessionKey) {
+        if (newWindow) newWindow.close(); // 没登录，关掉刚才开的窗
+        showLogin(true);
+        return;
+      }
+
+      const r = await sfetch(API.config);
+      if (!r.ok) {
+        if (newWindow) newWindow.close();
+        showToast('读取配置失败', 'warn');
+        return;
+      }
+
+      const p = r.payload;
+      const yamlContent = p?.content ?? '';
+      const config = YAML.parse(yamlContent);
+      let subStorePath = p?.sub_store_path ?? '';
+
+      if (!subStorePath) {
+        if (newWindow) newWindow.close();
+        showToast('请先设置 sub_store_path', 'error');
+        return;
+      }
+
+      // 获取并清理端口
+      const port = (config["sub-store-port"] ?? "")
+        .toString()
+        .trim()
+        .replace(/^:/, "");
+
+      // 确保 path 以 / 开头
+      let path = subStorePath;
+      // 注意：原代码中 length(path) 写法可能是错的，JS 中应为 path.length
+      if (path && !path.startsWith('/') && path.length > 1) {
+        path = '/' + path;
+      }
+
+      // 基础 URL 构造逻辑
+      const protocol = window.location.protocol;
+      const hostname = window.location.hostname;
+      const currentPort = window.location.port;
+
+      // 只有当当前页面有端口（开发环境或非标准端口），且配置了 sub-store-port 时才拼接端口
+      // 逻辑保持原意，但建议检查是否符合预期：通常生产环境不需要带端口
+      const shouldAddPort = currentPort && currentPort !== '';
+      const portToAdd = (shouldAddPort && port) ? ':' + port : '';
+
+      let sub_store_hostname = hostname;
+      if (!shouldAddPort) {
+        const parts = hostname.split(".");
+        if (parts.length > 1) {
+          sub_store_hostname = parts.length === 2
+            ? "sub_store_for_subs_check." + sub_store_hostname
+            : "sub_store_for_subs_check." + parts.slice(1).join(".");
+        }
+      }
+
+      const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
+
+      // 判断是否第一次或 subStorePath 变化
+      const isFirstTime = lastSubStorePath === null;
+      const isPathChanged = lastSubStorePath !== subStorePath;
+
+      let url;
+      if (isFirstTime || isPathChanged) {
+        url = baseUrlWithoutPort + portToAdd + '?api=' + path;
+      } else {
+        url = baseUrlWithoutPort + portToAdd;
+      }
+
+      // 更新记录
+      lastSubStorePath = subStorePath;
+
+      // 【关键修复 2】: 异步任务完成后，将之前打开的窗口重定向到目标 URL
+      if (newWindow) {
+        newWindow.location.href = url;
+      }
+
+    } catch (err) {
+      console.error("打开订阅管理失败", err);
+      // 发生异常时关闭预打开的窗口
+      if (newWindow) newWindow.close();
+      showToast('打开失败，请检查配置或后台日志', 'error');
+    }
+  }
+
+
   // ==================== 控件事件绑定 ====================
   function bindControls() {
     loginBtn?.addEventListener('click', onLoginBtnClick);
 
-    // 记录上一次的 subStorePath
-    let lastSubStorePath = null;
-
-    subStoreBtn?.addEventListener('click', async (e) => {
-      e.preventDefault();
-      try {
-        if (!sessionKey) { showLogin(true); return; }
-        const r = await sfetch(API.config);
-        if (!r.ok) { showToast('读取配置失败', 'warn'); return; }
-
-        const p = r.payload;
-        const yamlContent = p?.content ?? '';
-        const config = YAML.parse(yamlContent);
-        let subStorePath = p?.sub_store_path ?? '';
-        const yamlSubStorePath = (config["sub-store-path"] ?? "")
-
-        if (!subStorePath) {
-          showToast('请先设置 sub_store_path', 'error');
-          return;
-        }
-
-        // 获取并清理端口
-        const port = (config["sub-store-port"] ?? "")
-          .toString()
-          .trim()
-          .replace(/^:/, "");
-
-        // 确保 path 以 / 开头
-        let path = subStorePath;
-        if (path && !path.startsWith('/') && length(path) > 1) {
-          path = '/' + path;
-        }
-
-        // 基础 URL
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-
-        const currentPort = window.location.port;
-        const shouldAddPort = currentPort && currentPort !== '';
-        const portToAdd = (shouldAddPort && port) ? ':' + port : '';
-
-        let sub_store_hostname = hostname
-        if (!shouldAddPort) {
-          const parts = hostname.split(".");
-          if (parts.length > 1) {
-            sub_store_hostname = parts.length === 2
-              ? "sub_store_for_subs_check." + sub_store_hostname
-              : "sub_store_for_subs_check." + parts.slice(1).join(".");
-          }
-        }
-
-        const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
-        // 判断是否第一次或 subStorePath 变化
-        const isFirstTime = lastSubStorePath === null;
-        const isPathChanged = lastSubStorePath !== subStorePath;
-
-        let url;
-        if (isFirstTime || isPathChanged) {
-          url = baseUrlWithoutPort + portToAdd + '?api=' + path;
-        } else {
-          url = baseUrlWithoutPort + portToAdd;
-        }
-
-        // 更新记录
-        lastSubStorePath = subStorePath;
-
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } catch (err) {
-        console.error("打开订阅管理失败", err);
-        showToast('打开失败，请检查配置或后台日志', 'error');
-      }
-    });
-
-    subStoreBtnMobile?.addEventListener('click', async (e) => {
-      e.preventDefault();
-      try {
-        if (!sessionKey) { showLogin(true); return; }
-        const r = await sfetch(API.config);
-        if (!r.ok) { showToast('读取配置失败', 'warn'); return; }
-
-        const p = r.payload;
-        const yamlContent = p?.content ?? '';
-        const config = YAML.parse(yamlContent);
-        let subStorePath = p?.sub_store_path ?? '';
-        const yamlSubStorePath = (config["sub-store-path"] ?? "")
-
-        if (!subStorePath) {
-          showToast('请先设置 sub_store_path', 'error');
-          return;
-        }
-
-        // 获取并清理端口
-        const port = (config["sub-store-port"] ?? "")
-          .toString()
-          .trim()
-          .replace(/^:/, "");
-
-        // 确保 path 以 / 开头
-        let path = subStorePath;
-        if (path && !path.startsWith('/') && length(path) > 1) {
-          path = '/' + path;
-        }
-
-        // 基础 URL
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-
-        const currentPort = window.location.port;
-        const shouldAddPort = currentPort && currentPort !== '';
-        const portToAdd = (shouldAddPort && port) ? ':' + port : '';
-
-        let sub_store_hostname = hostname
-        if (!shouldAddPort) {
-          const parts = hostname.split(".");
-          if (parts.length > 1) {
-            sub_store_hostname = parts.length === 2
-              ? "sub_store_for_subs_check." + sub_store_hostname
-              : "sub_store_for_subs_check." + parts.slice(1).join(".");
-          }
-        }
-
-        const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
-
-        // 判断是否第一次或 subStorePath 变化
-        const isFirstTime = lastSubStorePath === null;
-        const isPathChanged = lastSubStorePath !== subStorePath;
-
-        let url;
-        if (isFirstTime || isPathChanged) {
-          url = baseUrlWithoutPort + portToAdd + '?api=' + path;
-        } else {
-          url = baseUrlWithoutPort + portToAdd;
-        }
-
-        // 更新记录
-        lastSubStorePath = subStorePath;
-
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } catch (err) {
-        console.error("打开订阅管理失败", err);
-        showToast('打开失败，请检查配置或后台日志', 'error');
-      }
-    });
+    // 绑定订阅管理按钮事件
+    subStoreBtn?.addEventListener('click', handleOpenSubStore);
+    subStoreBtnMobile?.addEventListener('click', handleOpenSubStore);
 
     // 查看项目信息点击事件
     projectInfoBtn?.addEventListener('click', (e) => {
@@ -1512,7 +1479,7 @@
     }
   })();
 
-  
+
   async function getBaseUrl(path, port) {
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
