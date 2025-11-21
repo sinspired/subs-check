@@ -3,7 +3,7 @@
   <img src="doc/logo/logo.png" alt="Project Logo" width="200"/>
 </p>
 
-<h2 align="center">Subs-Check</h1>
+<h1 align="center">Subs-Check</h1>
 
 <p align="center" color="#6a737d">
 High-performance proxy subscription checker.
@@ -45,7 +45,8 @@ High-performance proxy subscription checker.
 
 ### 📖 教程
 
-- 🐳 教程：[Docker 部署](#-docker-运行)  
+- 🐳 教程：[Docker 部署](#-docker-运行)
+  - [🔁 使用 WatchTowe 自动更新docker镜像并通知](#-使用watchtower自动更新docker镜像并通知)
 - 📘 教程：[随时随地管理 subs-check 检测与订阅](#️-cloudflare-tunnel隧道映射外网访问)
   - [🔀 使用 `路径` 映射端口](#-使用路径映射端口)
   - [🌐 使用 `子域` 映射](#-使用子域映射端口)
@@ -174,6 +175,48 @@ services:
     restart: always
     network_mode: bridge
 ```
+
+### 🔁 使用WatchTower自动更新docker镜像并通知
+
+<details>
+  <summary>展开查看</summary>
+#### 基础命令，每小时检查更新
+
+```bash
+docker run -d \
+  --name watchtower \
+  -e WATCHTOWER_POLL_INTERVAL=3600 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower subs-check
+
+```
+
+#### 配置`shuttr` 格式的 telegram 通知
+
+```bash
+docker run -d \
+  --name watchtower \
+  -e WATCHTOWER_NOTIFICATIONS=shoutrrr \
+  -e WATCHTOWER_NOTIFICATION_URL=telegram://<bot_token>@telegram?channels=<chat_id> \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower subs-check
+
+```
+
+#### 通过 `webhook` 使用 `apprise` 通知
+
+```bash
+docker run -d \
+  --name watchtower \
+  --restart always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e WATCHTOWER_POLL_INTERVAL=3600 \
+  -e WATCHTOWER_NOTIFICATIONS=shoutrrr \
+  -e WATCHTOWER_NOTIFICATION_URL="webhook://<server-ip>:8000/notify?urls=telegram://<bot_token>@telegram?chat_id=<chat_id>,mailto://user:pass@smtp.example.com/?from=watchtower@example.com&to=you@example.com" \
+  containrrr/watchtower subs-check
+```
+
+</details>
 
 ### 🪜 优化系统代理和github代理设置（可选）
 
