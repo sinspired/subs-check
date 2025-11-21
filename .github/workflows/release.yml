@@ -116,4 +116,8 @@ jobs:
             版本: `${{ github.ref_name }}`
             项目: `${{ github.repository }}`
 
+            *说明:*
+              - 修复CF隧道访问的一键订阅管理
+              - 修复32位程序的内存对齐问题
+
             🔗 [查看详情](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
