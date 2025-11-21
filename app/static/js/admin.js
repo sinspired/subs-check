@@ -1019,12 +1019,22 @@
         // 基础 URL
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
-        const baseUrlWithoutPort = protocol + '//' + hostname;
 
         const currentPort = window.location.port;
         const shouldAddPort = currentPort && currentPort !== '';
         const portToAdd = (shouldAddPort && port) ? ':' + port : '';
 
+        let sub_store_hostname = hostname
+        if (!shouldAddPort) {
+          const parts = hostname.split(".");
+          if (parts.length > 1) {
+            sub_store_hostname = parts.length === 2
+              ? "sub_store_for_subs_check." + sub_store_hostname
+              : "sub_store_for_subs_check." + parts.slice(1).join(".");
+          }
+        }
+
+        const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
         // 判断是否第一次或 subStorePath 变化
         const isFirstTime = lastSubStorePath === null;
         const isPathChanged = lastSubStorePath !== subStorePath;
@@ -1079,11 +1089,22 @@
         // 基础 URL
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
-        const baseUrlWithoutPort = protocol + '//' + hostname;
 
         const currentPort = window.location.port;
         const shouldAddPort = currentPort && currentPort !== '';
         const portToAdd = (shouldAddPort && port) ? ':' + port : '';
+
+        let sub_store_hostname = hostname
+        if (!shouldAddPort) {
+          const parts = hostname.split(".");
+          if (parts.length > 1) {
+            sub_store_hostname = parts.length === 2
+              ? "sub_store_for_subs_check." + sub_store_hostname
+              : "sub_store_for_subs_check." + parts.slice(1).join(".");
+          }
+        }
+
+        const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
 
         // 判断是否第一次或 subStorePath 变化
         const isFirstTime = lastSubStorePath === null;
@@ -1491,6 +1512,38 @@
     }
   })();
 
+  
+  async function getBaseUrl(path, port) {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    const baseUrlWithoutPort = `${protocol}//${hostname}`;
+
+    const currentPort = window.location.port;
+    const shouldAddPort = !!currentPort;
+    const portToAdd = (shouldAddPort && port) ? `:${port}` : '';
+
+    let sub_store_hostname = hostname;
+    if (!shouldAddPort) {
+      const parts = hostname.split(".");
+      if (parts.length === 2) {
+        sub_store_hostname = `sub_store_for_subs_check.${hostname}`;
+      } else if (parts.length > 2) {
+        sub_store_hostname = `sub_store_for_subs_check.${parts.slice(1).join(".")}`;
+      }
+    }
+
+    const baseUrl = `${baseUrlWithoutPort}${portToAdd}${path}`;
+    const fallbackUrl = `${protocol}//${sub_store_hostname}${portToAdd}${path}`;
+
+    try {
+      const res = await fetch(baseUrl, { method: "HEAD" }).catch(() => null);
+      return res && res.ok ? baseUrl : fallbackUrl;
+    } catch {
+      return fallbackUrl;
+    }
+  }
+
+
   // 初始化分享按钮
   function setupShareButton(btnId) {
     const btn = document.getElementById(btnId);
@@ -1499,107 +1552,62 @@
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
 
-      // 先获取 shareMenu 并做安全检查
       const shareMenu = document.getElementById("shareMenu");
-      if (!shareMenu) {
-        console.warn("shareMenu 元素不存在");
+      if (!shareMenu) return console.warn("shareMenu 元素不存在");
+
+      if (shareMenu.classList.contains("active")) {
+        shareMenu.classList.remove("active");
         return;
       }
 
-      // 检查是否已经是显示状态：如果是，则直接隐藏
-      if (shareMenu.classList.contains("active")) {
-        shareMenu.classList.remove("active");
-        return; // 提前退出，无需其他逻辑
-      }
-
       try {
-        // 1. 获取配置
-        if (!sessionKey) { showLogin(true); return; };
+        if (!sessionKey) { showLogin(true); return; }
+
         const r = await sfetch(API.config);
-        if (!r.ok) { showToast('读取配置失败', 'warn'); return; }
+        if (!r.ok) return showToast('读取配置失败', 'warn');
 
         const v = await sfetch(API.singboxVersions);
-        if (!v.ok) { showToast('读取singbox版本', 'warn'); return; }
+        if (!v.ok) return showToast('读取singbox版本', 'warn');
 
         const p = r.payload;
-        let yamlContent = '';
-        if (p?.content !== undefined) yamlContent = p.content;
-        const config = YAML.parse(yamlContent);
+        const config = YAML.parse(p?.content ?? "");
         let subStorePath = p?.sub_store_path ?? '';
-        const yamlSubStorePath = (config["sub-store-path"] ?? "")
+        const yamlSubStorePath = config["sub-store-path"] ?? "";
 
-        if (!subStorePath) {
-          showToast('请先设置 sub_store_path', 'error');
-          return;
-        }
+        if (!subStorePath) return showToast('请先设置 sub_store_path', 'error');
+        if (!yamlSubStorePath.trim()) showToast('请修改 config.yaml 设置sub-store-path，当前使用随机路径', 'warn');
 
-        if (!yamlSubStorePath || yamlSubStorePath.toString().trim() === '') {
-          showToast('请修改 config.yaml 设置sub-store-path，当前使用随机路径', 'warn');
-        }
-
-        // 获取并清理端口
-        const port = (config["sub-store-port"] ?? "")
-          .toString()
-          .trim()
-          .replace(/^:/, "");
-
-        // 确保 path 以 / 开头
-        let path = subStorePath;
-        if (path && !path.startsWith('/') && length(path) > 1) {
-          path = '/' + path;
-        }
+        const port = (config["sub-store-port"] ?? "").toString().trim().replace(/^:/, "");
+        let path = subStorePath.startsWith("/") ? subStorePath : `/${subStorePath}`;
 
         const d = v.payload;
-        const latestSingboxVersion = d.latest;
-        const oldSingboxVersion = d.old;
+        const latestSingboxName = `singbox-${d.latest}`;
+        const oldSingboxName = `singbox-${d.old}`;
 
-        const latestSingboxName = "singbox" + "-" + latestSingboxVersion;
-        const oldSingboxName = "singbox" + "-" + oldSingboxVersion;
+        const baseUrl = await getBaseUrl(path, port);
 
-        // 2. 基础 URL（协议 + 主机，无端口）
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-        const baseUrlWithoutPort = `${protocol}//${hostname}`;
+        // 设置链接
+        document.getElementById("commonSub-item").dataset.link = `${baseUrl}/download/sub`;
+        document.getElementById("mihomoSub-item").dataset.link = `${baseUrl}/api/file/mihomo`;
+        document.getElementById("singboxOldSub-item").textContent = `${oldSingboxName} 订阅`;
+        document.getElementById("singboxLatestSub-item").textContent = `${latestSingboxName} 订阅`;
+        document.getElementById("singboxLatestSub-item").title = `ios设备当前最高兼容 1.11 版本, 当前为 ${latestSingboxName}`;
+        document.getElementById("singboxOldSub-item").dataset.link = `${baseUrl}/api/file/${oldSingboxName}`;
+        document.getElementById("singboxLatestSub-item").dataset.link = `${baseUrl}/api/file/${latestSingboxName}`;
 
-        // 3. 拼接 baseUrl：仅在当前有非默认端口时添加 config port
-        // 在代理/隧道下，location.port === ''，不添加 port
-        const currentPort = window.location.port;
-        const shouldAddPort = currentPort && currentPort !== ''; // 非空即有显式端口
-        const portToAdd = shouldAddPort ? port : ''; // 只在本地添加
+        // 绑定复制事件
+        ["commonSub-item", "mihomoSub-item", "singboxOldSub-item", "singboxLatestSub-item"].forEach(bindCopyOnClick);
 
-        const baseUrl = `${baseUrlWithoutPort}:${portToAdd}${path}`;
-
-        // 4. 设置链接（存储到 data-link 属性）
-        document.getElementById("commonSub-item").dataset.link = baseUrl + "/download/sub";
-        document.getElementById("mihomoSub-item").dataset.link = baseUrl + "/api/file/mihomo";
-        document.getElementById("singboxOldSub-item").textContent = oldSingboxName + " 订阅";
-        document.getElementById("singboxLatestSub-item").textContent = latestSingboxName + " 订阅";
-        document.getElementById("singboxLatestSub-item").title = "ios设备当前最高兼容 1.11 版本, 当前为 " + latestSingboxName;
-        document.getElementById("singboxOldSub-item").dataset.link = baseUrl + "/api/file/" + oldSingboxName;
-        document.getElementById("singboxLatestSub-item").dataset.link = baseUrl + "/api/file/" + latestSingboxName;
-
-        // 5. 绑定复制事件
-        bindCopyOnClick("commonSub-item");
-        bindCopyOnClick("mihomoSub-item");
-        bindCopyOnClick("singboxOldSub-item");
-        bindCopyOnClick("singboxLatestSub-item");
-
-        // 6. 定位菜单
+        // 菜单定位
+        const rect = btn.getBoundingClientRect();
         if (window.innerWidth < 768) {
-          // 小屏幕：居中显示
-          const rect = btn.getBoundingClientRect();
           shareMenu.style.top = `${rect.top}px`;
           shareMenu.style.left = `${rect.left - 160}px`;
-          shareMenu.style.transform = "none";
         } else {
-          // 大屏幕：跟随按钮
-          const rect = btn.getBoundingClientRect();
           shareMenu.style.top = `${rect.top}px`;
           shareMenu.style.left = `${rect.right * 0.9}px`;
-          shareMenu.style.transform = "none";
         }
-
-        // 7. 显示菜单
+        shareMenu.style.transform = "none";
         shareMenu.classList.add("active");
       } catch (e) {
         console.error("获取订阅链接失败", e);
