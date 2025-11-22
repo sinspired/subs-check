@@ -322,29 +322,93 @@
 
   // 日志处理
   function colorize(line) {
+    // 1. 提取时间戳 格式为 "2025-11-23 07:02:57 ..."
     const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+
+    // 2. HTML 转义 (防止 XSS，且保留 ANSI 码用于后续处理)
     let out = escapeHtml(line);
 
+    // 3. 处理时间戳样式
     if (tsMatch) {
       const ts = tsMatch[0];
-      out = '<span class="log-time">' + ts + '</span>' + escapeHtml(line.slice(ts.length));
+      // 给时间戳加样式，并保留剩余字符串
+      out = '<span class="log-time">' + ts + '</span>' + out.slice(ts.length);
     }
 
-    // 关键字高亮
+    // 正则说明：
+    // \x1b       匹配 ESC 字符
+    // \[         匹配 [
+    // ([\d;]+)   捕获组：匹配一个或多个数字或分号 (例如 "31" 或 "31;9")
+    // m          匹配结束符 m
+    // /g         全局匹配，确保替换行内所有出现的 ANSI 块
+    out = out.replace(/\x1b\[([\d;]+)m/g, function (match, innerCode) {
+      // 将组合代码拆分，例如 "31;9" -> ["31", "9"]
+      // 如果是单纯的 "31"，则数组为 ["31"]
+      const codes = innerCode.split(';');
+      let html = '';
+
+      // 遍历当前 ANSI 块中的所有代码
+      codes.forEach(code => {
+        switch (code) {
+          // --- 颜色类 ---
+          case '31': // 红色 (Error/Fail)
+            html += '<span style="color: #ff4d4f; font-weight: bold;">';
+            break; // break 仅跳出 switch，继续下一轮 forEach
+          case '33': // 黄色 (Warn)
+            html += '<span style="color: #faad14; font-weight: bold;">';
+            break;
+
+          // --- 样式类 ---
+          case '9':  // 删除线 (Strikethrough)
+            // color: #999 让删除的文字变灰
+            html += '<span style="text-decoration: line-through; color: #999; opacity: 0.8;">';
+            break;
+
+          // --- 重置/结束类 ---
+          case '29': // 取消删除线 (Go代码中专门用于结束 \033[9m)
+            html += '</span>';
+            break;
+          case '39': // 重置默认前景色 (有时会用到)
+          case '0':  // 重置所有属性 (Reset)
+            // 输出多个闭合标签。
+            // 浏览器会自动忽略多余的闭合标签，这样能确保关闭深层嵌套的样式
+            // (例如 <span red><span strike>...</span></span>)
+            html += '</span></span></span>';
+            break;
+
+          default:
+            // 忽略不支持的代码，不输出任何 HTML
+            break;
+        }
+      });
+
+      return html;
+    });
+
+    // 4. 关键字高亮 (INF, ERR 等) - 在处理完 ANSI 后处理，避免冲突
     out = out.replace(/\b(INF|INFO)\b/g, '<span class="log-info">INF</span>');
     out = out.replace(/\b(ERR|ERROR)\b/g, '<span class="log-error">ERR</span>');
     out = out.replace(/\b(WRN|WARN)\b/g, '<span class="log-warn">WRN</span>');
     out = out.replace(/\b(DBG|DEBUG)\b/g, '<span class="log-debug">DBG</span>');
 
-    // 如果包含“发现新版本”
+    // 5. 特殊业务逻辑：发现新版本
     if (/发现新版本/.test(out)) {
-      // 给最新版本号加样式
       out = out.replace(/最新版本=([^\s]+)/, '最新版本=<span class="success-highlight">$1</span>');
-      // 给整行加样式容器
       out = '<div class="log-new-version">' + out + '</div>';
     }
 
     return out;
+  }
+
+  // 辅助函数：HTML 转义
+  function escapeHtml(text) {
+    if (!text) return text;
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
 
@@ -555,7 +619,7 @@
     // 等待 DOM 就绪
     requestAnimationFrame(() => {
       codeMirrorView = window.CodeMirror.createEditor(container, initialValue, getCurrentTheme());
-      // codeMirrorView.focus();  // 可选：自动焦点
+      // codeMirrorView.focus();  // 自动焦点
 
       // 主题变化监听（同步你的全局主题）
       const observer = new MutationObserver(() => {
@@ -687,8 +751,6 @@
       await loadConfigValidated();
     }
   }
-
-
 
   // 控制进度容器的显示/隐藏（隐藏: 'none'，显示: 恢复默认）
   function showProgressUI(visible) {
