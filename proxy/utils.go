@@ -1296,3 +1296,181 @@ func ParseSSRURI(link string) map[string]any {
 
 	return node
 }
+
+// utils.go
+
+// convertV2RayOutbound 将 V2Ray Core 的 Outbound JSON 转换为 Mihomo ProxyNode
+// 输入 line 为单行 JSON 字符串
+func convertV2RayOutbound(line string) map[string]any {
+	// 1. 清理并解析 JSON
+	line = strings.TrimSpace(line)
+	// 有些订阅会在行尾加反引号或其他字符，做简单的清理
+	line = strings.TrimRight(line, "`") 
+	
+	var out map[string]any
+	if err := yaml.Unmarshal([]byte(line), &out); err != nil {
+		return nil
+	}
+
+	// 2. 提取基础信息
+	protocol, ok := out["protocol"].(string)
+	if !ok {
+		return nil
+	}
+	
+	// 提取 settings.vnext (V2Ray 的服务器配置)
+	settings, _ := out["settings"].(map[string]any)
+	vnext, _ := settings["vnext"].([]any)
+	if len(vnext) == 0 {
+		return nil
+	}
+	serverConf, _ := vnext[0].(map[string]any)
+	address := fmt.Sprint(serverConf["address"])
+	port := toIntPort(serverConf["port"])
+	
+	users, _ := serverConf["users"].([]any)
+	if len(users) == 0 {
+		return nil
+	}
+	userConf, _ := users[0].(map[string]any)
+	uuid := fmt.Sprint(userConf["id"])
+	
+	// 3. 提取 streamSettings (传输层配置)
+	stream, _ := out["streamSettings"].(map[string]any)
+	network := fmt.Sprint(stream["network"])
+	security := fmt.Sprint(stream["security"])
+	tlsSettings, _ := stream["tlsSettings"].(map[string]any)
+	
+	// 4. 构建 Mihomo 节点
+	node := map[string]any{
+		"name":   fmt.Sprint(out["tag"]), // 使用 tag 作为名称
+		"server": address,
+		"port":   port,
+		"uuid":   uuid,
+		// "udp": true, // 视情况开启
+	}
+
+	// 协议特定处理
+	switch protocol {
+	case "vmess":
+		node["type"] = "vmess"
+		node["alterId"] = toIntPort(userConf["alterId"])
+		node["cipher"] = "auto"
+		if sec, ok := userConf["security"].(string); ok && sec != "" {
+			node["cipher"] = sec
+		}
+	case "vless":
+		node["type"] = "vless"
+		if flow, ok := userConf["flow"].(string); ok && flow != "" {
+			node["flow"] = flow
+		} else {
+			// VLESS 默认加密通常是 none，除非有 flow
+			// node["encryption"] = "none" // Clash 需要这个吗？视版本而定，通常不用
+		}
+	default:
+		// 暂不支持其他协议 (socks, shadowsocks 的配置结构不同)
+		return nil
+	}
+
+	// 传输层映射 (Network & Security)
+	
+	// TLS / Reality
+	if security == "tls" {
+		node["tls"] = true
+		if sni, ok := tlsSettings["serverName"].(string); ok && sni != "" {
+			node["servername"] = sni
+		}
+		if alpn, ok := tlsSettings["alpn"].([]any); ok && len(alpn) > 0 {
+			// 简单的 []any 转 []string
+			var s []string
+			for _, v := range alpn { s = append(s, fmt.Sprint(v)) }
+			node["alpn"] = s
+		}
+		if fp, ok := tlsSettings["fingerprint"].(string); ok && fp != "" {
+			node["client-fingerprint"] = fp
+		}
+	} else if security == "reality" {
+		node["tls"] = true
+		node["reality-opts"] = map[string]any{
+			"public-key": tlsSettings["publicKey"], // V2Ray JSON key 名可能不同，注意大小写
+			"short-id":   tlsSettings["shortId"],
+		}
+		if sni, ok := tlsSettings["serverName"].(string); ok {
+			node["servername"] = sni
+		}
+		// 注意: V2Ray JSON 中 reality 常常放在 realitySettings 而不是 tlsSettings
+		// 你的例子里有一个 grpc reality 的是放在 realitySettings 里的
+		if realSet, ok := stream["realitySettings"].(map[string]any); ok {
+			node["reality-opts"] = map[string]any{
+				"public-key": realSet["publicKey"],
+				"short-id":   realSet["shortId"],
+				"spider-x":   realSet["spiderX"],
+			}
+			if sni, ok := realSet["serverName"].(string); ok {
+				node["servername"] = sni
+			}
+		}
+	}
+
+	// Network (ws, grpc, tcp...)
+	node["network"] = network
+	
+	switch network {
+	case "ws":
+		wsSet, _ := stream["wsSettings"].(map[string]any)
+		wsOpts := map[string]any{}
+		if path, ok := wsSet["path"].(string); ok {
+			wsOpts["path"] = path
+		}
+		if headers, ok := wsSet["headers"].(map[string]any); ok {
+			wsOpts["headers"] = headers
+			// 自动提取 Host 作为 servername (如果 tls 没有设置)
+			if host, ok := headers["Host"].(string); ok && host != "" {
+				if _, hasSni := node["servername"]; !hasSni {
+					node["servername"] = host
+				}
+			}
+		}
+		node["ws-opts"] = wsOpts
+		
+	case "grpc":
+		grpcSet, _ := stream["grpcSettings"].(map[string]any)
+		node["grpc-opts"] = map[string]any{
+			"grpc-service-name": grpcSet["serviceName"],
+		}
+	
+	case "tcp":
+		tcpSet, _ := stream["tcpSettings"].(map[string]any)
+		if header, ok := tcpSet["header"].(map[string]any); ok {
+			if typeStr, ok := header["type"].(string); ok && typeStr == "http" {
+				// HTTP Obfs (tcp 伪装)
+				// Clash 不原生支持 tcp 下的 http obfs 配置细节，通常只作为纯 tcp 或忽略
+				// 部分版本支持 header 字段，但较少见。这里暂时忽略或简单映射
+			}
+		}
+	}
+
+	// 规范化布尔值等
+	return normalizeFlatFields(node)
+}
+
+// parseV2RayJsonLines 解析按行分隔的 V2Ray JSON 配置
+func parseV2RayJsonLines(data []byte) []ProxyNode {
+	var nodes []ProxyNode
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || !strings.HasPrefix(line, "{") {
+			continue
+		}
+		// 简单的启发式判断：必须包含 "outbound" 相关的关键词
+		if !strings.Contains(line, `"protocol"`) || !strings.Contains(line, `"settings"`) {
+			continue
+		}
+
+		if node := convertV2RayOutbound(line); node != nil {
+			nodes = append(nodes, ProxyNode(node))
+		}
+	}
+	return nodes
+}

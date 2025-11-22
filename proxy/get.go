@@ -225,6 +225,12 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 		return convertToProxyNodes(nodes), nil
 	}
 
+	// 尝试 V2Ray Core JSON (按行)
+	if nodes := parseV2RayJsonLines(data); len(nodes) > 0 {
+		slog.Info("识别到 V2Ray JSON Lines 格式", "count", len(nodes))
+		return nodes, nil
+	}
+
 	// 最后尝试按行猜测 (纯文本 IP:Port)
 	if nodes := convertUnStandandTextViaConvert(subURL, data); len(nodes) > 0 {
 		slog.Info("按行猜测")
@@ -298,7 +304,7 @@ func fallbackExtractV2Ray(data []byte, subURL string) []ProxyNode {
 
 	for _, link := range links {
 		link = strings.TrimSpace(link)
-		
+
 		// 1. 处理 WireGuard
 		if strings.HasPrefix(link, "wireguard://") || strings.HasPrefix(link, "wg://") {
 			if node := ParseWireGuardURI(link); node != nil {
