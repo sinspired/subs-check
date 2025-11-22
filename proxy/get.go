@@ -312,6 +312,12 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 	maxRetries := max(1, conf.SubUrlsReTry)
 	timeout := max(10, conf.SubUrlsTimeout)
 
+	if strings.Contains(rawURL, "github.com") && strings.Contains(rawURL, "/blob/") {
+		// 把 github.com/.../blob/... 转换为 raw.githubusercontent.com/.../...
+		rawURL = strings.Replace(rawURL, "github.com/", "raw.githubusercontent.com/", 1)
+		rawURL = strings.Replace(rawURL, "/blob/", "/", 1)
+	}
+
 	candidates, hasPlaceholder := buildCandidateURLs(rawURL)
 	var lastErr error
 
