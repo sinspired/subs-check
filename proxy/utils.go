@@ -916,3 +916,39 @@ func ParseYamlFlowList(data []byte) []ProxyNode {
 	
 	return nodes
 }
+
+// ParseSingBoxWithMetadata 解析带注释元数据的 Sing-Box 配置文件
+// 处理形如 #profile-title: ... 开头，主体为 JSON 的文件
+func ParseSingBoxWithMetadata(data []byte) []ProxyNode {
+	// 快速特征检测：必须包含 outbounds 关键字
+	if !bytes.Contains(data, []byte("outbounds")) {
+		return nil
+	}
+
+	// 1. 清洗注释行
+	var cleanBuf bytes.Buffer
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+		// 忽略以 # 开头的行 (元数据)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		cleanBuf.WriteString(line + "\n")
+	}
+
+	// 2. 解析 JSON/YAML
+	var config map[string]any
+	// 使用 yaml.Unmarshal 因为它兼容 JSON 且容错性更好
+	if err := yaml.Unmarshal(cleanBuf.Bytes(), &config); err != nil {
+		return nil
+	}
+
+	// 3. 提取 outbounds 并转换
+	if outbounds, ok := config["outbounds"].([]any); ok {
+		return ConvertSingBoxOutbounds(outbounds)
+	}
+
+	return nil
+}

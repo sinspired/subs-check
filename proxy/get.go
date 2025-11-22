@@ -170,6 +170,13 @@ func processSubscription(urlStr, tag string, wasSucced, wasHistory bool, out cha
 
 // parseSubscriptionData 智能分发解析器
 func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
+	// 优先尝试带注释的 Sing-Box 配置
+	// # 注释，直接用标准 Unmarshal 会失败，所以最先尝试清洗解析
+	if nodes := ParseSingBoxWithMetadata(data); len(nodes) > 0 {
+		slog.Info("识别到 Sing-Box 配置 (含元数据)")
+		return nodes, nil
+	}
+
 	// 1. 优先尝试 YAML/JSON 结构化解析
 	var generic any
 	if err := yaml.Unmarshal(data, &generic); err == nil {
@@ -180,7 +187,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 				slog.Info("提取clash格式")
 				return convertListToNodes(proxies), nil
 			}
-			// Sing-Box 格式
+			// Sing-Box 纯 JSON 格式
 			if outbounds, ok := val["outbounds"].([]any); ok {
 				slog.Info("提取singbox格式")
 				return ConvertSingBoxOutbounds(outbounds), nil
@@ -190,12 +197,10 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 				slog.Info("解析到非标准 JSON格式的订阅")
 				return nodes, nil
 			}
-
 		case []any:
 			if len(val) == 0 {
 				return nil, nil
 			}
-			// 字符串数组 (链接列表)
 			if _, ok := val[0].(string); ok {
 				slog.Info("解析到字符串数组 (链接列表)")
 				strList := make([]string, 0, len(val))
@@ -204,13 +209,10 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 						strList = append(strList, s)
 					}
 				}
-				
 				return ParseProxyLinksAndConvert(strList, subURL), nil
 			}
-			// 对象数组 (Shadowsocks JSON配置等)
 			if _, ok := val[0].(map[string]any); ok {
 				slog.Info("解析到通用JSON对象数组 (Shadowsocks/SIP008等)")
-				
 				return ConvertGeneralJsonArray(val), nil
 			}
 		}
@@ -219,12 +221,10 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 	// 2. 其次尝试 Base64/V2Ray 标准转换
 	if nodes, err := convert.ConvertsV2Ray(data); err == nil && len(nodes) > 0 {
 		slog.Info("v2ray格式")
-		
 		return ToProxyNodes(nodes), nil
 	}
 
 	// 3. 针对 "局部合法、全局非法" 的多段 proxies 文件
-	
 	if nodes := ExtractAndParseProxies(data); len(nodes) > 0 {
 		slog.Debug("通过多段解析，获取到代理节点", "count", len(nodes))
 		return nodes, nil
@@ -237,7 +237,6 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 
 	// 4. 尝试 Surge/Surfboard 格式
 	if bytes.Contains(data, []byte("=")) && (bytes.Contains(data, []byte("[VMess]")) || bytes.Contains(data, []byte(", 20"))) {
-		
 		if nodes := ParseSurfboardProxies(data); len(nodes) > 0 {
 			slog.Info("Surfboard/Surge 格式", "count", len(nodes))
 			return nodes, nil
@@ -257,7 +256,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 		return nodes, nil
 	}
 
-	// 7. 最后尝试按行猜测 (纯文本 IP:Port 或 链接)
+	// 7. 最后尝试按行猜测
 	if nodes := parseRawLines(data, subURL); len(nodes) > 0 {
 		slog.Info("按行猜测")
 		return nodes, nil
