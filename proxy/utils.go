@@ -34,7 +34,7 @@ var protocolSchemes = map[string]string{
 	"shadowsocks": "ss://", "ss": "ss://", "ssr": "ssr://",
 	"tuic": "tuic://", "tuic5": "tuic://",
 	"juicity":   "juicity://",
-	"wireguard": "wg://", "wg": "wg://",
+	"wireguard": "wireguard://", "wg": "wg://",
 	"mieru":  "mieru://",
 	"anytls": "anytls://",
 }
