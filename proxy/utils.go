@@ -1,4 +1,3 @@
-//utils.go
 package proxies
 
 import (
@@ -7,262 +6,111 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	u "net/url"
+	"net/url"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/metacubex/mihomo/common/convert"
+	"github.com/samber/lo"
+	"github.com/sinspired/subs-check/config"
+	"github.com/sinspired/subs-check/save/method"
+	"github.com/sinspired/subs-check/utils"
 )
 
-// 使用正则从纯文本中提取 V2Ray/代理链接
+// 协议映射表：Key 为常见的缩写或别名，Value 为标准协议头或标识
+var protocolSchemes = map[string]string{
+	// Hysteria
+	"hysteria2": "hysteria2://", "hy2": "hysteria2://",
+	"hysteria": "hysteria://", "hy": "hysteria://",
+	// Standard
+	"http": "http://", "https": "https://",
+	"socks5": "socks5://", "socks5h": "socks5h://", "socks4": "socks4://", "socks": "socks://",
+	// V2Ray / Others
+	"vmess": "vmess://", "vless": "vless://",
+	"trojan":      "trojan://",
+	"shadowsocks": "ss://", "ss": "ss://",
+	"tuic": "tuic://", "tuic5": "tuic://",
+	"juicity":   "juicity://",
+	"wireguard": "wg://", "wg": "wg://",
+	"mieru":  "mieru://",
+	"anytls": "anytls://",
+}
+
+// v2raySchemePrefixes 用于正则提取
+var v2raySchemePrefixes = []string{
+	"vmess://", "vless://", "trojan://", "ss://", "ssr://",
+	"hysteria://", "hysteria2://", "hy2://", "hy://",
+	"tuic://", "tuic5://", "juicity://",
+	"wg://", "wireguard://",
+	"socks://", "socks5://", "socks5h://",
+	"anytls://", "mieru://",
+}
+
 var (
 	v2rayRegexOnce         sync.Once
 	v2rayLinkRegexCompiled *regexp.Regexp
 )
 
-// 支持的 V2Ray/代理链接协议前缀（小写匹配）
-var v2raySchemePrefixes = []string{
-	"vmess://",
-	"vless://",
-	"trojan://",
-	"ss://",
-	"ssr://",
-	// hysteria 系列
-	"hysteria://",
-	"hysteria2://",
-	"hy2://",
-	"hy://",
-	// tuic 系列
-	"tuic://",
-	"tuic5://",
-	// juicity
-	"juicity://",
-	// wireguard
-	"wg://",
-	"wireguard://",
-	// socks 系列
-	"socks://",
-	"socks5://",
-	"socks5h://",
-	// naive
-	"naive+https://",
-	// 其他扩展协议
-	"anytls://",
-	"mieru://",
-}
+// ======================
+// 转换与解析核心工具
+// ======================
 
-// isLocal 判断是否为本地地址
-func isLocal(host string) bool {
-	return host == "127.0.0.1" || strings.EqualFold(host, "localhost") || host == "0.0.0.0" || host == "::1" || strings.Contains(host, ".local") || !strings.Contains(host, ".")
-}
-
-// ensureScheme 如果缺少协议，默认补为 http:// 或 https://（针对常见 host 做合理推断）
-func ensureScheme(u string) string {
-	s := strings.TrimSpace(u)
-	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
-		return s
-	}
-	// 本地/内网使用 http
-	if strings.HasPrefix(s, "127.0.0.1:") || strings.HasPrefix(strings.ToLower(s), "localhost:") || strings.HasPrefix(s, "0.0.0.0:") || strings.HasPrefix(s, "[::1]:") {
-		return "http://" + s
-	}
-	// GitHub/raw 默认 https
-	if strings.HasPrefix(s, "raw.githubusercontent.com/") || strings.HasPrefix(s, "github.com/") {
-		return "https://" + s
-	}
-	// 默认 http
-	return "http://" + s
-}
-
-// toIntPort 端口转换为整数
-func toIntPort(v any) int {
-	if v == nil {
-		return 0
-	}
-	switch vv := v.(type) {
-	case int:
-		return vv
-	case int64:
-		return int(vv)
-	case float64:
-		return int(vv)
-	case string:
-		if vv == "" {
-			return 0
-		}
-		if n, err := strconv.Atoi(vv); err == nil {
-			return n
-		}
-	}
-	return 0
-}
-
-// 根据 URL 进行协议猜测：优先匹配 socks5/https/http 关键字，默认 http
-func guessSchemeByURL(raw string) string {
-	u, err := u.Parse(raw)
-	if err != nil {
-		return "http"
-	}
-	base := strings.ToLower(filepath.Base(u.Path))
-	name := base
-	if dot := strings.Index(base, "."); dot > 0 {
-		name = base[:dot]
-	}
-	// 关键词匹配
-	if strings.Contains(name, "socks5h") {
-		return "socks5h"
-	}
-	if strings.Contains(name, "socks5") {
-		return "socks5"
-	}
-	if strings.Contains(name, "socks4") {
-		return "socks4"
-	}
-	if strings.Contains(name, "socks") {
-		return "socks"
-	}
-	if strings.Contains(name, "mieru") {
-		return "mieru"
-	}
-	if strings.Contains(name, "hysteria2") || strings.Contains(name, "hy2") {
-		return "hysteria2"
-	}
-	if strings.Contains(name, "hysteria") || strings.Contains(name, "hy") {
-		return "hysteria"
-	}
-	if strings.Contains(name, "anytls") {
-		return "anytls"
-	}
-	if strings.Contains(name, "https") || strings.Contains(name, "http2") {
-		return "https"
-	}
-	if strings.Contains(name, "http") {
-		return "http"
-	}
-	return "http"
-}
-
-// 支持解析免费代理 JSON 列表结构
-// 形如：{"http":["ip:port",...], "https":[...], "socks5":[...], "socks4":[...]}
-// 返回 mihomo/clash 兼容节点，仅包含 http 与 socks5；socks4 暂不支持（底层不兼容），将忽略。
-// convertUnStandandJsonViaConvert
+// convertUnStandandJsonViaConvert 将非标准 JSON (Key为协议) 转换为标准节点
+// 支持形如：{"http":["ip:port"], "hy2":["..."]}
 func convertUnStandandJsonViaConvert(con map[string]any) []map[string]any {
 	if len(con) == 0 {
 		return nil
 	}
 
-	links := make([]string, 0, 256)
+	var links []string
 
-	// 收集不同类型 → 拼接相应协议头
-	collect := func(kind string, arr any) {
-		vals := make([]string, 0)
-		switch vv := arr.(type) {
-		case []any:
-			for _, it := range vv {
-				if s, ok := it.(string); ok {
-					vals = append(vals, strings.TrimSpace(s))
-				}
-			}
+	// 遍历 Map，查找已知协议
+	for key, val := range con {
+		prefix, isKnown := protocolSchemes[strings.ToLower(key)]
+		if !isKnown {
+			continue
+		}
+
+		// 提取列表内容
+		var items []string
+		switch v := val.(type) {
 		case []string:
-			for _, s := range vv {
-				vals = append(vals, strings.TrimSpace(s))
-			}
-		}
-
-		for _, hp := range vals {
-			if hp == "" {
-				continue
-			}
-			
-			// 如果字符串本身已经是包含协议的链接（例如 hy://ip:port），直接使用，不做拼接
-			// 简单的判断是否包含 ://
-			if strings.Contains(hp, "://") {
-				// 做简单的标准化替换
-				if strings.HasPrefix(hp, "hy://") {
-					hp = strings.Replace(hp, "hy://", "hysteria://", 1)
+			items = v
+		case []any:
+			for _, s := range v {
+				if str, ok := s.(string); ok {
+					items = append(items, strings.TrimSpace(str))
 				}
-				links = append(links, hp)
-				continue
-			}
-
-			host, portStr := splitHostPortLoose(hp)
-			if host == "" || portStr == "" {
-				continue
-			}
-			if _, err := strconv.Atoi(portStr); err != nil {
-				continue
-			}
-
-			// 拼接协议头
-			switch strings.ToLower(kind) {
-			case "http":
-				links = append(links, fmt.Sprintf("http://%s:%s", host, portStr))
-			case "https":
-				links = append(links, fmt.Sprintf("https://%s:%s", host, portStr))
-			case "socks5":
-				links = append(links, fmt.Sprintf("socks5://%s:%s", host, portStr))
-			case "socks5h":
-				links = append(links, fmt.Sprintf("socks5h://%s:%s", host, portStr))
-			case "socks4":
-				links = append(links, fmt.Sprintf("socks4://%s:%s", host, portStr))
-			case "socks":
-				links = append(links, fmt.Sprintf("socks://%s:%s", host, portStr))
-			case "mieru":
-				links = append(links, fmt.Sprintf("mieru://%s:%s", host, portStr))
-			case "anytls":
-				links = append(links, fmt.Sprintf("anytls://%s:%s", host, portStr))
-			case "tuic":
-				links = append(links, fmt.Sprintf("tuic://%s:%s", host, portStr))
-			case "shadowsocks", "ss":
-				links = append(links, fmt.Sprintf("ss://%s:%s", host, portStr)) // ss 通常需要 base64，这里仅作尝试
-			case "vmess":
-				links = append(links, fmt.Sprintf("vmess://%s:%s", host, portStr))
-			case "vless":
-				links = append(links, fmt.Sprintf("vless://%s:%s", host, portStr))
-			case "trojan":
-				links = append(links, fmt.Sprintf("trojan://%s:%s", host, portStr))
-			case "hysteria2", "hy2":
-				links = append(links, fmt.Sprintf("hysteria2://%s:%s", host, portStr))
-			case "hysteria", "hy":
-				// hy:// 是非标准的，转换为标准 hysteria://
-				links = append(links, fmt.Sprintf("hysteria://%s:%s", host, portStr))
-			case "juicity":
-				links = append(links, fmt.Sprintf("juicity://%s:%s", host, portStr))
-			case "wireguard", "wg":
-				links = append(links, fmt.Sprintf("wg://%s:%s", host, portStr))
-			default:
-				links = append(links, fmt.Sprintf("http://%s:%s", host, portStr))
 			}
 		}
-	}
 
-	// 补全遗漏的键检查
-	checkKeys := []struct {
-		Key  string
-		Type string // 如果为空，则使用 Key 本身
-	}{
-		{"hysteria2", ""}, {"hy2", "hysteria2"},
-		{"hysteria", ""}, {"hy", "hysteria"},
-		{"socks5", ""}, {"socks5h", ""}, {"socks4", ""}, {"socks", ""},
-		{"http", ""}, {"https", ""},
-		{"mieru", ""}, {"anytls", ""},
-		{"tuic", ""},
-		{"shadowsocks", "shadowsocks"}, {"ss", "shadowsocks"},
-		{"vmess", ""}, {"vless", ""}, {"trojan", ""},
-		{"juicity", ""}, {"wireguard", "wireguard"}, {"wg", "wireguard"},
-	}
-
-	for _, item := range checkKeys {
-		if v, ok := con[item.Key]; ok && v != nil {
-			targetType := item.Key
-			if item.Type != "" {
-				targetType = item.Type
+		// 格式化链接
+		for _, item := range items {
+			if item == "" {
+				continue
 			}
-			collect(targetType, v)
+			// 1. 如果本身已经是完整链接 (包含 ://)，仅做标准化修复
+			if strings.Contains(item, "://") {
+				links = append(links, fixupProxyLink(item))
+				continue
+			}
+
+			// 2. 否则，拼接 IP:Port
+			host, port := splitHostPortLoose(item)
+			if host == "" || port == "" {
+				continue
+			}
+			if _, err := strconv.Atoi(port); err != nil {
+				continue
+			}
+
+			links = append(links, fmt.Sprintf("%s%s:%s", prefix, host, port))
 		}
 	}
 
@@ -270,119 +118,284 @@ func convertUnStandandJsonViaConvert(con map[string]any) []map[string]any {
 		return nil
 	}
 
+	// 统一交由 Mihomo/Clash 转换器处理
 	data := []byte(strings.Join(links, "\n"))
-	proxyList, err := convert.ConvertsV2Ray(data)
-	if err != nil || len(proxyList) == 0 {
-		return nil
+	if nodes, err := convert.ConvertsV2Ray(data); err == nil {
+		return nodes
 	}
-	return proxyList
+	return nil
 }
 
-func parseBoolLoose(s string) (bool, bool) {
-	ls := strings.ToLower(strings.TrimSpace(s))
-	switch ls {
-	case "1", "true", "yes", "on":
-		return true, true
-	case "0", "false", "no", "off":
-		return false, true
-	default:
-		return false, false
-	}
-}
-
-// 生成唯一 key，按 server、port、type 三个字段
-func generateProxyKey(p map[string]any) string {
-	server := strings.TrimSpace(fmt.Sprint(p["server"]))
-	port := strings.TrimSpace(fmt.Sprint(p["port"]))
-	typ := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["type"])))
-	servername := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["servername"])))
-
-	password := strings.TrimSpace(fmt.Sprint(p["password"]))
-	if password == "" {
-		password = strings.TrimSpace(fmt.Sprint(p["uuid"]))
-	}
-
-	// 如果全部字段都为空，则把整个 map 以简短形式作为 fallback key（避免丢失）
-	if server == "" && port == "" && typ == "" && servername == "" && password == "" {
-		// 尽量稳定地生成字符串
-		return fmt.Sprintf("raw:%v", p)
-	}
-	// 使用 '|' 分隔构建 key
-	return server + "|" + port + "|" + typ + "|" + servername + "|" + password
-}
-
-// buildCandidateURLs 生成候选链接：
-// - 如果存在日期占位符，返回 [今日, 昨日]
-// - 否则返回 [原始]
-func buildCandidateURLs(u string) ([]string, bool) {
-	if !hasDatePlaceholder(u) {
-		return []string{u}, false
-	}
-	now := time.Now()
-	yest := now.AddDate(0, 0, -1)
-	today := replaceDatePlaceholders(u, now)
-	yesterday := replaceDatePlaceholders(u, yest)
-	slog.Debug("检测到日期占位符，将尝试今日和昨日日期")
-	return []string{today, yesterday}, true
-}
-
-// hasDatePlaceholder 粗略检查是否包含任意日期占位符
-func hasDatePlaceholder(s string) bool {
-	ls := strings.ToLower(s)
-	return strings.Contains(ls, "{ymd}") || strings.Contains(ls, "{y}") ||
-		strings.Contains(ls, "{m}") || strings.Contains(ls, "{d}") ||
-		strings.Contains(ls, "{y-m-d}") || strings.Contains(ls, "{y_m_d}")
-}
-
-// replaceDatePlaceholders 按时间替换日期占位符，大小写不敏感
-func replaceDatePlaceholders(s string, t time.Time) string {
-	// 统一处理多种格式
-	reMap := map[*regexp.Regexp]string{
-		regexp.MustCompile(`(?i)\{Ymd\}`):   t.Format("20060102"),
-		regexp.MustCompile(`(?i)\{Y-m-d\}`): t.Format("2006-01-02"),
-		regexp.MustCompile(`(?i)\{Y_m_d\}`): t.Format("2006_01_02"),
-		regexp.MustCompile(`(?i)\{Y\}`):     t.Format("2006"),
-		regexp.MustCompile(`(?i)\{m\}`):     t.Format("01"),
-		regexp.MustCompile(`(?i)\{d\}`):     t.Format("02"),
-	}
-	out := s
-	for re, val := range reMap {
-		out = re.ReplaceAllString(out, val)
-	}
-	return out
-}
-
-// 从 Clash/Mihomo 配置中提取 proxy-providers 的 url 字段
-func extractClashProviderURLs(m map[string]any) []string {
-	if len(m) == 0 {
-		return nil
-	}
-	// 支持的可能命名
-	keys := []string{"proxy-providers", "proxy_providers", "proxyproviders"}
-	out := make([]string, 0, 8)
-	for _, k := range keys {
-		v, ok := m[k]
-		if !ok || v == nil {
-			continue
+// convertUnStandandTextViaConvert 处理纯文本行，按 URL 猜测协议
+func convertUnStandandTextViaConvert(rawURL string, data []byte) []ProxyNode {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	var lines []string
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && !strings.HasPrefix(line, "#") {
+			lines = append(lines, strings.TrimLeft(line, "- "))
 		}
-		providers, ok := v.(map[string]any)
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+
+	scheme := guessSchemeByURL(rawURL)
+	// 复用 JSON 转换逻辑
+	nodes := convertUnStandandJsonViaConvert(map[string]any{scheme: lines})
+	return convertToProxyNodes(nodes)
+}
+
+// fixupProxyLink 修复非标准链接头，使其符合 Mihomo 标准
+func fixupProxyLink(link string) string {
+	// Hysteria: hy:// -> hysteria://
+	if strings.HasPrefix(link, "hy://") {
+		return strings.Replace(link, "hy://", "hysteria://", 1)
+	}
+	return link
+}
+
+// guessSchemeByURL 根据 URL 文件名猜测协议，默认为 http
+func guessSchemeByURL(raw string) string {
+	uParsed, err := url.Parse(raw)
+	if err != nil {
+		return "http"
+	}
+
+	filename := strings.ToLower(filepath.Base(uParsed.Path))
+	// 移除扩展名
+	if idx := strings.Index(filename, "."); idx > 0 {
+		filename = filename[:idx]
+	}
+
+	// 遍历已知协议表进行匹配 (优先匹配长词，如 hysteria2)
+	// 由于 map 无序，这里为了精准度，可以按长度排序或手动检测关键高频词
+	// 为保持高效，手动检测常见词
+	for key := range protocolSchemes {
+		if strings.Contains(filename, key) {
+			return key
+		}
+	}
+
+	if strings.Contains(filename, "https") || strings.Contains(filename, "http2") {
+		return "https"
+	}
+	return "http"
+}
+
+// ======================
+// 基础工具函数
+// ======================
+
+func ensureScheme(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.Contains(s, "://") {
+		return s
+	}
+	// 本地环境默认 HTTP
+	if utils.IsLocalURL(strings.Split(s, ":")[0]) {
+		return "http://" + s
+	}
+	// Github 默认 HTTPS
+	if strings.HasPrefix(s, "raw.githubusercontent.com/") || strings.HasPrefix(s, "github.com/") {
+		return "https://" + s
+	}
+	return "http://" + s
+}
+
+func splitHostPortLoose(hp string) (string, string) {
+	if hp == "" {
+		return "", ""
+	}
+	if host, port, err := net.SplitHostPort(hp); err == nil {
+		return host, port
+	}
+	// 回退逻辑：取最后一个冒号
+	if idx := strings.LastIndex(hp, ":"); idx > 0 && idx < len(hp)-1 {
+		return hp[:idx], hp[idx+1:]
+	}
+	return hp, ""
+}
+
+func toIntPort(v any) int {
+	if v == nil {
+		return 0
+	}
+	switch vv := v.(type) {
+	case int:
+		return vv
+	case float64:
+		return int(vv)
+	case string:
+		if n, err := strconv.Atoi(vv); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+// ======================
+// 正则与提取工具
+// ======================
+
+func getV2RayLinkRegex() *regexp.Regexp {
+	v2rayRegexOnce.Do(func() {
+		var schemes []string
+		seen := make(map[string]struct{})
+		for _, p := range v2raySchemePrefixes {
+			s := strings.TrimSuffix(strings.ToLower(p), "://")
+			if _, ok := seen[s]; !ok && s != "" {
+				seen[s] = struct{}{}
+				schemes = append(schemes, regexp.QuoteMeta(s))
+			}
+		}
+		// 构造类似 `(?i)\b(vmess|vless|...):/\/[^\s"'<>\)\]]+` 的正则
+		pattern := `(?i)\b(` + strings.Join(schemes, `|`) + `)://[^\s"'<>\)\]]+`
+		v2rayLinkRegexCompiled = regexp.MustCompile(pattern)
+	})
+	return v2rayLinkRegexCompiled
+}
+
+func extractV2RayLinks(v any) []string {
+	var links []string
+
+	// 递归提取函数
+	var walk func(any)
+	walk = func(x any) {
+		switch vv := x.(type) {
+		case string:
+			links = append(links, extractLinksFromStr(vv)...)
+		case []byte:
+			links = append(links, extractLinksFromStr(string(vv))...)
+		case []any:
+			for _, it := range vv {
+				walk(it)
+			}
+		case map[string]any:
+			for _, it := range vv {
+				walk(it)
+			}
+		}
+	}
+	walk(v)
+	return normalizeExtractedLinks(lo.Uniq(links))
+}
+
+func extractLinksFromStr(s string) []string {
+	if s == "" {
+		return nil
+	}
+	return getV2RayLinkRegex().FindAllString(s, -1)
+}
+
+func normalizeExtractedLinks(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		t := strings.TrimSpace(s)
+		t = strings.Trim(t, "\"'`")
+		t = strings.TrimRight(t, ",，;；")
+		if t != "" {
+			out = append(out, t)
+		}
+	}
+	return lo.Uniq(out)
+}
+
+// convertSingBoxOutbounds 核心转换逻辑封装
+func convertSingBoxOutbounds(outbounds []any) []ProxyNode {
+	res := make([]ProxyNode, 0, len(outbounds))
+	ignoredTypes := map[string]struct{}{"selector": {}, "urltest": {}, "direct": {}, "block": {}, "dns": {}}
+
+	for _, ob := range outbounds {
+		m, ok := ob.(map[string]any)
 		if !ok {
 			continue
 		}
-		for _, prov := range providers {
-			pm, ok := prov.(map[string]any)
-			if !ok {
-				continue
+		typ := strings.ToLower(fmt.Sprint(m["type"]))
+		if _, skip := ignoredTypes[typ]; skip {
+			continue
+		}
+
+		// 基础字段映射
+		conv := ProxyNode{
+			"server": lo.CoalesceOrEmpty(fmt.Sprint(m["server"]), fmt.Sprint(m["server_address"])),
+			"port":   toIntPort(m["server_port"]),
+			"name":   fmt.Sprint(m["tag"]),
+		}
+
+		// 类型特定映射
+		switch typ {
+		case "shadowsocks":
+			conv["type"] = "ss"
+			conv["cipher"] = m["method"]
+			conv["password"] = m["password"]
+		case "vmess":
+			conv["type"] = "vmess"
+			conv["uuid"] = m["uuid"]
+			conv["alterId"] = m["alter_id"]
+			conv["cipher"] = "auto"
+		case "vless":
+			conv["type"] = "vless"
+			conv["uuid"] = m["uuid"]
+			conv["flow"] = m["flow"]
+		case "trojan":
+			conv["type"] = "trojan"
+			conv["password"] = m["password"]
+		case "hysteria2", "hy2":
+			conv["type"] = "hysteria2"
+			conv["password"] = m["password"]
+			if obfs, ok := m["obfs"].(map[string]any); ok {
+				conv["obfs-password"] = obfs["password"]
 			}
-			if u, ok := pm["url"].(string); ok {
-				u = strings.TrimSpace(u)
-				if u != "" {
-					out = append(out, u)
+		case "hysteria", "hy":
+			conv["type"] = "hysteria"
+			conv["password"] = m["password"]
+			if obfs, ok := m["obfs"].(map[string]any); ok {
+				conv["obfs-password"] = obfs["password"]
+			}
+		case "tuic":
+			conv["type"] = "tuic"
+			conv["uuid"] = m["uuid"]
+			conv["password"] = m["password"]
+			conv["congestion-controller"] = m["congestion_controller"]
+		default:
+			conv["type"] = typ
+		}
+
+		// 传输层处理 (Transport)
+		if tr, ok := m["transport"].(map[string]any); ok {
+			trType := strings.ToLower(fmt.Sprint(tr["type"]))
+			switch trType {
+			case "ws":
+				conv["network"] = "ws"
+				conv["ws-opts"] = map[string]any{
+					"path":    tr["path"],
+					"headers": tr["headers"],
+				}
+			case "grpc":
+				conv["network"] = "grpc"
+				conv["grpc-opts"] = map[string]any{
+					"grpc-service-name": lo.CoalesceOrEmpty(fmt.Sprint(tr["service_name"]), fmt.Sprint(tr["serviceName"])),
 				}
 			}
 		}
+
+		// TLS 处理
+		if tlsMap, ok := m["tls"].(map[string]any); ok {
+			conv["tls"] = true
+			conv["servername"] = tlsMap["server_name"]
+			conv["skip-cert-verify"] = tlsMap["insecure"]
+			if reality, ok := tlsMap["reality"].(map[string]any); ok && reality["enabled"] == true {
+				conv["reality-opts"] = map[string]any{
+					"public-key": reality["public_key"],
+					"short-id":   reality["short_id"],
+				}
+			}
+		}
+
+		res = append(res, conv)
 	}
-	return out
+	return res
 }
 
 // 解析形如：
@@ -556,6 +569,18 @@ func parseBracketKVProxies(data []byte) []map[string]any {
 	return res
 }
 
+func parseBoolLoose(s string) (bool, bool) {
+	ls := strings.ToLower(strings.TrimSpace(s))
+	switch ls {
+	case "1", "true", "yes", "on":
+		return true, true
+	case "0", "false", "no", "off":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
 func parseHeaderKV(s string) (string, string) {
 	idx := strings.Index(s, ":")
 	if idx <= 0 {
@@ -566,124 +591,291 @@ func parseHeaderKV(s string) (string, string) {
 	return k, v
 }
 
-// 更宽松的 host:port 分割，优先使用 net.SplitHostPort，失败则回退到最后一个冒号分割
-func splitHostPortLoose(hp string) (string, string) {
-	if hp == "" {
-		return "", ""
+func logSubscriptionStats(total, local, remote, history int) {
+	args := []any{}
+	if local > 0 {
+		args = append(args, "本地", local)
 	}
-	if strings.Contains(hp, ":") {
-		if h, p, err := net.SplitHostPort(hp); err == nil {
-			return h, p
-		}
-		idx := strings.LastIndex(hp, ":")
-		if idx > 0 && idx < len(hp)-1 {
-			return hp[:idx], hp[idx+1:]
-		}
+	if remote > 0 {
+		args = append(args, "远程", remote)
 	}
-	return hp, ""
+	if history > 0 {
+		args = append(args, "历史", history)
+	}
+	if total < local+remote {
+		args = append(args, "总计（去重）", total)
+	} else {
+		args = append(args, "总计", total)
+	}
+
+	slog.Info("订阅链接数量", args...)
+
+	if len(config.GlobalConfig.NodeType) > 0 {
+		val := fmt.Sprintf("[%s]", strings.Join(config.GlobalConfig.NodeType, ","))
+
+		slog.Info("代理协议筛选", slog.String("Type", val))
+	}
 }
 
-func getV2RayLinkRegex() *regexp.Regexp {
-	v2rayRegexOnce.Do(func() {
-		// 由前缀动态构建 scheme 正则，避免重复维护
-		names := make([]string, 0, len(v2raySchemePrefixes))
-		seen := make(map[string]struct{}, len(v2raySchemePrefixes))
-		for _, p := range v2raySchemePrefixes {
-			scheme := strings.TrimSpace(strings.TrimSuffix(strings.ToLower(p), "://"))
-			if scheme == "" {
-				continue
-			}
-			if _, ok := seen[scheme]; ok {
-				continue
-			}
-			seen[scheme] = struct{}{}
-			names = append(names, regexp.QuoteMeta(scheme))
+// identifyLocalSubType 识别本地订阅源类型
+// 仅当 URL 是本地地址且端口匹配时才返回分类结果，否则返回全 false/""
+func identifyLocalSubType(subURL, listenPort, storePort string) (isLatest, isHistory bool, tag string) {
+	u, err := url.Parse(subURL)
+	if err != nil {
+		return false, false, ""
+	}
+
+	tag = u.Fragment
+	port := u.Port()
+
+	// 必须是本地地址
+	if !utils.IsLocalURL(subURL) {
+		return false, false, tag
+	}
+
+	// 端口必须匹配当前服务端口或存储端口
+	if port != listenPort && port != storePort {
+		return false, false, tag
+	}
+
+	// 路径分类
+	path := u.Path
+	isLatest = strings.HasSuffix(path, "/all.yaml") || strings.HasSuffix(path, "/all.yml")
+	isHistory = strings.HasSuffix(path, "/history.yaml") || strings.HasSuffix(path, "/history.yml")
+
+	return isLatest, isHistory, tag
+}
+
+// deduplicateAndMerge 去重并合并结果
+func deduplicateAndMerge(succed, history, sync []ProxyNode) ([]map[string]any, int, int) {
+	succedSet := make(map[string]struct{})
+	finalList := make([]map[string]any, 0, len(succed)+len(history)+len(sync))
+
+	// 1. 添加并记录 Success 节点
+	for _, p := range succed {
+		cleanMetadata(p)
+		finalList = append(finalList, p)
+		succedSet[generateProxyKey(p)] = struct{}{}
+	}
+	succedCount := len(succed)
+
+	// 2. 添加 History 节点 (去重：不在 Success 中)
+	histCount := 0
+	for _, p := range history {
+		key := generateProxyKey(p)
+		if _, exists := succedSet[key]; !exists {
+			cleanMetadata(p)
+			finalList = append(finalList, p)
+			succedSet[key] = struct{}{} // 避免 History 内部重复
+			histCount++
 		}
-		pattern := `(?i)\b(` + strings.Join(names, `|`) + `)://[^\s"'<>\)\]]+`
-		v2rayLinkRegexCompiled = regexp.MustCompile(pattern)
+	}
+
+	// 3. 添加 Sync 节点 (此处不做严格去重，或者依赖后续处理，按原逻辑保留)
+	for _, p := range sync {
+		cleanMetadata(p)
+		finalList = append(finalList, p)
+	}
+
+	return finalList, succedCount, histCount
+}
+
+func cleanMetadata(p ProxyNode) {
+	delete(p, "sub_was_succeed")
+	delete(p, "sub_from_history")
+}
+
+// 生成唯一 key，按 server、port、type 三个字段
+func generateProxyKey(p map[string]any) string {
+	server := strings.TrimSpace(fmt.Sprint(p["server"]))
+	port := strings.TrimSpace(fmt.Sprint(p["port"]))
+	typ := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["type"])))
+	servername := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["servername"])))
+
+	password := strings.TrimSpace(fmt.Sprint(p["password"]))
+	if password == "" {
+		password = strings.TrimSpace(fmt.Sprint(p["uuid"]))
+	}
+
+	// 如果全部字段都为空，则把整个 map 以简短形式作为 fallback key（避免丢失）
+	if server == "" && port == "" && typ == "" && servername == "" && password == "" {
+		// 尽量稳定地生成字符串
+		return fmt.Sprintf("raw:%v", p)
+	}
+	// 使用 '|' 分隔构建 key
+	return server + "|" + port + "|" + typ + "|" + servername + "|" + password
+}
+
+// saveStats 保存统计信息
+func saveStats(validSubs map[string]struct{}, subNodeCounts map[string]int) {
+	if !config.GlobalConfig.SubURLsStats {
+		return
+	}
+
+	// 1. 保存有效链接列表
+	list := lo.Keys(validSubs)
+	sort.Strings(list)
+	wrapped := map[string]any{"sub-urls": list}
+	if data, err := yaml.Marshal(wrapped); err == nil {
+		_ = method.SaveToStats(data, "subs-valid.yaml")
+	}
+
+	// 2. 保存数量统计
+	type pair struct {
+		URL   string
+		Count int
+	}
+	pairs := make([]pair, 0, len(subNodeCounts))
+	for u, c := range subNodeCounts {
+		pairs = append(pairs, pair{u, c})
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].Count == pairs[j].Count {
+			return pairs[i].URL < pairs[j].URL
+		}
+		return pairs[i].Count > pairs[j].Count
 	})
-	return v2rayLinkRegexCompiled
-}
 
-func extractV2RayLinksFromTextInternal(s string) []string {
-	if s == "" {
-		return nil
+	var sb strings.Builder
+	sb.WriteString("订阅链接:\n")
+	for _, p := range pairs {
+		sb.WriteString(fmt.Sprintf("- %q: %d\n", p.URL, p.Count))
 	}
-	re := getV2RayLinkRegex()
-	matches := re.FindAllString(s, -1)
-	return matches
+	_ = method.SaveToStats([]byte(sb.String()), "subs-stats.yaml")
 }
 
-// 从任意已反序列化的数据结构中递归提取 V2Ray/代理链接
-func extractV2RayLinks(v any) []string {
-	links := make([]string, 0, 8)
-	var walk func(any)
-	walk = func(x any) {
-		switch vv := x.(type) {
-		case nil:
-			return
-		case string:
-			links = append(links, extractV2RayLinksFromTextInternal(vv)...)
-		case []byte:
-			links = append(links, extractV2RayLinksFromTextInternal(string(vv))...)
-		case []any:
-			for _, it := range vv {
-				walk(it)
-			}
-		case map[string]any:
-			for _, it := range vv {
-				walk(it)
+// normalizeNode 规范化节点字段
+func normalizeNode(node ProxyNode) {
+	if t, ok := node["type"].(string); ok {
+		// 修正 Hysteria2 字段名
+		if t == "hysteria2" || t == "hy2" {
+			if val, exists := node["obfs_password"]; exists {
+				node["obfs-password"] = val
+				delete(node, "obfs_password")
 			}
 		}
 	}
-	walk(v)
-	return normalizeExtractedLinks(uniqueStrings(links))
 }
 
-// 规范化提取到的链接：
-// - 去除首尾空白
-// - 去除首尾引号 " ' `
-// - 去除行首常见列表符号（- * • 等）
-// - 去除行尾常见分隔符（, ， ; ；）
-func normalizeExtractedLinks(in []string) []string {
-	if len(in) == 0 {
-		return in
+// buildCandidateURLs 生成候选链接：
+// - 如果存在日期占位符，返回 [今日, 昨日]
+// - 否则返回 [原始]
+func buildCandidateURLs(u string) ([]string, bool) {
+	if !hasDatePlaceholder(u) {
+		return []string{u}, false
 	}
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		t := strings.TrimSpace(s)
-		// 去掉包裹引号
-		t = strings.Trim(t, "\"'`")
-		// 去掉行首的列表符号
-		for {
-			tt := strings.TrimLeft(t, " -\t\u00A0\u2003\u2002\u2009\u3000•*·")
-			if tt == t {
-				break
-			}
-			t = tt
-		}
-		// 去掉行尾常见分隔符
-		t = strings.TrimRight(t, ",，;；")
-		if t == "" {
-			continue
-		}
-		out = append(out, t)
-	}
-	return uniqueStrings(out)
+	now := time.Now()
+	yest := now.AddDate(0, 0, -1)
+	today := replaceDatePlaceholders(u, now)
+	yesterday := replaceDatePlaceholders(u, yest)
+	slog.Debug("检测到日期占位符，将尝试今日和昨日日期")
+	return []string{today, yesterday}, true
 }
 
-func uniqueStrings(in []string) []string {
-	if len(in) <= 1 {
-		return in
+// hasDatePlaceholder 粗略检查是否包含任意日期占位符
+func hasDatePlaceholder(s string) bool {
+	ls := strings.ToLower(s)
+	return strings.Contains(ls, "{ymd}") || strings.Contains(ls, "{y}") ||
+		strings.Contains(ls, "{m}") || strings.Contains(ls, "{d}") ||
+		strings.Contains(ls, "{y-m-d}") || strings.Contains(ls, "{y_m_d}")
+}
+
+// replaceDatePlaceholders 按时间替换日期占位符，大小写不敏感
+func replaceDatePlaceholders(s string, t time.Time) string {
+	// 统一处理多种格式
+	reMap := map[*regexp.Regexp]string{
+		regexp.MustCompile(`(?i)\{Ymd\}`):   t.Format("20060102"),
+		regexp.MustCompile(`(?i)\{Y-m-d\}`): t.Format("2006-01-02"),
+		regexp.MustCompile(`(?i)\{Y_m_d\}`): t.Format("2006_01_02"),
+		regexp.MustCompile(`(?i)\{Y\}`):     t.Format("2006"),
+		regexp.MustCompile(`(?i)\{m\}`):     t.Format("01"),
+		regexp.MustCompile(`(?i)\{d\}`):     t.Format("02"),
 	}
-	seen := make(map[string]struct{}, len(in))
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if _, ok := seen[s]; ok {
-			continue
-		}
-		seen[s] = struct{}{}
-		out = append(out, s)
+	out := s
+	for re, val := range reMap {
+		out = re.ReplaceAllString(out, val)
 	}
 	return out
 }
+
+func isLocalRequest(u *url.URL) bool {
+	return utils.IsLocalURL(u.Hostname()) &&
+		(strings.Contains(u.Fragment, "Keep") || strings.Contains(u.Path, "history") || strings.Contains(u.Path, "all"))
+}
+
+// 从 Clash/Mihomo 配置中提取 proxy-providers 的 url 字段
+func extractClashProviderURLs(m map[string]any) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	// 支持的可能命名
+	keys := []string{"proxy-providers", "proxy_providers", "proxyproviders"}
+	out := make([]string, 0, 8)
+	for _, k := range keys {
+		v, ok := m[k]
+		if !ok || v == nil {
+			continue
+		}
+		providers, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, prov := range providers {
+			pm, ok := prov.(map[string]any)
+			if !ok {
+				continue
+			}
+			if u, ok := pm["url"].(string); ok {
+				u = strings.TrimSpace(u)
+				if u != "" {
+					out = append(out, u)
+				}
+			}
+		}
+	}
+	return out
+}
+
+func logFatal(err error, urlStr string) {
+    if code, convErr := strconv.Atoi(err.Error()); convErr == nil {
+        // err 是数字字符串，按状态码处理
+        switch code {
+        case 400:
+            slog.Error("\033[31m错误请求\033[0m", "订阅", urlStr, "status", code)
+
+        case 401, 403:
+            slog.Error("\033[31m无权限访问\033[0m", "URL", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
+
+        case 404:
+            slog.Error("\033[31m订阅失效\033[0m", "订阅", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
+
+        case 405:
+            slog.Error("方法不被允许", "URL", urlStr, "status", code)
+
+        case 408:
+            slog.Error("请求超时", "URL", urlStr, "status", code)
+
+        case 410:
+            slog.Error("\033[31m资源已永久删除\033[0m", "订阅", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
+
+        case 429:
+            slog.Error("\033[33m请求过多，被限流\033[0m", "URL", urlStr, "status", code)
+
+        case 500:
+            slog.Error("\033[31m服务器内部错误\033[0m", "URL", urlStr, "status", code)
+        case 502:
+            slog.Error("\033[31m网关错误\033[0m", "URL", urlStr, "status", code)
+        case 503:
+            slog.Error("\033[31m服务不可用\033[0m", "URL", urlStr, "status", code)
+        case 504:
+            slog.Error("\033[31m网关超时\033[0m", "URL", urlStr, "status", code)
+
+        default:
+            slog.Error("请求失败", "URL", urlStr, "status", code)
+        }
+    } else {
+        // 普通错误
+        slog.Error("获取失败", "URL", urlStr, "error", err)
+    }
+}
+
