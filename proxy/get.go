@@ -219,6 +219,14 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 		return nodes, nil
 	}
 
+	// 尝试 Surge/Surfboard 格式 ([Type] Name = ...)
+	if bytes.Contains(data, []byte("=")) && (bytes.Contains(data, []byte("[VMess]")) || bytes.Contains(data, []byte(", 20"))) {
+		if nodes := parseSurfboardProxies(data); len(nodes) > 0 {
+			slog.Info("Surfboard/Surge 格式", "count", len(nodes))
+			return nodes, nil
+		}
+	}
+
 	// 尝试自定义 Bracket KV 格式 ([Type]Name=...)
 	if nodes := parseBracketKVProxies(data); len(nodes) > 0 {
 		slog.Info("Bracket KV 格式")

@@ -1474,3 +1474,134 @@ func parseV2RayJsonLines(data []byte) []ProxyNode {
 	}
 	return nodes
 }
+
+// parseSurfboardProxies 解析 Surge/Surfboard 格式
+// 格式示例: [VMess] Name = vmess, server, port, username=..., ws=true...
+func parseSurfboardProxies(data []byte) []ProxyNode {
+	var nodes []ProxyNode
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// 忽略注释和配置头
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+			continue
+		}
+
+		// 必须包含 =
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		// 1. 解析左侧：[Type] Name
+		left := strings.TrimSpace(parts[0])
+		name := left
+		// 去除 [VMess] 前缀，提取纯名称
+		if idx := strings.Index(left, "]"); idx > 0 {
+			name = strings.TrimSpace(left[idx+1:])
+		}
+
+		// 2. 解析右侧：type, server, port, kv...
+		right := strings.TrimSpace(parts[1])
+		args := strings.Split(right, ",")
+		if len(args) < 3 {
+			continue
+		}
+
+		// 提取基础字段
+		protocol := strings.TrimSpace(strings.ToLower(args[0]))
+		server := strings.TrimSpace(args[1])
+		port := toIntPort(strings.TrimSpace(args[2]))
+
+		node := map[string]any{
+			"name":   name,
+			"server": server,
+			"port":   port,
+		}
+
+		// 映射协议类型
+		switch protocol {
+		case "vmess":
+			node["type"] = "vmess"
+		case "trojan":
+			node["type"] = "trojan"
+		case "ss":
+			node["type"] = "ss"
+		case "vless": // Surfboard 不原生支持 vless，但有些魔改版支持
+			node["type"] = "vless"
+		default:
+			// 如果不是已知协议，尝试直接用
+			node["type"] = protocol
+		}
+
+		// 3. 遍历剩余的 KV 参数
+		var wsOpts map[string]any
+
+		for i := 3; i < len(args); i++ {
+			pair := strings.TrimSpace(args[i])
+			kv := strings.SplitN(pair, "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			key := strings.ToLower(strings.TrimSpace(kv[0]))
+			val := strings.TrimSpace(kv[1])
+
+			switch key {
+			case "username", "uuid":
+				node["uuid"] = val
+			case "password":
+				node["password"] = val
+			case "encrypt-method", "method": // SS 加密
+				node["cipher"] = val
+			case "tls":
+				if b, ok := parseBoolLoose(val); ok {
+					node["tls"] = b
+				}
+			case "sni":
+				node["servername"] = val
+			case "skip-cert-verify":
+				if b, ok := parseBoolLoose(val); ok {
+					node["skip-cert-verify"] = b
+				}
+			case "udp-relay", "udp":
+				if b, ok := parseBoolLoose(val); ok {
+					node["udp"] = b
+				}
+			case "tfo": // TCP Fast Open
+				if b, ok := parseBoolLoose(val); ok {
+					node["tfo"] = b
+				}
+			// Transport 相关
+			case "ws":
+				if b, ok := parseBoolLoose(val); ok && b {
+					node["network"] = "ws"
+				}
+			case "ws-path":
+				if wsOpts == nil { wsOpts = make(map[string]any) }
+				wsOpts["path"] = val
+				node["network"] = "ws"
+			case "ws-headers":
+				// 格式通常是: ws-headers=Host:example.com
+				if wsOpts == nil { wsOpts = make(map[string]any) }
+				hk, hv := parseHeaderKV(val)
+				if hk != "" {
+					wsOpts["headers"] = map[string]string{hk: hv}
+				}
+			case "vmess-aead":
+				// Clash 默认支持，通常不需要显示设置
+			}
+		}
+
+		if wsOpts != nil {
+			node["ws-opts"] = wsOpts
+		}
+
+		// 基础校验
+		if node["server"] != "" && node["port"] != 0 {
+			nodes = append(nodes, ProxyNode(node))
+		}
+	}
+
+	return nodes
+}
