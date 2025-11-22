@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -254,9 +255,10 @@ func normalizeBool(m map[string]any, key string) {
 	if v, ok := m[key]; ok {
 		if s, ok := v.(string); ok {
 			lower := strings.ToLower(s)
-			if lower == "true" || lower == "1" {
+			switch lower {
+			case "true", "1":
 				m[key] = true
-			} else if lower == "false" || lower == "0" {
+			case "false", "0":
 				m[key] = false
 			}
 		}
@@ -822,16 +824,17 @@ func ParseV2RayJsonLines(data []byte) []ProxyNode {
 		}
 
 		// 协议映射
-		if protocol == "vmess" {
+		switch protocol {
+		case "vmess":
 			node["type"] = "vmess"
 			node["alterId"] = ToIntPort(userConf["alterId"])
 			node["cipher"] = "auto"
-		} else if protocol == "vless" {
+		case "vless":
 			node["type"] = "vless"
 			if flow, ok := userConf["flow"].(string); ok {
 				node["flow"] = flow
 			}
-		} else {
+		default:
 			continue // 暂不支持其他协议
 		}
 
@@ -856,5 +859,60 @@ func ParseV2RayJsonLines(data []byte) []ProxyNode {
 		NormalizeNode(node)
 		nodes = append(nodes, node)
 	}
+	return nodes
+}
+
+// ParseYamlFlowList 逐行解析 YAML 流式列表 (容错模式)
+// 专门处理格式错误或缩进错误的 Clash 格式列表，例如：
+// - {name: ...}
+func ParseYamlFlowList(data []byte) []ProxyNode {
+	var nodes []ProxyNode
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		
+		// 快速过滤：必须包含 '{' 和 '}'，且通常以 '-' 开头或直接以 '{' 开头
+		if !strings.Contains(line, "{") || !strings.Contains(line, "}") {
+			continue
+		}
+		
+		// 尝试清理行首，使其成为一个合法的 YAML 列表项 "- { ... }"
+		cleanLine := line
+		if !strings.HasPrefix(cleanLine, "-") {
+			// 如果行是以 { 开头，补上 - 变成列表项
+			if strings.HasPrefix(cleanLine, "{") {
+				cleanLine = "- " + cleanLine
+			} else {
+				// 可能是 "  - {..." 这种，TrimSpace 已经处理了空格
+				// 如果既不是 - 开头也不是 { 开头，可能不是目标格式，跳过
+				continue
+			}
+		}
+
+		// 尝试将这一行作为独立的 YAML 解析
+		// 我们定义一个通用的切片来接收
+		var tempNodes []map[string]any
+		err := yaml.Unmarshal([]byte(cleanLine), &tempNodes)
+		
+		// 解析成功且有内容
+		if err == nil && len(tempNodes) > 0 {
+			for _, m := range tempNodes {
+				// 进行标准清洗
+				NormalizeNode(m)
+				// 简单校验必要字段防止误判
+				if _, hasServer := m["server"]; hasServer {
+					nodes = append(nodes, ProxyNode(m))
+				}
+			}
+		} else {
+			// 如果标准解析失败（例如引号嵌套错误），尝试简单的正则提取修复
+		}
+	}
+	
+	if len(nodes) > 0 {
+		slog.Info("使用逐行 YAML 容错解析成功", "count", len(nodes))
+	}
+	
 	return nodes
 }

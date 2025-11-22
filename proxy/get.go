@@ -154,7 +154,6 @@ func processSubscription(urlStr, tag string, wasSucced, wasHistory bool, out cha
 		}
 
 		// 规范化与元数据附加
-		// NormalizeNode 统一负责字段清洗（端口转int、bool修正、Hysteria2字段修正等）
 		NormalizeNode(node)
 
 		node["sub_url"] = urlStr
@@ -205,12 +204,13 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 						strList = append(strList, s)
 					}
 				}
-				// 使用统一的链接解析逻辑
+				
 				return ParseProxyLinksAndConvert(strList, subURL), nil
 			}
 			// 对象数组 (Shadowsocks JSON配置等)
 			if _, ok := val[0].(map[string]any); ok {
 				slog.Info("解析到通用JSON对象数组 (Shadowsocks/SIP008等)")
+				
 				return ConvertGeneralJsonArray(val), nil
 			}
 		}
@@ -219,17 +219,25 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 	// 2. 其次尝试 Base64/V2Ray 标准转换
 	if nodes, err := convert.ConvertsV2Ray(data); err == nil && len(nodes) > 0 {
 		slog.Info("v2ray格式")
+		
 		return ToProxyNodes(nodes), nil
 	}
 
 	// 3. 针对 "局部合法、全局非法" 的多段 proxies 文件
+	
 	if nodes := ExtractAndParseProxies(data); len(nodes) > 0 {
 		slog.Debug("通过多段解析，获取到代理节点", "count", len(nodes))
 		return nodes, nil
 	}
 
+	// 尝试逐行 YAML 流式解析
+	if nodes := ParseYamlFlowList(data); len(nodes) > 0 {
+		return nodes, nil
+	}
+
 	// 4. 尝试 Surge/Surfboard 格式
 	if bytes.Contains(data, []byte("=")) && (bytes.Contains(data, []byte("[VMess]")) || bytes.Contains(data, []byte(", 20"))) {
+		
 		if nodes := ParseSurfboardProxies(data); len(nodes) > 0 {
 			slog.Info("Surfboard/Surge 格式", "count", len(nodes))
 			return nodes, nil
@@ -237,6 +245,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 	}
 
 	// 5. 尝试自定义 Bracket KV 格式 ([Type]Name=...)
+	
 	if nodes := ParseBracketKVProxies(data); len(nodes) > 0 {
 		slog.Info("Bracket KV 格式")
 		return nodes, nil
@@ -270,7 +279,7 @@ func parseRawLines(data []byte, subURL string) []ProxyNode {
 	if len(lines) == 0 {
 		return nil
 	}
-	// 使用 utils 中的统一解析器，它包含猜测协议逻辑
+	
 	return ParseProxyLinksAndConvert(lines, subURL)
 }
 
@@ -321,15 +330,15 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 	if isLocalURL {
 		strategies = append(strategies, strategy{false, warpFunc})
 	} else {
-		// 1. 系统代理
+		// 1. 系统代理 (External utils)
 		if utils.IsSysProxyAvailable {
 			strategies = append(strategies, strategy{true, warpFunc})
 		}
-		// 2. Github 代理
+		// 2. Github 代理 (External utils)
 		if utils.IsGhProxyAvailable {
 			strategies = append(strategies, strategy{false, warpFunc})
 		}
-		// 3. 直连兜底 (如果是本地 URL 已经在上面处理了，这里处理远程)
+		// 3. 直连兜底
 		strategies = append(strategies, strategy{false, warpFunc})
 	}
 
@@ -339,13 +348,11 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 		}
 
 		for _, candidate := range candidates {
-			// 记录本轮已尝试的配置，避免重复 (如无 GHProxy 时可能重复直连)
 			triedInThisLoop := make(map[string]struct{})
 
 			for _, strat := range strategies {
 				targetURL := strat.urlFunc(candidate)
 
-				// 去重键：URL + 是否使用代理
 				key := fmt.Sprintf("%s|%v", targetURL, strat.useProxy)
 				if _, tried := triedInThisLoop[key]; tried {
 					continue
@@ -358,13 +365,11 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 				}
 				lastErr = err
 
-				// 遇到 404 等致命错误且没有日期占位符时，直接终止
 				if fatal && !hasPlaceholder {
 					return nil, err
 				}
 			}
 		}
-		// 如果有日期占位符，且一轮尝试都失败，通常意味着猜测的日期不对，直接忽略，不记录 Error 日志
 		if hasPlaceholder {
 			return nil, ErrIgnore
 		}
@@ -375,14 +380,12 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 
 // fetchOnce 执行单次 HTTP 请求
 func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, bool) {
-	// 构造 Request
 	req, err := http.NewRequest("GET", target, nil)
 	if err != nil {
 		return nil, err, false
 	}
 	req.Header.Set("User-Agent", "clash.meta")
 
-	// 特殊处理本地请求头
 	if isLocalRequest(req.URL) {
 		req.Header.Set("X-From-Subs-Check", "true")
 		req.Header.Set("X-API-Key", config.GlobalConfig.APIKey)
@@ -391,10 +394,9 @@ func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, boo
 		req.URL.RawQuery = q.Encode()
 	}
 
-	// 构造 Client
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		Proxy:           nil, // 默认直连
+		Proxy:           nil,
 	}
 
 	if useProxy {
@@ -613,7 +615,7 @@ func identifyLocalSubType(subURL, listenPort, storePort string) (isLatest, isHis
 	tag = u.Fragment
 	port := u.Port()
 
-	// 必须是本地地址
+	// 必须是本地地址 (调用 External utils)
 	if !utils.IsLocalURL(subURL) {
 		return false, false, tag
 	}
