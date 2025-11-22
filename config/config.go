@@ -112,5 +112,5 @@ var OriginDefaultConfig = &Config{
 // GlobalConfig 指向当前生效配置
 var GlobalConfig = &Config{} // 初始化为空，首次加载后赋值
 
-//go:embed config.example.yaml
+//go:embed config.yaml.example
 var DefaultConfigTemplate []byte

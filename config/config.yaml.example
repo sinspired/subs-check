@@ -356,12 +356,12 @@ sub-urls-remote:
   - https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/col.txt
   - https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/cm.txt
   - https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/scan.txt
-
   - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l.yaml
   - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l2.yaml
   - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f.yaml
   - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f2.yaml
   - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_spr.yaml
+  - https://github.com/snakem982/proxypool/raw/main/source/nodelist.txt
 
 # 订阅地址 支持 clash/mihomo/v2ray/base64 格式的订阅链接
 # 如果用户想明确使用clash类型，那可以在支持的订阅链接结尾加上 &flag=clash.meta

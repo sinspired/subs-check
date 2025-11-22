@@ -61,7 +61,7 @@ High-performance proxy subscription checker.
 
 > [!TIP]
 >
-> 功能更新频繁，请务必查看最新的 [配置文件示例](https://github.com/sinspired/subs-check/blob/main/config/config.example.yaml) 以获取最新功能支持。  
+> 功能更新频繁，请务必查看最新的 [配置文件示例](https://github.com/sinspired/subs-check/blob/main/config/config.yaml.example) 以获取最新功能支持。  
 
 > [!NOTE]
 >
@@ -458,7 +458,7 @@ http://127.0.0.1:8299/path/api/file/mihomo
 
 ![singbox-shareMenu](./doc/images/share-menu.png)
 
-请查阅最新 [配置文件示例](https://github.com/sinspired/subs-check/blob/main/config/config.example.yaml)
+请查阅最新 [配置文件示例](https://github.com/sinspired/subs-check/blob/main/config/config.yaml.example)
 
 ```yaml
 # singbox规则配置
