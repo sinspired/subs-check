@@ -1057,3 +1057,56 @@ func logFatal(err error, urlStr string) {
 		slog.Error("获取失败", "URL", urlStr, "error", err)
 	}
 }
+
+// convertGeneralJsonArray 处理通用对象数组，识别特定客户端的格式 (如 Shadowsocks 导出配置)
+func convertGeneralJsonArray(list []any) []ProxyNode {
+	var nodes []ProxyNode
+
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		// 识别 Shadowsocks 传统导出格式
+		// 特征: 包含 "server_port", "password", "method", "server"
+		if _, hasPort := m["server_port"]; hasPort {
+			if _, hasMethod := m["method"]; hasMethod {
+				node := make(ProxyNode)
+
+				// 必须字段映射
+				node["type"] = "ss"
+				node["server"] = m["server"]
+				node["port"] = toIntPort(m["server_port"]) // 使用之前增强过的 toIntPort
+				node["cipher"] = m["method"]
+				node["password"] = m["password"]
+
+				// 名称映射 (remarks -> name)
+				if remarks, ok := m["remarks"].(string); ok && remarks != "" {
+					node["name"] = remarks
+				} else {
+					// 如果没有备注，生成一个默认名字
+					node["name"] = fmt.Sprintf("ss-%s:%v", m["server"], m["server_port"])
+				}
+
+				// 插件处理 (plugin)
+				if plugin, ok := m["plugin"].(string); ok && plugin != "" {
+					node["plugin"] = plugin
+					if pluginOpts, ok := m["plugin_opts"].(string); ok {
+						node["plugin-opts"] = pluginOpts // 注意：有些客户端导出的 opts 是字符串而非对象
+					}
+				}
+
+				// 简单的有效性检查
+				if node["server"] != nil && node["port"] != 0 && node["cipher"] != nil {
+					nodes = append(nodes, node)
+				}
+				continue
+			}
+		}
+
+		// 可以在这里扩展其他非标准 JSON 对象的识别逻辑 (例如 SIP008 等)
+	}
+
+	return nodes
+}

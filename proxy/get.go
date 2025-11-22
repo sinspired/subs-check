@@ -189,9 +189,21 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 				return convertToProxyNodes(nodes), nil
 			}
 		case []any:
-			// 字符串数组 (链接列表 或 IP:Port 列表)
-			slog.Info("解析到字符串数组 (链接列表 或 IP:Port 列表)")
-			return parseStringList(val, subURL)
+			if len(val) == 0 {
+				return nil, nil
+			}
+
+			// 1. 字符串数组 (链接列表 或 IP:Port 列表)
+			if _, ok := val[0].(string); ok {
+				slog.Info("解析到字符串数组 (链接列表 或 IP:Port 列表)")
+				return parseStringList(val, subURL)
+			}
+
+			// 2. 对象数组 (Shadowsocks JSON配置等)
+			if _, ok := val[0].(map[string]any); ok {
+				slog.Info("解析到通用JSON对象数组 (Shadowsocks/SIP008等)")
+				return convertGeneralJsonArray(val), nil
+			}
 		}
 	}
 
