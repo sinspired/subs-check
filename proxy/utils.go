@@ -16,7 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
 	"github.com/metacubex/mihomo/common/convert"
@@ -1193,30 +1192,107 @@ func ParseWireGuardURI(link string) map[string]any {
 // 如果解码成功且结果看起来是文本，返回解码后的数据
 // 否则返回原始数据
 func TryDecodeBase64(data []byte) []byte {
-	// 移除首尾空白字符
 	s := string(bytes.TrimSpace(data))
 	if len(s) == 0 {
 		return data
 	}
 
-	// 定义可能的解码器
+	// 常见解码方式
 	encodings := []*base64.Encoding{
-		base64.StdEncoding,
-		base64.RawStdEncoding,
+		base64.RawURLEncoding, // SSR 最常用
 		base64.URLEncoding,
-		base64.RawURLEncoding,
+		base64.RawStdEncoding,
+		base64.StdEncoding,
 	}
 
 	for _, enc := range encodings {
 		if decoded, err := enc.DecodeString(s); err == nil {
-			// 简单的启发式检查：解码后如果是乱码（二进制），可能并不是我们想要的订阅文本
-			// 订阅通常是 UTF-8 文本
-			if utf8.Valid(decoded) {
-				return decoded
+			return decoded
+		}
+	}
+	return data
+}
+
+
+// ParseSSRURI 解析 ssr:// 链接
+func ParseSSRURI(link string) map[string]any {
+	// 清理前缀
+	content := strings.TrimPrefix(link, "ssr://")
+	
+	// 清理 URL 末尾的备注、空格、Emoji
+	// 很多链接结尾是 ...==#remarks，我们需要去掉 # 及其后面的内容
+	if idx := strings.Index(content, "#"); idx > 0 {
+		content = content[:idx]
+	}
+	content = strings.TrimSpace(content)
+
+	// Base64 解码
+	decodedBytes := TryDecodeBase64([]byte(content))
+	decoded := string(decodedBytes)
+
+	// SSR 解码后格式: ip:port:protocol:method:obfs:password_base64/?params
+	// 先分离参数部分
+	parts := strings.SplitN(decoded, "/?", 2)
+	mainPart := parts[0]
+
+	// 分割主要字段
+	fields := strings.Split(mainPart, ":")
+	if len(fields) < 6 {
+		// 记录错误以便调试
+		slog.Warn("SSR格式解析失败", 
+			"reason", "fields < 6", 
+			"decoded_sample", decoded[:min(20, len(decoded))]+"...")
+		return nil
+	}
+
+	// 倒序提取以兼容 IPv6 (host 可能包含冒号)
+	// 字段结构: host : port : protocol : method : obfs : password
+	n := len(fields)
+	passwordB64 := fields[n-1]
+	obfs := fields[n-2]
+	method := fields[n-3]
+	protocol := fields[n-4]
+	port := toIntPort(fields[n-5])
+	host := strings.Join(fields[:n-5], ":")
+
+	// 解码密码
+	password := string(TryDecodeBase64([]byte(passwordB64)))
+
+	node := map[string]any{
+		"type":     "ss", // 直接标记为 ss，提高兼容性
+		"server":   host,
+		"port":     port,
+		"cipher":   method,
+		"password": password,
+		// 保留 SSR 原始字段以备查，但 Mihomo 会忽略它们
+		"protocol": protocol,
+		"obfs":     obfs,
+	}
+
+	// 解析参数
+	if len(parts) > 1 {
+		params := parts[1]
+		for _, pair := range strings.Split(params, "&") {
+			kv := strings.SplitN(pair, "=", 2)
+			if len(kv) != 2 { continue }
+			
+			key := kv[0]
+			val := string(TryDecodeBase64([]byte(kv[1])))
+			
+			if key == "remarks" {
+				node["name"] = val
+			} else if key == "obfsparam" {
+				node["obfs-param"] = val
+			} else if key == "protoparam" {
+				node["protocol-param"] = val
 			}
 		}
 	}
 
-	// 如果所有解码尝试都失败，或者解码后不是有效文本，假设它已经是明文
-	return data
+	// 默认名称
+	if _, ok := node["name"]; !ok || node["name"] == "" {
+		node["name"] = fmt.Sprintf("ssr-%s:%d", host, port)
+	}
+
+	return node
 }

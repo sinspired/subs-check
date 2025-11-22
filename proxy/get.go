@@ -286,55 +286,50 @@ func parseStringList(list []any, subURL string) ([]ProxyNode, error) {
 
 // fallbackExtractV2Ray 正则提取兜底
 func fallbackExtractV2Ray(data []byte, subURL string) []ProxyNode {
-	// 先尝试 Base64 解码
 	decodedData := TryDecodeBase64(data)
-
-	// 使用解码后的数据进行提取
 	links := extractV2RayLinks(decodedData)
 	if len(links) == 0 {
 		return nil
 	}
 
 	var finalNodes []ProxyNode
-	var standardLinks []string
 
-	// 1. 遍历链接，分离 WireGuard 和其他标准协议
+	slog.Info("开始处理提取到的链接", "count", len(links))
+
 	for _, link := range links {
-		// 优先拦截 WireGuard 链接 (Mihomo 库不支持直接解析 wireguard://)
+		link = strings.TrimSpace(link)
+		
+		// 1. 处理 WireGuard
 		if strings.HasPrefix(link, "wireguard://") || strings.HasPrefix(link, "wg://") {
-			slog.Debug("识别到 WireGuard 链接", "link_prefix", link[:min(20, len(link))]+"...")
 			if node := ParseWireGuardURI(link); node != nil {
-				// 补充必要的元数据
 				node["sub_url"] = subURL
 				finalNodes = append(finalNodes, ProxyNode(node))
 			}
 			continue
 		}
 
-		// 其他协议 (vmess, ss, hy2 等) 进行标准化处理
-		standardLinks = append(standardLinks, fixupProxyLink(link))
+		// 2. 处理 SSR (使用手动解析，比 Mihomo 更稳)
+		if strings.HasPrefix(link, "ssr://") {
+			if node := ParseSSRURI(link); node != nil {
+				node["sub_url"] = subURL
+				finalNodes = append(finalNodes, ProxyNode(node))
+			}
+			continue
+		}
+
+		// 3. 其他标准协议 (vmess, ss, hy2) 逐个转换
+		// 这样互不影响
+		fixedLink := fixupProxyLink(link)
+		if nodes, err := convert.ConvertsV2Ray([]byte(fixedLink)); err == nil && len(nodes) > 0 {
+			converted := convertToProxyNodes(nodes)
+			for _, n := range converted {
+				n["sub_url"] = subURL
+				finalNodes = append(finalNodes, n)
+			}
+		}
 	}
 
-	// 如果没有标准链接，直接返回 WG 节点
-	if len(standardLinks) == 0 {
-		return finalNodes
-	}
-
-	joined := []byte(strings.Join(standardLinks, "\n"))
-
-	// 2. 尝试标准转换 (针对 standardLinks)
-	if nodes, err := convert.ConvertsV2Ray(joined); err == nil && len(nodes) > 0 {
-		finalNodes = append(finalNodes, convertToProxyNodes(nodes)...)
-		return finalNodes
-	}
-
-	// 3. 如果标准转换失败，当作纯文本按行处理 (尝试按 IP:Port 猜测，或处理未识别格式)
-	// 注意：这里我们要把之前解析出的 WG 节点和兜底解析出的节点合并
-	fallbackNodes := convertUnStandandTextViaConvert(subURL, joined)
-	if len(fallbackNodes) > 0 {
-		finalNodes = append(finalNodes, fallbackNodes...)
-	}
-
+	slog.Info("链接解析统计", "total_success", len(finalNodes))
 	return finalNodes
 }
 
