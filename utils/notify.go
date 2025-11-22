@@ -48,7 +48,7 @@ func SendNotify(length int) {
 	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
 	} else if len(config.GlobalConfig.RecipientURL) == 0 {
-		slog.Error("没有配置通知目标")
+		slog.Error("请配置通知目标: recipient-url")
 		return
 	}
 
@@ -82,7 +82,7 @@ func SendNotifyGeoDBUpdate(version string) {
 	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
 	} else if len(config.GlobalConfig.RecipientURL) == 0 {
-		slog.Error("没有配置通知目标")
+		slog.Error("请配置通知目标: recipient-url")
 		return
 	}
 
@@ -113,7 +113,7 @@ func SendNotifySelfUpdate(current string, lastest string) {
 	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
 	} else if len(config.GlobalConfig.RecipientURL) == 0 {
-		slog.Error("没有配置通知目标")
+		slog.Error("请配置通知目标: recipient-url")
 		return
 	}
 
@@ -144,7 +144,7 @@ func SendNotifyDetectLatestRelease(current string, lastest string, isDockerOrGui
 	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
 	} else if len(config.GlobalConfig.RecipientURL) == 0 {
-		slog.Error("没有配置通知目标")
+		slog.Error("请配置通知目标: recipient-url")
 		return
 	}
 
