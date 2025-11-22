@@ -14,7 +14,7 @@ import (
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
 	"github.com/sinspired/subs-check/utils"
-	"gopkg.in/yaml.v3"
+	 "github.com/goccy/go-yaml" 
 )
 
 // ProxyCategory 定义代理分类

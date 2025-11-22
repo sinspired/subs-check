@@ -1,3 +1,4 @@
+// Package proxies 处理订阅获取、去重及随机乱序，处理节点重命名
 package proxies
 
 import (

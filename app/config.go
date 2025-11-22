@@ -13,7 +13,7 @@ import (
 	"github.com/sinspired/subs-check/assets"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/utils"
-	"gopkg.in/yaml.v3"
+	 "github.com/goccy/go-yaml" 
 )
 
 // initConfigPath 初始化配置文件路径
