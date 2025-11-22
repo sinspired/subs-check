@@ -1,3 +1,4 @@
+// utils.go
 package proxies
 
 import (
@@ -139,6 +140,7 @@ func convertUnStandandTextViaConvert(rawURL string, data []byte) []ProxyNode {
 	if len(lines) == 0 {
 		return nil
 	}
+	slog.Info("按行读取数据", "line", len(lines))
 
 	scheme := guessSchemeByURL(rawURL)
 	// 复用 JSON 转换逻辑
@@ -215,23 +217,6 @@ func splitHostPortLoose(hp string) (string, string) {
 		return hp[:idx], hp[idx+1:]
 	}
 	return hp, ""
-}
-
-func toIntPort(v any) int {
-	if v == nil {
-		return 0
-	}
-	switch vv := v.(type) {
-	case int:
-		return vv
-	case float64:
-		return int(vv)
-	case string:
-		if n, err := strconv.Atoi(vv); err == nil {
-			return n
-		}
-	}
-	return 0
 }
 
 // ======================
@@ -591,6 +576,200 @@ func parseHeaderKV(s string) (string, string) {
 	return k, v
 }
 
+// 针对格式: - {name: xxx, server: xxx, ...}
+// extractAndParseProxies 提取文件中所有离散的 proxies 块并解析
+func extractAndParseProxies(data []byte) []ProxyNode {
+	var allNodes []ProxyNode
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+
+	var buffer bytes.Buffer
+	inProxiesBlock := false
+	blockCount := 0 // 统计块的数量
+
+	// 辅助函数：解析缓冲区中的 YAML 块
+	parseBuffer := func() {
+		if buffer.Len() == 0 {
+			return
+		}
+		// 构造一个临时的结构来接收解析结果
+		var container struct {
+			Proxies []map[string]any `yaml:"proxies"`
+		}
+
+		// 使用 goccy/go-yaml 解析这段合法的片段
+		if err := yaml.Unmarshal(buffer.Bytes(), &container); err == nil && len(container.Proxies) > 0 {
+			blockCount++ // 成功解析一个块
+			countBefore := len(allNodes)
+
+			// 转换并添加到总列表
+			for _, p := range container.Proxies {
+				// 标准化处理 (处理 ws-path, port 类型等)
+				normalized := normalizeFlatFields(p)
+				allNodes = append(allNodes, ProxyNode(normalized))
+			}
+
+			slog.Debug("解析单个proxies块成功",
+				"BlockIndex", blockCount,
+				"NewNodes", len(allNodes)-countBefore,
+			)
+		}
+		buffer.Reset()
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		// 1. 检测是否进入 proxies 块
+		// 必须是以 "proxies:" 开头
+		if strings.HasPrefix(line, "proxies:") {
+			// 如果之前已经在一个块里，先结算之前的
+			if inProxiesBlock {
+				parseBuffer()
+			}
+			inProxiesBlock = true
+			buffer.WriteString(line + "\n")
+			continue
+		}
+
+		// 2. 处理块内的行
+		if inProxiesBlock {
+			// 遇到空行或注释，为了保持格式，建议保留（或忽略均可，这里保留）
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				buffer.WriteString(line + "\n")
+				continue
+			}
+
+			// 判断缩进：如果行首有空格或Tab，视作块内容
+			hasIndent := strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
+
+			if hasIndent {
+				buffer.WriteString(line + "\n")
+			} else {
+				// 遇到无缩进的非空行 (例如 "port: 7890") -> 块结束
+				inProxiesBlock = false
+				parseBuffer()
+
+				// 【特殊情况】当前行本身就是下一个 "proxies:" 的开始（极少见但防御性处理）
+				if strings.HasPrefix(line, "proxies:") {
+					inProxiesBlock = true
+					buffer.WriteString(line + "\n")
+				}
+			}
+		}
+	}
+
+	// 循环结束后，处理最后一个块
+	if inProxiesBlock {
+		parseBuffer()
+	}
+
+	// 打印最终统计
+	if blockCount > 0 {
+		slog.Info("分块解析完成", "总Block数量", blockCount, "总节点数量", len(allNodes))
+	}
+
+	return allNodes
+}
+
+// normalizeFlatFields 将非标准的扁平字段映射为 Clash 标准结构
+func normalizeFlatFields(m map[string]any) map[string]any {
+	// 1. 强力修复 Port 类型
+	if p, ok := m["port"]; ok {
+		m["port"] = toIntPort(p)
+	}
+
+	// 2. 处理 Flow Style 中的扁平化 ws 配置
+	// 示例: { ..., ws-path: /abc, ws-headers: {...} } -> { ws-opts: { path: /abc ... } }
+	var wsPath, wsHeaders any
+	hasWsFields := false
+
+	// 提取
+	if v, ok := m["ws-path"]; ok {
+		wsPath = v
+		delete(m, "ws-path") // 删除旧键
+		hasWsFields = true
+	}
+	if v, ok := m["ws-headers"]; ok {
+		wsHeaders = v
+		delete(m, "ws-headers") // 删除旧键
+		hasWsFields = true
+	}
+
+	// 合并
+	if hasWsFields {
+		wsOpts := make(map[string]any)
+		// 如果原本就有 ws-opts (混合情况)，先取出来
+		if existing, ok := m["ws-opts"].(map[string]any); ok {
+			wsOpts = existing
+		}
+
+		if wsPath != nil {
+			wsOpts["path"] = wsPath
+		}
+		if wsHeaders != nil {
+			wsOpts["headers"] = wsHeaders
+		}
+		m["ws-opts"] = wsOpts
+
+		// 确保 network 字段被设置
+		if _, ok := m["network"]; !ok {
+			m["network"] = "ws"
+		}
+	}
+
+	// 3. 处理其他布尔值字符串 (例如 "true" 字符串转 bool)
+	normalizeBool(m, "tls")
+	normalizeBool(m, "udp")
+	normalizeBool(m, "skip-cert-verify")
+	normalizeBool(m, "allow-insecure")
+
+	return m
+}
+
+// toIntPort 极其宽容的端口转换函数
+func toIntPort(v any) int {
+	switch val := v.(type) {
+	case int:
+		return val
+	case int32:
+		return int(val)
+	case int64:
+		return int(val)
+	case uint:
+		return int(val)
+	case uint32:
+		return int(val)
+	case uint64:
+		return int(val) // goccy/go-yaml 经常解析成这个
+	case float32:
+		return int(val)
+	case float64:
+		return int(val) // 标准 json 解析成这个
+	case string:
+		// 尝试解析 "443" 或 "443.0"
+		clean := strings.Split(val, ".")[0] // 去掉可能的小数点
+		if i, err := strconv.Atoi(clean); err == nil {
+			return i
+		}
+	}
+	return 0
+}
+
+func normalizeBool(m map[string]any, key string) {
+	if v, ok := m[key]; ok {
+		if s, ok := v.(string); ok {
+			lower := strings.ToLower(s)
+			switch lower {
+			case "true", "1":
+				m[key] = true
+			case "false", "0":
+				m[key] = false
+			}
+		}
+	}
+}
+
 func logSubscriptionStats(total, local, remote, history int) {
 	args := []any{}
 	if local > 0 {
@@ -837,45 +1016,44 @@ func extractClashProviderURLs(m map[string]any) []string {
 }
 
 func logFatal(err error, urlStr string) {
-    if code, convErr := strconv.Atoi(err.Error()); convErr == nil {
-        // err 是数字字符串，按状态码处理
-        switch code {
-        case 400:
-            slog.Error("\033[31m错误请求\033[0m", "订阅", urlStr, "status", code)
+	if code, convErr := strconv.Atoi(err.Error()); convErr == nil {
+		// err 是数字字符串，按状态码处理
+		switch code {
+		case 400:
+			slog.Error("\033[31m错误请求\033[0m", "订阅", urlStr, "status", code)
 
-        case 401, 403:
-            slog.Error("\033[31m无权限访问\033[0m", "URL", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
+		case 401, 403:
+			slog.Error("\033[31m无权限访问\033[0m", "URL", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
 
-        case 404:
-            slog.Error("\033[31m订阅失效\033[0m", "订阅", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
+		case 404:
+			slog.Error("\033[31m订阅失效\033[0m", "订阅", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
 
-        case 405:
-            slog.Error("方法不被允许", "URL", urlStr, "status", code)
+		case 405:
+			slog.Error("方法不被允许", "URL", urlStr, "status", code)
 
-        case 408:
-            slog.Error("请求超时", "URL", urlStr, "status", code)
+		case 408:
+			slog.Error("请求超时", "URL", urlStr, "status", code)
 
-        case 410:
-            slog.Error("\033[31m资源已永久删除\033[0m", "订阅", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
+		case 410:
+			slog.Error("\033[31m资源已永久删除\033[0m", "订阅", fmt.Sprintf("\033[9m%s\033[29m", urlStr), "status", code)
 
-        case 429:
-            slog.Error("\033[33m请求过多，被限流\033[0m", "URL", urlStr, "status", code)
+		case 429:
+			slog.Error("\033[33m请求过多，被限流\033[0m", "URL", urlStr, "status", code)
 
-        case 500:
-            slog.Error("\033[31m服务器内部错误\033[0m", "URL", urlStr, "status", code)
-        case 502:
-            slog.Error("\033[31m网关错误\033[0m", "URL", urlStr, "status", code)
-        case 503:
-            slog.Error("\033[31m服务不可用\033[0m", "URL", urlStr, "status", code)
-        case 504:
-            slog.Error("\033[31m网关超时\033[0m", "URL", urlStr, "status", code)
+		case 500:
+			slog.Error("\033[31m服务器内部错误\033[0m", "URL", urlStr, "status", code)
+		case 502:
+			slog.Error("\033[31m网关错误\033[0m", "URL", urlStr, "status", code)
+		case 503:
+			slog.Error("\033[31m服务不可用\033[0m", "URL", urlStr, "status", code)
+		case 504:
+			slog.Error("\033[31m网关超时\033[0m", "URL", urlStr, "status", code)
 
-        default:
-            slog.Error("请求失败", "URL", urlStr, "status", code)
-        }
-    } else {
-        // 普通错误
-        slog.Error("获取失败", "URL", urlStr, "error", err)
-    }
+		default:
+			slog.Error("请求失败", "URL", urlStr, "status", code)
+		}
+	} else {
+		// 普通错误
+		slog.Error("获取失败", "URL", urlStr, "error", err)
+	}
 }
-

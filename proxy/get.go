@@ -1,3 +1,4 @@
+// get.go
 package proxies
 
 import (
@@ -17,12 +18,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/metacubex/mihomo/common/convert"
 	"github.com/samber/lo"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
 	"github.com/sinspired/subs-check/utils"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -169,14 +170,17 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 	// 优先尝试 YAML/JSON 结构化解析
 	var generic any
 	if err := yaml.Unmarshal(data, &generic); err == nil {
+
 		switch val := generic.(type) {
 		case map[string]any:
 			// Clash 格式
 			if proxies, ok := val["proxies"]; ok {
+				slog.Info("提取clash格式")
 				return parseClashProxies(proxies)
 			}
 			// Sing-Box 格式
 			if outbounds, ok := val["outbounds"]; ok {
+				slog.Info("提取singbox格式")
 				return parseSingBoxOutbounds(outbounds)
 			}
 			// 非标准 JSON (协议名为 Key)
@@ -193,7 +197,14 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 
 	// 其次尝试 Base64/V2Ray 标准转换
 	if nodes, err := convert.ConvertsV2Ray(data); err == nil && len(nodes) > 0 {
+		slog.Info("v2ray格式")
 		return convertToProxyNodes(nodes), nil
+	}
+
+	// 针对 "局部合法、全局非法" 的多段 proxies 文件
+	if nodes := extractAndParseProxies(data); len(nodes) > 0 {
+		slog.Debug("通过多端解析，获取到代理节点", "count", len(nodes))
+		return nodes, nil
 	}
 
 	// 尝试自定义 Bracket KV 格式 ([Type]Name=...)
