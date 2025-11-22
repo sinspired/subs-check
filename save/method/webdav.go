@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"log/slog"
@@ -32,24 +30,22 @@ type WebDAVUploader struct {
 // NewWebDAVUploader 创建新的 WebDAV 上传器
 func NewWebDAVUploader() *WebDAVUploader {
 	webdavURL := config.GlobalConfig.WebDAVURL
-	parsed, err := url.Parse(webdavURL)
-	if err != nil {
+	if _, err := url.Parse(webdavURL); err != nil {
 		slog.Error("WebDAV URL 配置错误，无法解析", "url", webdavURL, "error", err)
 		return nil
 	}
 
 	transport := &http.Transport{}
-	host := parsed.Hostname()
 
-	if isLocalOrPrivateAddr(host) {
-		slog.Debug("WebDAV 地址为本地或私有地址，将不使用代理", "host", host)
+	if utils.IsLocalURL(webdavURL) {
+		slog.Debug("WebDAV 地址为本地或私有地址，将不使用代理", "URL", webdavURL)
 		transport.Proxy = nil
 	} else {
 		useProxy := utils.GetSysProxy()
 
 		if useProxy {
 			proxyStr := config.GlobalConfig.SystemProxy
-			slog.Debug("将为远程 WebDAV 配置代理", "host", host, "proxy", proxyStr)
+			slog.Debug("将为远程 WebDAV 配置代理", "URL", webdavURL, "proxy", proxyStr)
 			proxyURL, perr := url.Parse(proxyStr)
 			if perr != nil {
 				slog.Error("解析配置中的代理 URL 失败，将不使用代理", "proxy_url", proxyStr, "error", perr)
@@ -58,7 +54,7 @@ func NewWebDAVUploader() *WebDAVUploader {
 				transport.Proxy = http.ProxyURL(proxyURL)
 			}
 		} else {
-			slog.Debug("未配置系统代理，将直连远程 WebDAV", "host", host)
+			slog.Debug("未配置系统代理，将直连远程 WebDAV", "URL", webdavURL)
 			transport.Proxy = nil
 		}
 	}
@@ -182,31 +178,4 @@ func (w *WebDAVUploader) checkResponse(resp *http.Response) error {
 		return fmt.Errorf("上传失败(状态码: %d): %s", resp.StatusCode, string(body))
 	}
 	return nil
-}
-
-// isLocalOrPrivateAddr 判断给定的 host 是否为本地、回环或私有IP地址。
-func isLocalOrPrivateAddr(host string) bool {
-	// 优先处理常见字符串情况
-	if host == "127.0.0.1" || strings.EqualFold(host, "localhost") || host == "::1" {
-		return true
-	}
-	// .local 后缀通常用于 mDNS，视为本地
-	if strings.HasSuffix(strings.ToLower(host), ".local") {
-		return true
-	}
-
-	// 判断是否为不包含点的简单主机名 (如 "dell", "nas")
-	if !strings.Contains(host, ".") {
-		return true
-	}
-
-	// 尝试将 host 解析为 IP 地址
-	ip := net.ParseIP(host)
-	if ip == nil {
-		// 如果无法解析为 IP，则认为不是本地私有 IP 地址
-		return false
-	}
-
-	// 使用标准库的函数来判断 IP 类型
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }

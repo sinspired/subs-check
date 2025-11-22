@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -65,10 +64,11 @@ func getSubStorePaths() (*subStorePaths, error) {
 
 // RunSubStoreService 运行sub-store服务，支持 ctx，可被外部取消
 func RunSubStoreService(ctx context.Context) {
+	subStorePort := strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":")
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("Sub-store 服务已停止", "port", config.GlobalConfig.SubStorePort)
+			slog.Info("Sub-store 服务已停止", "port", subStorePort)
 			return
 		default:
 			if err := startSubStore(ctx); err != nil {
@@ -77,7 +77,7 @@ func RunSubStoreService(ctx context.Context) {
 			// 在循环间隙检查 ctx，若被取消则退出
 			select {
 			case <-ctx.Done():
-				slog.Info("Sub-store 服务已停止", "port", config.GlobalConfig.SubStorePort)
+				slog.Info("Sub-store 服务已停止", "port", subStorePort)
 				return
 			case <-time.After(time.Second * 30):
 				// 继续重启循环
@@ -187,28 +187,32 @@ func startSubStore(ctx context.Context) error {
 	// 检查MihomoOverwriteUrl是否包含本地IP，如果是则移除代理环境变量
 	cleanProxyEnv := false
 	if config.GlobalConfig.MihomoOverwriteURL != "" {
-		parsedURL, err := url.Parse(config.GlobalConfig.MihomoOverwriteURL)
-		if err == nil {
-			host := parsedURL.Hostname()
-			if isLocalIP(host) {
+		if _, err := url.Parse(config.GlobalConfig.MihomoOverwriteURL); err == nil {
+			if utils.IsLocalURL(config.GlobalConfig.MihomoOverwriteURL) {
 				cleanProxyEnv = true
-				slog.Debug("MihomoOverwriteUrl contains local IP, removing proxy environment variables")
+				slog.Debug("MihomoOverwriteUrl 是本地地址，移除代理环境变量", "url", config.GlobalConfig.MihomoOverwriteURL)
 			}
 		}
 	}
 
 	// ipv4/ipv6 都支持
-	hostPort := strings.Split(config.GlobalConfig.SubStorePort, ":")
-	// host可以为空，port不能为空
-	if len(hostPort) == 2 && hostPort[1] != "" {
-		cmd.Env = append(os.Environ(),
-			fmt.Sprintf("SUB_STORE_BACKEND_API_HOST=%s", hostPort[0]),
-			fmt.Sprintf("SUB_STORE_BACKEND_API_PORT=%s", hostPort[1]),
-		)
-	} else if len(hostPort) == 1 {
-		cmd.Env = append(os.Environ(), fmt.Sprintf("SUB_STORE_BACKEND_API_PORT=%s", hostPort[0])) // 设置端口
+	subStoreHost := config.GlobalConfig.SubStorePort
+	if strings.Contains(subStoreHost, ":") {
+		hostPort := strings.Split(subStoreHost, ":")
+
+		// host可以为空，port不能为空
+		if len(hostPort) == 2 && hostPort[1] != "" {
+			cmd.Env = append(os.Environ(),
+				fmt.Sprintf("SUB_STORE_BACKEND_API_HOST=%s", hostPort[0]),
+				fmt.Sprintf("SUB_STORE_BACKEND_API_PORT=%s", hostPort[1]),
+			)
+		} else if len(hostPort) == 1 {
+			cmd.Env = append(os.Environ(), fmt.Sprintf("SUB_STORE_BACKEND_API_PORT=%s", hostPort[0])) // 设置端口
+		} else {
+			return fmt.Errorf("sub-store-port invalid port format: %s", subStoreHost)
+		}
 	} else {
-		return fmt.Errorf("sub-store-port invalid port format: %s", config.GlobalConfig.SubStorePort)
+		cmd.Env = append(os.Environ(), fmt.Sprintf("SUB_STORE_BACKEND_API_PORT=%s", normalizeSubstorePort(subStoreHost))) // 设置端口
 	}
 
 	// 如果MihomoOverwriteUrl包含本地IP，则移除所有代理环境变量
@@ -285,7 +289,8 @@ func startSubStore(ctx context.Context) error {
 		return fmt.Errorf("启动 sub-store 失败: %w", err)
 	}
 
-	slog.Info("Sub-store 服务已启动", "pid", cmd.Process.Pid, "port", config.GlobalConfig.SubStorePort, "log", paths.logPath)
+	subStorePort := strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":")
+	slog.Info("Sub-store已启动", "port", subStorePort, "pid", cmd.Process.Pid, "log", paths.logPath)
 
 	// ctx 取消时尝试杀掉子进程
 	go func() {
@@ -318,39 +323,15 @@ func startSubStore(ctx context.Context) error {
 	return nil
 }
 
-// isLocalIP 检查IP是否是本地IP（127.0.0.1或局域网IP）
-func isLocalIP(host string) bool {
-	// 检查是否是localhost或127.0.0.1
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.Contains(host, ".local") {
-		return true
+// normalizeSubstorePort 确保端口格式合法
+func normalizeSubstorePort(s string) string {
+	const def = "8299"
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
 	}
 
-	// 检查IP是否有效
-	ip := net.ParseIP(host)
-	if ip == nil {
-		return false
-	}
-
-	// 检查是否是私有IP范围
-	privateIPBlocks := []string{
-		"10.0.0.0/8",     // 10.0.0.0 - 10.255.255.255
-		"172.16.0.0/12",  // 172.16.0.0 - 172.31.255.255
-		"192.168.0.0/16", // 192.168.0.0 - 192.168.255.255
-		"169.254.0.0/16", // 169.254.0.0 - 169.254.255.255
-		"fd00::/8",       // fd00:: - fdff:ffff...
-	}
-
-	for _, block := range privateIPBlocks {
-		_, ipNet, err := net.ParseCIDR(block)
-		if err != nil {
-			continue
-		}
-		if ipNet.Contains(ip) {
-			return true
-		}
-	}
-
-	return false
+	return def
 }
 
 func decodeZstd(nodePath, jsPath, overYamlPath, frontDir string) error {

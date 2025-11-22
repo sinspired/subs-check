@@ -296,7 +296,11 @@ func (app *App) triggerCheck() {
 
 // checkProxies 执行代理检测
 func (app *App) checkProxies() error {
-	slog.Info("开始准备检测代理", "进度展示", config.GlobalConfig.PrintProgress)
+	if config.GlobalConfig.PrintProgress {
+		slog.Info("启动检测任务", "进度", "显示")
+	}else{
+		slog.Info("启动检测任务", "进度", "隐藏")
+	}
 
 	startTime := time.Now()
 
@@ -359,7 +363,8 @@ func (app *App) Shutdown() error {
 			lastErr = errors.New("关闭 HTTP 服务器失败: " + err.Error())
 			slog.Error("关闭 HTTP 服务器失败", "err", err)
 		} else {
-			slog.Info("HTTP 服务器关闭", "port", config.GlobalConfig.ListenPort)
+			listenPort := strings.TrimPrefix(config.GlobalConfig.ListenPort, ":")
+			slog.Info("HTTP 服务器关闭", "port", listenPort)
 		}
 	}
 
@@ -447,9 +452,9 @@ func (app *App) SetupUpdateTasks() {
 	}
 
 	if enableSelfUpdate {
-		slog.Info("程序将定时更新并重启", "schedule", schedule)
+		slog.Debug("程序将定时更新并重启", "schedule", schedule)
 	} else {
-		slog.Info("程序将定时检查新版本(不自动更新)", "schedule", schedule)
+		slog.Debug("程序将定时检查新版本(不自动更新)", "schedule", schedule)
 	}
 	_, err := updateCron.AddFunc(schedule, func() {
 		if !app.checking.Load() {

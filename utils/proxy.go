@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +15,51 @@ import (
 	"github.com/metacubex/mihomo/common/convert"
 	"github.com/sinspired/subs-check/config"
 )
+
+var (
+	IsSysProxyAvailable bool
+	IsGhProxyAvailable  bool
+)
+
+// IsLocalURL 判断给定的 URL 是否指向本地/局域网地址
+func IsLocalURL(URL string) (bool) {
+	// 解析 URL（支持 http://、https://、ws:// 等，也支持不带 scheme 的如 localhost:8080）
+	u, err := url.Parse(strings.ToLower(URL))
+	if err != nil {
+		// 如果解析失败，尝试加上 http:// 再试一次（兼容用户直接传 hostname:port）
+		if u2, err2 := url.Parse("http://" + URL); err2 == nil {
+			u = u2
+		} else {
+			return false
+		}
+	}
+
+	host := u.Hostname() // 自动提取主机名部分，去掉端口
+
+	// 处理常见本地标识
+	if host == "" ||
+		host == "localhost" ||
+		host == "127.0.0.1" ||
+		host == "::1" ||
+		host == "0.0.0.0" ||
+		strings.HasSuffix(host, ".local") ||
+		strings.HasSuffix(host, ".lan") ||
+		!strings.Contains(host, ".") { // 裸主机名如 mypc、MY-PC
+		return true
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		// 无法解析为IP，但可能是内网域名如 my-router.home 等
+		// 可以选择进一步解析，但大多数情况直接返回 false 或保守视为非本地
+		return false
+	}
+
+	return ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast()
+}
 
 // GetSysProxy 检测系统代理是否可用，并设置环境变量
 func GetSysProxy() bool {
@@ -49,12 +95,14 @@ func GetSysProxy() bool {
 		// 更新配置中的代理
 		config.GlobalConfig.SystemProxy = proxy
 		slog.Debug("系统代理", "proxy", proxy)
+		IsSysProxyAvailable = true
 		return true
 	}
 
 	// 如果没有找到可用代理，清理所有代理环境变量
 	UnsetAllProxyEnvVars()
 	slog.Debug("未找到可用代理，清除代理环境变量")
+	IsSysProxyAvailable = false
 	return false
 }
 
@@ -76,6 +124,7 @@ func GetGhProxy() bool {
 
 	if GhProxy == "" && GhProxyGroup == nil {
 		slog.Debug("未配置 githubproxy，将不使用 githubproxy")
+		IsGhProxyAvailable = false
 		return false
 	}
 
@@ -84,6 +133,7 @@ func GetGhProxy() bool {
 		if ok, normalized := checkGhProxyAvailable(GhProxy); ok {
 			config.GlobalConfig.GithubProxy = normalized
 			slog.Debug("GitHub代理", "normalized", normalized)
+			IsGhProxyAvailable = true
 			return true
 		}
 	}
@@ -129,18 +179,20 @@ func GetGhProxy() bool {
 
 		if best.ok {
 			config.GlobalConfig.GithubProxy = best.proxy
-			if best.cost.Milliseconds() <= 1000 {
-				cost := fmt.Sprintf("%d ms", best.cost.Milliseconds())
+			if best.cost.Milliseconds() < 1000 {
+				cost := fmt.Sprintf("%dms", best.cost.Milliseconds())
 				slog.Info("最佳GitHub代理", "URL", best.proxy, "耗时", cost)
 			} else {
-				cost := fmt.Sprintf("%.2f s", best.cost.Seconds())
+				cost := fmt.Sprintf("%.2fs", best.cost.Seconds())
 				slog.Info("最佳GitHub代理", "URL", best.proxy, "耗时", cost)
 			}
+			IsGhProxyAvailable = true
 			return true
 		}
 	}
 
 	slog.Debug("未找到可用的 GitHubProxy，将不使用 GitHubProxy")
+	IsGhProxyAvailable = false
 	return false
 }
 

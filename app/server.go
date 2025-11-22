@@ -7,9 +7,11 @@ import (
 	"html/template"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,7 +73,7 @@ func (app *App) initHTTPServer() error {
 	// 提供一个相对安全暴露 output 文件夹的方案
 	// TODO: 不使用output目录,使用output/subs目录
 	if config.GlobalConfig.SharePassword != "" {
-		slog.Info("启用订阅分享目录", "path", fmt.Sprintf("http://ip:port/sub/%s/filename.yaml", config.GlobalConfig.SharePassword))
+		slog.Info("订阅分享 已启用", "code", config.GlobalConfig.SharePassword)
 
 		// 提供一个用户自由分享目录
 		router.GET("/sub/"+config.GlobalConfig.SharePassword+"/*filepath", func(c *gin.Context) {
@@ -294,8 +296,9 @@ func (app *App) initHTTPServer() error {
 	}
 
 	// 启动HTTP服务器
+	listenAddr := normalizeListenAddr(config.GlobalConfig.ListenPort)
 	srv := &http.Server{
-		Addr:    config.GlobalConfig.ListenPort,
+		Addr:    listenAddr,
 		Handler: router,
 	}
 	app.httpServer = srv
@@ -305,9 +308,33 @@ func (app *App) initHTTPServer() error {
 			slog.Error(fmt.Sprintf("HTTP服务器启动失败: %v", err))
 		}
 	}()
-	slog.Info("HTTP服务器启动", "port", config.GlobalConfig.ListenPort)
+	listenPort := strings.TrimPrefix(config.GlobalConfig.ListenPort, ":")
+	slog.Info("HTTP 服务器启动", "port", listenPort)
 
 	return nil
+}
+
+// normalizeListenAddr 确保Addr格式合法
+func normalizeListenAddr(s string) string {
+	const def = ":8199"
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
+	}
+
+	// 纯数字端口
+	if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= 65535 {
+		return ":" + s
+	}
+	// host:port 格式
+	if host, port, err := net.SplitHostPort(s); err == nil {
+		if n, err := strconv.Atoi(port); err == nil && n > 0 && n <= 65535 {
+			return net.JoinHostPort(host, port)
+		}
+		return def
+	}
+
+	return def
 }
 
 // authMiddleware API认证中间件
