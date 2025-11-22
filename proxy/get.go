@@ -237,49 +237,105 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 // parseStringList 处理字符串列表
 func parseStringList(list []any, subURL string) ([]ProxyNode, error) {
 	var strList []string
+	var finalNodes []ProxyNode
+
+	// 1. 遍历列表，分离 WireGuard 和其他文本
 	for _, item := range list {
-		if s, ok := item.(string); ok {
+		s, ok := item.(string)
+		if !ok {
+			continue
+		}
+		s = strings.TrimSpace(s)
+
+		// 拦截 WireGuard
+		if strings.HasPrefix(s, "wireguard://") || strings.HasPrefix(s, "wg://") {
+			slog.Info("处理wireguard协议")
+			if node := ParseWireGuardURI(s); node != nil {
+				finalNodes = append(finalNodes, ProxyNode(node))
+			}
+		} else {
 			strList = append(strList, s)
 		}
 	}
+
+	// 如果没有其他字符串，直接返回已解析的 WG 节点
 	if len(strList) == 0 {
-		return nil, nil
+		return finalNodes, nil
 	}
 
-	// 路径 A: 尝试作为 V2Ray 链接 (vmess://...)
+	// 2. 处理剩余字符串列表
 	joined := strings.Join(strList, "\n")
+
+	// 路径 A: 尝试作为 V2Ray 链接 (vmess://...)
 	if nodes, err := convert.ConvertsV2Ray([]byte(joined)); err == nil && len(nodes) > 0 {
-		return convertToProxyNodes(nodes), nil
+		finalNodes = append(finalNodes, convertToProxyNodes(nodes)...)
+		return finalNodes, nil
 	}
 
 	// 路径 B: 尝试作为 IP:Port 列表，需猜测协议
 	scheme := guessSchemeByURL(subURL)
 	// 构造 { "scheme": ["ip:port"] } 结构交给通用转换器
-	return convertToProxyNodes(convertUnStandandJsonViaConvert(map[string]any{scheme: strList})), nil
+	otherNodes := convertToProxyNodes(convertUnStandandJsonViaConvert(map[string]any{scheme: strList}))
+
+	if len(otherNodes) > 0 {
+		finalNodes = append(finalNodes, otherNodes...)
+	}
+
+	return finalNodes, nil
 }
 
 // fallbackExtractV2Ray 正则提取兜底
 func fallbackExtractV2Ray(data []byte, subURL string) []ProxyNode {
-	links := extractV2RayLinks(data)
+	// 先尝试 Base64 解码
+	decodedData := TryDecodeBase64(data)
+
+	// 使用解码后的数据进行提取
+	links := extractV2RayLinks(decodedData)
 	if len(links) == 0 {
 		return nil
 	}
 
-	// 预处理：Mihomo 可能不识别 hy://，需替换为 hysteria://
-	normalizedLinks := make([]string, 0, len(links))
+	var finalNodes []ProxyNode
+	var standardLinks []string
+
+	// 1. 遍历链接，分离 WireGuard 和其他标准协议
 	for _, link := range links {
-		normalizedLinks = append(normalizedLinks, fixupProxyLink(link))
+		// 优先拦截 WireGuard 链接 (Mihomo 库不支持直接解析 wireguard://)
+		if strings.HasPrefix(link, "wireguard://") || strings.HasPrefix(link, "wg://") {
+			slog.Debug("识别到 WireGuard 链接", "link_prefix", link[:min(20, len(link))]+"...")
+			if node := ParseWireGuardURI(link); node != nil {
+				// 补充必要的元数据
+				node["sub_url"] = subURL
+				finalNodes = append(finalNodes, ProxyNode(node))
+			}
+			continue
+		}
+
+		// 其他协议 (vmess, ss, hy2 等) 进行标准化处理
+		standardLinks = append(standardLinks, fixupProxyLink(link))
 	}
 
-	joined := []byte(strings.Join(normalizedLinks, "\n"))
-
-	// 尝试转换
-	if nodes, err := convert.ConvertsV2Ray(joined); err == nil {
-		return convertToProxyNodes(nodes)
+	// 如果没有标准链接，直接返回 WG 节点
+	if len(standardLinks) == 0 {
+		return finalNodes
 	}
 
-	// 如果失败，当作纯文本按行处理 (可能包含未识别的格式)
-	return convertUnStandandTextViaConvert(subURL, joined)
+	joined := []byte(strings.Join(standardLinks, "\n"))
+
+	// 2. 尝试标准转换 (针对 standardLinks)
+	if nodes, err := convert.ConvertsV2Ray(joined); err == nil && len(nodes) > 0 {
+		finalNodes = append(finalNodes, convertToProxyNodes(nodes)...)
+		return finalNodes
+	}
+
+	// 3. 如果标准转换失败，当作纯文本按行处理 (尝试按 IP:Port 猜测，或处理未识别格式)
+	// 注意：这里我们要把之前解析出的 WG 节点和兜底解析出的节点合并
+	fallbackNodes := convertUnStandandTextViaConvert(subURL, joined)
+	if len(fallbackNodes) > 0 {
+		finalNodes = append(finalNodes, fallbackNodes...)
+	}
+
+	return finalNodes
 }
 
 // FetchSubsData 获取数据 (包含重试、占位符处理、代理策略)

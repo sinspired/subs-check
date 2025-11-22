@@ -4,6 +4,7 @@ package proxies
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
 	"github.com/metacubex/mihomo/common/convert"
@@ -1109,4 +1111,112 @@ func convertGeneralJsonArray(list []any) []ProxyNode {
 	}
 
 	return nodes
+}
+
+// ParseWireGuardURI 解析 wireguard:// 链接
+func ParseWireGuardURI(link string) map[string]any {
+	u, err := url.Parse(link)
+	if err != nil {
+		return nil
+	}
+
+	// 1. 基础信息映射
+	// 用户名部分即为 Private Key
+	privateKey := u.User.Username()
+	
+	node := map[string]any{
+		"type":        "wireguard",
+		"name":        strings.TrimPrefix(u.Fragment, "#"),
+		"server":      u.Hostname(),
+		"port":        toIntPort(u.Port()),
+		"private-key": privateKey,
+		"udp":         true, // WireGuard 必须是 UDP
+	}
+
+	// 2. 解析 Query 参数
+	q := u.Query()
+
+	// Public Key
+	if pub := q.Get("publickey"); pub != "" {
+		// 注意：Clash 配置中通常叫 peer-public-key 或 public-key (取决于版本，Mihomo通用 peer-public-key)
+		// 但为了兼容性，通常放在根目录下叫 public-key 即可（代表对端的公钥）
+		node["public-key"] = pub 
+	}
+	
+	// Pre-Shared Key
+	if psk := q.Get("presharedkey"); psk != "" {
+		node["pre-shared-key"] = psk
+	}
+
+	// MTU
+	if mtu := q.Get("mtu"); mtu != "" {
+		if m, err := strconv.Atoi(mtu); err == nil {
+			node["mtu"] = m
+		}
+	}
+
+	// Local Address (IP)
+	// URL 里通常是 address=172.16.0.2/32
+	if addr := q.Get("address"); addr != "" {
+		// Clash 配置通常只需要 IP，不需要 CIDR 后缀，但保留也通常兼容
+		// 如果需要严格清洗：
+		if idx := strings.Index(addr, "/"); idx > 0 {
+			node["ip"] = addr[:idx]
+		} else {
+			node["ip"] = addr
+		}
+		// 如果有 ipv6 可以在这里进一步处理，但你的例子里主要是 ipv4
+	}
+
+	// Reserved (Cloudflare WARP 专用)
+	// URL 格式: reserved=108,161,21
+	// Clash 格式: reserved: [108, 161, 21] (数组)
+	if reservedStr := q.Get("reserved"); reservedStr != "" {
+		parts := strings.Split(reservedStr, ",")
+		var reservedInts []int
+		for _, p := range parts {
+			// URL 可能包含 %2C 等编码，url.Parse 已经解了一次，Split 后 trim 一下保险
+			p = strings.TrimSpace(p)
+			if i, err := strconv.Atoi(p); err == nil {
+				reservedInts = append(reservedInts, i)
+			}
+		}
+		if len(reservedInts) > 0 {
+			node["reserved"] = reservedInts
+		}
+	}
+
+	return node
+}
+
+// TryDecodeBase64 尝试将数据进行 Base64 解码
+// 如果解码成功且结果看起来是文本，返回解码后的数据
+// 否则返回原始数据
+func TryDecodeBase64(data []byte) []byte {
+	// 移除首尾空白字符
+	s := string(bytes.TrimSpace(data))
+	if len(s) == 0 {
+		return data
+	}
+
+	// 定义可能的解码器
+	encodings := []*base64.Encoding{
+		base64.StdEncoding,
+		base64.RawStdEncoding,
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+	}
+
+	for _, enc := range encodings {
+		if decoded, err := enc.DecodeString(s); err == nil {
+			// 简单的启发式检查：解码后如果是乱码（二进制），可能并不是我们想要的订阅文本
+			// 订阅通常是 UTF-8 文本
+			if utf8.Valid(decoded) {
+				return decoded
+			}
+		}
+	}
+
+	// 如果所有解码尝试都失败，或者解码后不是有效文本，假设它已经是明文
+	return data
 }
