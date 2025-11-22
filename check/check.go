@@ -988,35 +988,56 @@ type ProxyClient struct {
 	Transport *StatsTransport
 	ctx       context.Context
 	cancel    context.CancelFunc
+	mProxy    constant.Proxy
 }
 
 // CreateClient 创建独立的代理客户端
 func CreateClient(mapping map[string]any) *ProxyClient {
+	// 1. 先初始化结构体指针
+	pc := &ProxyClient{}
+
+	var err error
 	resolver.DisableIPv6 = false
-	mihomoProxy, err := adapter.ParseProxy(mapping)
+
+	// 2. 解析代理并直接赋值给 pc.mProxy
+	pc.mProxy, err = adapter.ParseProxy(mapping)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("底层mihomo创建代理Client失败: %v", err))
 		return nil
 	}
 
-	// 全局可取消的 context
-	pcCtx, pcCancel := context.WithCancel(context.Background())
+	// 3. 初始化 Context 并赋值给 pc
+	pc.ctx, pc.cancel = context.WithCancel(context.Background())
 
-	// 统计传输层字节的 Transport（会在拨号阶段包裹 net.Conn）
+	// 4. 初始化 Transport
 	statsTransport := &StatsTransport{}
 
-	// 将 baseTransport 与网络限速开关拆分声明，以便在创建后根据 Transport 的配置检测是否可能启用 HTTP/2
 	var baseTransport *http.Transport
 	networkLimitDefault := true
 
 	baseTransport = &http.Transport{
+		// 这里的 DialContext闭包 捕获了外部的 pc 变量
 		DialContext: func(reqCtx context.Context, network, addr string) (net.Conn, error) {
-			// 合并请求级别 ctx 和全局 ctx
+			// 防止 Goroutine 泄漏的 Context 控制逻辑
 			mergedCtx, mergedCancel := context.WithCancel(reqCtx)
-			defer mergedCancel()
+
+			// 使用 channel 确保 goroutine 退出
+			dialDone := make(chan struct{})
+
 			go func() {
-				<-pcCtx.Done() // 当 ProxyClient.Close() 调用时触发
-				mergedCancel()
+				select {
+				case <-pc.ctx.Done(): // 监听 pc.ctx (Client被Close时触发)
+					mergedCancel()
+				case <-reqCtx.Done(): // 请求超时/取消
+					// 这里的 mergedCancel 会由 defer 触发，这里只需退出监控
+				case <-dialDone: // 拨号完成
+					// 退出监控
+				}
+			}()
+
+			defer func() {
+				close(dialDone) // 通知监控协程退出
+				mergedCancel()  // 确保清理 mergedCtx
 			}()
 
 			host, portStr, err := net.SplitHostPort(addr)
@@ -1027,14 +1048,15 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 			if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
 				u16Port = uint16(port)
 			}
-			rawConn, err := mihomoProxy.DialContext(mergedCtx, &constant.Metadata{
+
+			rawConn, err := pc.mProxy.DialContext(mergedCtx, &constant.Metadata{
 				Host:    host,
 				DstPort: u16Port,
 			})
 			if err != nil {
 				return nil, err
 			}
-			// 用计数连接包裹，统计真实网络传输字节（含压缩/加密）
+
 			return &countingConn{
 				Conn:         rawConn,
 				readCounter:  &statsTransport.BytesRead,
@@ -1048,32 +1070,37 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		MaxIdleConnsPerHost: 5,
 	}
 
-	// 创建完 baseTransport 后，再以启发式方式判断是否可能启用 HTTP/2/连接复用
+	// 5. 判断是否启用 HTTP/2
 	if baseTransport.ForceAttemptHTTP2 || len(baseTransport.TLSNextProto) > 0 {
 		networkLimitDefault = false
 	}
 
 	statsTransport.Base = baseTransport
+	pc.Transport = statsTransport
 
-	return &ProxyClient{
-		Client: &http.Client{
-			Timeout:   time.Duration(config.GlobalConfig.Timeout) * time.Millisecond,
-			Transport: statsTransport,
-		},
+	// 6. 初始化 http.Client 并赋值给 pc.Client
+	pc.Client = &http.Client{
+		Timeout:   time.Duration(config.GlobalConfig.Timeout) * time.Millisecond,
 		Transport: statsTransport,
-		ctx:       pcCtx,
-		cancel:    pcCancel,
 	}
+
+	// 7. 返回已经填充好的指针
+	return pc
 }
 
 // Close 关闭客户端，释放所有资源
 func (pc *ProxyClient) Close() {
+	// 1. 取消 Context，这会触发 DialContext 中的 select 退出，中断正在进行的拨号
 	if pc.cancel != nil {
-		pc.cancel() // 取消所有挂起的请求和拨号
+		pc.cancel()
 	}
+
+	// 2. 关闭 HTTP 连接
 	if pc.Client != nil {
 		pc.Client.CloseIdleConnections()
 	}
+
+	// 3. 统计数据回收
 	if pc.Transport != nil {
 		TotalBytes.Add(atomic.LoadUint64(&pc.Transport.BytesRead))
 		if pc.Transport.Base != nil {
@@ -1081,7 +1108,13 @@ func (pc *ProxyClient) Close() {
 			pc.Transport.Base.DisableKeepAlives = true
 		}
 	}
+	// 4. 关闭mihomo代理
+	if pc.mProxy != nil {
+		pc.mProxy.Close()
+	}
 
+	// 5. 清空引用，帮助 GC
+	pc.mProxy = nil
 	pc.Client = nil
 	pc.Transport = nil
 	pc.ctx = nil
