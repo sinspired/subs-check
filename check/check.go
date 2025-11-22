@@ -999,8 +999,6 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		return nil
 	}
 
-	defer mihomoProxy.Close() // 关闭临时代理实例，释放资源
-
 	// 全局可取消的 context
 	pcCtx, pcCancel := context.WithCancel(context.Background())
 
