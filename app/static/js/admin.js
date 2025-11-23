@@ -884,38 +884,90 @@
     }
   }
 
-  // 进度更新
   function updateProgress(total, processed, available, checking, lastChecked) {
+    // --- 0. 初始化状态 (挂载在函数对象上，确保状态持久化) ---
+    if (!updateProgress.etaState) {
+      updateProgress.etaState = {
+        startTime: Date.now(),
+        lastUpdateUI: 0,
+        cachedEtaText: '',
+        lastProcessed: -1,
+        lastTotal: 0
+      };
+    }
+    const state = updateProgress.etaState;
+
+    // 数据清洗
     total = Number(total) || 0;
     processed = Number(processed) || 0;
-    const pct = total > 0 ? Math.min(100, (processed / total) * 100) : 0;
+    const now = Date.now();
 
+    // --- 1. 状态重置检测 ---
+    if (processed === 0 || (processed < state.lastProcessed && processed < 5)) {
+      if (processed === 0) {
+        state.startTime = now;
+        state.cachedEtaText = '';
+      }
+    }
+
+    // 更新记录
+    state.lastProcessed = processed;
+    state.lastTotal = total;
+
+    // --- 2. 基础UI更新 ---
+    const pct = total > 0 ? Math.min(100, (processed / total) * 100) : 0;
     if (progressBar) progressBar.value = pct;
     if (progressText) progressText.textContent = `${processed}/${total}`;
     if (progressPercentTitle) progressPercentTitle.textContent = '进度';
     if (successTitle) successTitle.textContent = '可用：';
     if (successText) {
-      successText.classList.add("success-highlight")
+      successText.classList.add("success-highlight");
       successText.textContent = available;
     }
     if (progressPercent) progressPercent.textContent = pct.toFixed(1) + "%";
 
-    const now = Date.now();
-    let etaText = '';
-    if (lastProgress.time && lastProgress.total === total && processed > lastProgress.processed) {
-      const dt = (now - lastProgress.time) / 1000;
-      const dproc = processed - lastProgress.processed;
-      if (dproc > 0) {
-        const rate = dproc / dt;
-        const remain = Math.max(0, total - processed);
-        const etaSec = Math.round(remain / rate);
-        etaText = etaSec > 60 ? Math.round(etaSec / 60) + 'm' : etaSec + 's';
+
+    // --- 3. ETA 计算逻辑 ---
+    let etaText = state.cachedEtaText;
+
+    if (checking && processed < total && total > 0) {
+      const timeElapsed = now - state.startTime;
+
+      // 策略A：前 30 秒为预热期 (如果已经处理了很多则跳过)
+      if (timeElapsed < 30000 && processed < 5000) {
+        etaText = '计算中...';
       }
+      // 策略B：每 10 秒刷新一次
+      else if (now - state.lastUpdateUI > 5000) {
+        const safeTime = Math.max(1, timeElapsed / 1000);
+        const rate = processed / safeTime;
+        const remain = Math.max(0, total - processed);
+
+        if (rate > 0.01) {
+          const etaSec = Math.round(remain / rate);
+          if (etaSec > 3600) {
+            const h = Math.floor(etaSec / 3600);
+            const m = Math.round((etaSec % 3600) / 60);
+            etaText = `${h}h ${m}m`;
+          } else if (etaSec > 60) {
+            etaText = Math.round(etaSec / 60) + 'm';
+          } else {
+            etaText = etaSec + 's';
+          }
+        } else {
+          etaText = '...';
+        }
+        state.cachedEtaText = etaText;
+        state.lastUpdateUI = now;
+      }
+    } else {
+      etaText = '';
     }
 
+    // --- 4. 状态栏更新 ---
     if (statusEl) {
       if (processed < total && total > 0 && checking) {
-        statusEl.textContent = `运行中,预计剩余: ${etaText}`;
+        statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
         statusEl.title = etaText ? `预计剩余: ${etaText}` : '';
         statusEl.className = 'muted status-label status-checking';
       } else if ((processed >= total && total > 0) || lastChecked) {
@@ -931,7 +983,6 @@
 
     lastProgress = { time: now, processed, total };
   }
-
 
   // 显示上次检测结果
   function showLastCheckResult(info) {
@@ -1259,7 +1310,7 @@
 
       // 确保 path 以 / 开头
       let path = subStorePath;
-      if (path && !path.startsWith('/') && length(path) > 1) {
+      if (path && !path.startsWith('/') && path.length > 1) {
         path = '/' + path;
       }
 
