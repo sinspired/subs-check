@@ -1008,6 +1008,9 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 
 	// 3. 初始化 Context 并赋值给 pc
 	pc.ctx, pc.cancel = context.WithCancel(context.Background())
+	// 创建一个本地变量捕获 ctx，供下方的 DialContext 闭包使用
+	// 这样即使 pc.ctx 后来变成 nil，clientCtx 依然有效
+	clientCtx := pc.ctx
 
 	// 4. 初始化 Transport
 	statsTransport := &StatsTransport{}
@@ -1026,7 +1029,8 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 
 			go func() {
 				select {
-				case <-pc.ctx.Done(): // 监听 pc.ctx (Client被Close时触发)
+				// 由 <-pc.ctx.Done()，改为使用 clientCtx
+				case <-clientCtx.Done():
 					mergedCancel()
 				case <-reqCtx.Done(): // 请求超时/取消
 					// 这里的 mergedCancel 会由 defer 触发，这里只需退出监控
@@ -1090,7 +1094,7 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 
 // Close 关闭客户端，释放所有资源
 func (pc *ProxyClient) Close() {
-	// 1. 取消 Context，这会触发 DialContext 中的 select 退出，中断正在进行的拨号
+	// 1. 取消 Context
 	if pc.cancel != nil {
 		pc.cancel()
 	}
@@ -1113,12 +1117,12 @@ func (pc *ProxyClient) Close() {
 		pc.mProxy.Close()
 	}
 
-	// 5. 清空引用，帮助 GC
-	pc.mProxy = nil
-	pc.Client = nil
-	pc.Transport = nil
-	pc.ctx = nil
-	pc.cancel = nil
+	// 交给 GC 处理
+	// pc.mProxy = nil
+	// pc.Client = nil
+	// pc.Transport = nil
+	// pc.ctx = nil    <-- 罪魁祸首
+	// pc.cancel = nil
 }
 
 // countingReadCloser 封装了 io.ReadCloser，用于统计读取的字节数。
