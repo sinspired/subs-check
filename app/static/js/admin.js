@@ -58,8 +58,14 @@
     themeToggleBtn: $('#themeToggle'),
     iconMoon: $('#iconMoon'),
     iconSun: $('#iconSun'),
-    projectInfoBtn: document.getElementById('project-info'),
-    projectMenu: document.getElementById('projectMenu'),
+    projectInfoBtn: $('#project-info'),
+    projectMenu: $('#projectMenu'),
+    githubMenuBtn: $('#githubMenuBtn'),
+    dockerMenuBtn: $('#dockerMenuBtn'),
+    telegramMenuBtn: $('#telegramMenuBtn'),
+    githubUrlBtn: $('#githubUrlBtn'),
+    dockerUrlBtn: $('#dockerUrlBtn'),
+    telegramUrlBtn: $('#telegramUrlBtn'),
     lastCheckTime: $('#lastCheckTime'),
     lastCheckDuration: $('#lastCheckDuration'),
     lastCheckTotal: $('#lastCheckTotal'),
@@ -1285,6 +1291,43 @@
       pm.style.top = `${rect.top}px`;
       pm.style.left = (window.innerWidth < 768) ? `${rect.left - 160}px` : `${rect.right * 0.9}px`;
       pm.classList.add('active');
+    });
+
+    els.githubMenuBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
+      window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    els.dockerMenuBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check';
+      window.open(DOCKER_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    els.telegramMenuBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const TELEGRAM_URL = 'https://t.me/subs_check_pro';
+      window.open(TELEGRAM_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    // footer 项目地址
+    els.githubUrlBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
+      window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    els.dockerUrlBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check';
+      window.open(DOCKER_URL, '_blank', 'noopener,noreferrer');
+    });
+
+    els.telegramUrlBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const TELEGRAM_URL = 'https://t.me/subs_check_pro';
+      window.open(TELEGRAM_URL, '_blank', 'noopener,noreferrer');
     });
 
     document.querySelectorAll('[id$="Sub-item"]').forEach(el => {
