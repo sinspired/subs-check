@@ -156,6 +156,233 @@
     return new Promise(res => setTimeout(res, ms));
   }
 
+  // ==================== 状态栏与历史区渲染 ====================
+
+  // 定义带旋转动画的 SVG 图标 (用于状态栏)
+  const STATUS_SPINNER = `
+    <style>@keyframes spin-status { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    <svg style="animation: spin-status 1s linear infinite; vertical-align: middle; margin-right: 6px; margin-bottom: 2px;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+  `;
+
+  // 定义带旋转动画的 SVG 图标,用于检测任务
+  const checking_SPINNER = `
+    <style>
+      @keyframes spin-status-rotate { 
+        100% { transform: rotate(360deg); } 
+      }
+      @keyframes spin-status-dash {
+        0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+        50% { stroke-dasharray: 45, 150; stroke-dashoffset: -15px; }
+        100% { stroke-dasharray: 45, 150; stroke-dashoffset: -62px; }
+      }
+    </style>
+    <svg 
+      style="
+        /* 旋转动画 2秒一圈 */
+        animation: spin-status-rotate 2s linear infinite;
+        will-change: transform;
+        transform-origin: center;
+        vertical-align: middle; 
+        margin-right: 6px; 
+        margin-bottom: 2px;
+      " 
+      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+    >
+      <!-- 内部线条进行伸缩呼吸动画 -->
+      <circle 
+        style="animation: spin-status-dash 1.5s ease-in-out infinite;"
+        cx="12" cy="12" r="10" 
+      ></circle>
+    </svg>
+  `;
+
+  /**
+   * 从日志解析订阅统计数据
+   * @param {string[]} logs 日志数组
+   * @returns {Object|null} 包含 local/remote/history/total 的统计信息或 null
+   */
+  function parseSubStats(logs) {
+    if (!logs || !logs.length) return null;
+
+    const MAX_DELAY_MS = 5000; // 时间窗口兜底值
+    const now = Date.now();
+
+    // 倒序遍历寻找订阅数据
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const line = logs[i];
+
+      // 1. 查找目标：订阅统计行
+      if (line.includes('订阅链接数量') && line.includes('总计')) {
+
+        let isValid = false;
+
+        // --- [验证逻辑 A]：通过日志上下文验证---
+        // 从当前行(i) 往前倒推，寻找“启动任务”的标志
+        for (let j = i - 1; j >= 0; j--) {
+          const prevLine = logs[j];
+          // 如果在订阅数据之前找到了启动标志，说明这条数据属于当前正在运行的任务
+          if (prevLine.includes('手动触发检测') || prevLine.includes('启动检测任务') || prevLine.includes('开始检测')) {
+            isValid = true;
+            break;
+          }
+          // 如果在找到启动标志前，先遇到了“检测完成”，说明这条订阅数据是上一次任务的遗留
+          if (prevLine.includes('检测完成')) {
+            isValid = false;
+            break;
+          }
+        }
+
+        // --- [验证逻辑 B]：通过时间验证 (兜底) ---
+        // 如果日志被截断找不到启动标志，或者刚刷新页面，则检查时间是否在允许范围内
+        if (!isValid) {
+          const timeMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+          if (timeMatch) {
+            const logTimeStr = timeMatch[1].replace(/-/g, '/');
+            const logTime = new Date(logTimeStr).getTime();
+            // 只有当数据非常新鲜 (5秒内) 才认为是有效的
+            if (now - logTime <= MAX_DELAY_MS) {
+              isValid = true;
+            }
+          }
+        }
+
+        // 如果验证未通过，跳过此行，继续往旧日志找（虽然一般情况下一条不对后面的也不对，但逻辑上跳过更严谨）
+        // 或者直接 return null 认为无有效数据
+        if (!isValid) return null;
+
+        // --- 提取数据 ---
+        const getVal = (regex) => {
+          const m = line.match(regex);
+          return m ? m[1] : null;
+        };
+
+        return {
+          local: getVal(/本地=(\d+)/),
+          remote: getVal(/远程=(\d+)/),
+          history: getVal(/历史=(\d+)/),
+          total: getVal(/总计.*?=(\d+)/) || getVal(/去重=(\d+)/)
+        };
+      }
+
+      // 如果在找到数据前就先碰到了启动标志，说明还没运行到数据输出那一步
+      if (line.includes('手动触发检测') || line.includes('启动检测任务') || line.includes('开始检测')) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+     * 渲染获取订阅链接数量
+     * 格式示例：本地:66 | 远程:24 | 历史:2 | 总计:90 [已去重]
+     */
+  function renderPrepareToHistory(stats) {
+    if (!els.historyPlaceholder) return;
+
+    // 1. 确保父容器可见
+    els.historyPlaceholder.style.display = '';
+
+    // 2. 修改标题
+    if (els.historyTitle) {
+      // els.historyTitle.innerHTML = `${STATUS_SPINNER} 获取订阅`;
+      els.historyTitle.innerHTML = `获取订阅`;
+    }
+
+    // 3. 隐藏“未发现记录”
+    const notFoundEl = document.getElementById('historyNotFound');
+    if (notFoundEl) notFoundEl.style.display = 'none';
+
+    // 4. 隐藏原有的表格行
+    if (els.historyLine) {
+      els.historyLine.style.display = 'none';
+    }
+
+    // 5. 获取或创建临时的显示行
+    let prepLine = document.getElementById('prepare-line');
+    if (!prepLine) {
+      prepLine = document.createElement('div');
+      prepLine.id = 'prepare-line';
+      // 使用 history-line 原类名
+      prepLine.className = "history-line muted";
+
+      if (els.historyLine && els.historyLine.parentNode) {
+        els.historyLine.parentNode.insertBefore(prepLine, els.historyLine.nextSibling);
+      } else {
+        els.historyPlaceholder.appendChild(prepLine);
+      }
+    }
+    prepLine.style.display = 'block';
+
+    // 6. 生成内容
+    if (stats) {
+      const items = [];
+
+      // 辅助函数: (标签, 值, 后缀)
+      const addItem = (label, val, suffix = '') => {
+        if (val !== null && val !== undefined) {
+          // 在冒号前后加空格，使用 highlight 颜色高亮数值
+          items.push(
+            `<span class="history-line muted">${label}:</span>` +
+            `<span class="available-highlight">${val}</span>` +
+            `<span class="history-line muted"> ${suffix}</span>`
+          );
+        }
+      };
+
+      addItem('本地', stats.local);
+      addItem('远程', stats.remote);
+      addItem('历史', stats.history);
+
+      // 后缀判断
+      if (stats.total) {
+        const total = Number(stats.total) || 0;
+        const sum = ['local', 'remote', 'history']
+          .map(key => Number(stats[key]) || 0)
+          .reduce((a, b) => a + b, 0);
+
+        const dupCount = sum > total ? sum - total : 0;
+
+        if (dupCount) {
+          addItem('总计', stats.total, `[已去重: ${dupCount}]`, dupCount);
+        } else {
+          addItem('总计', stats.total);
+        }
+      }
+
+      if (items.length > 0) {
+        // 使用 " | " 作为分隔符
+        const separator = '<span class="history-line muted">| </span>';
+        prepLine.innerHTML = items.join(separator);
+      } else {
+        prepLine.innerHTML = '<span class="muted">正在分析日志...</span>';
+      }
+    } else {
+      prepLine.innerHTML = '<span class="muted">等待数据...</span>';
+    }
+  }
+
+  /**
+     * 恢复历史区域 UI (当离开 Prepare 阶段时调用)
+     * 负责：恢复标题、隐藏准备数据行、显示正常历史数据行
+     */
+  function restoreHistoryTitle() {
+    // 1. 恢复标题
+    if (els.historyTitle) {
+      els.historyTitle.textContent = '上次检测';
+    }
+
+    // 2. 隐藏临时的订阅数据行
+    const prepLine = document.getElementById('prepare-line');
+    if (prepLine) {
+      prepLine.style.display = 'none';
+    }
+
+    // 3. 恢复显示正常的历史数据行
+    if (els.historyLine) {
+      els.historyLine.style.display = 'none';
+    }
+  }
+
   // ==================== API 通信 ====================
 
   async function sfetch(url, opts = {}) {
@@ -539,13 +766,13 @@
           els.statusEl.className = 'muted status-label status-get-subs';
         } else if (!etaText || etaText === '计算中...') {
           // 已开始处理，但 ETA 未算出
-          els.statusEl.innerHTML = `${STATUS_SPINNER}<span>运行中, 计算剩余时间...</span>`;
-          els.statusEl.className = 'muted status-label status-prepare';
+          els.statusEl.innerHTML = `${checking_SPINNER}<span>运行中, 计算剩余时间...</span>`;
+          els.statusEl.className = 'muted status-label status-checking';
 
         } else {
           // 正常显示倒计时
           els.statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
-          els.statusEl.innerHTML = `${STATUS_SPINNER}<span>运行中, 预计剩余: ${etaText}</span>`;
+          els.statusEl.innerHTML = `${checking_SPINNER}<span>运行中, 预计剩余: ${etaText}</span>`;
           els.statusEl.className = 'muted status-label status-checking';
         }
 
@@ -703,21 +930,61 @@
     return (sel && sel.toString().length > 0) || isMouseInsideLog;
   }
 
+
+  /**
+   * 解析日志并格式化
+   * 
+   * 支持 Key=Value 高亮，= 号灰色，智能识别数值、布尔值
+   * @param {*} line 
+   * @returns {string} 
+   */
   function colorize(line) {
+    // 1. 先把时间戳切出来，防止被后续正则误伤，最后再拼回去
     const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-    let out = escapeHtml(line);
+    let timestamp = '';
+    let body = line;
+
     if (tsMatch) {
-      const ts = tsMatch[0];
-      out = '<span class="log-time">' + ts + '</span>' + out.slice(ts.length);
+      timestamp = tsMatch[0];
+      // body 是去除了时间戳的部分
+      body = line.slice(timestamp.length);
     }
 
+    // 2. 基础转义 (防止 XSS)
+    let out = escapeHtml(body);
+
+    // ==================== Key=Value 高亮 ====================
+    // 必须在 ANSI 处理之前执行，防止破坏后续生成的 HTML 标签属性
+    // 匹配模式： (Key) (=) (Value)
+    // Key: 支持字母、数字、中文、下划线、横杠、点、冒号 (如 :media)
+    // Value: 非空白字符
+    out = out.replace(/([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)([^\s]+)/g, (match, key, eq, val) => {
+      // 定义颜色变量
+      const colorKey = '#dc9e2bff'; // 金色/淡橙色，用于 Key (如 port, 本地)
+      const colorEq = '#666666';  // 灰色，用于 =
+      let colorVal = '#a7c2b2ff';   // 绿色，默认用于 Value (字符串)
+
+      // 智能判断 Value 类型并变色
+      if (val === 'true') colorVal = '#56b6c2';        // 青色 (布尔真)
+      else if (val === 'false') colorVal = '#ff6c6c';  // 红色 (布尔假)
+      else if (/^[\d\.]+$/.test(val)) colorVal = '#61afef'; // 蓝色 (纯数字)
+      else if (val.startsWith('http')) colorVal = '#abb2bf'; // 灰色/淡白 (URL，防止太抢眼)
+
+      // 返回带样式的 HTML
+      return `<span style="color:${colorKey}">${key}</span><span style="color:${colorEq}">${eq}</span><span style="color:${colorVal}">${val}</span>`;
+    });
+
+    // 3. ANSI 颜色代码处理
     out = out.replace(/\x1b\[([\d;]+)m/g, function (match, innerCode) {
       const codes = innerCode.split(';');
       let html = '';
       codes.forEach(code => {
         switch (code) {
-          case '31': html += '<span style="color: #ff4d4f; font-weight: bold;">'; break;
-          case '33': html += '<span style="color: #faad14; font-weight: bold;">'; break;
+          case '31': html += '<span style="color: #ff4d4f; font-weight: bold;">'; break; // 红
+          case '32': html += '<span style="color: #52c41a; font-weight: bold;">'; break; // 绿 (补充)
+          case '33': html += '<span style="color: #faad14; font-weight: bold;">'; break; // 黄
+          case '34': html += '<span style="color: #1890ff; font-weight: bold;">'; break; // 蓝 (补充)
+          case '36': html += '<span style="color: #13c2c2; font-weight: bold;">'; break; // 青 (补充)
           case '9': html += '<span style="text-decoration: line-through; color: #999; opacity: 0.8;">'; break;
           case '29': html += '</span>'; break;
           case '39': case '0': html += '</span></span></span>'; break;
@@ -726,14 +993,22 @@
       return html;
     });
 
+    // 4. 日志级别处理
     out = out.replace(/\b(INF|INFO)\b/g, '<span class="log-info">INF</span>')
       .replace(/\b(ERR|ERROR)\b/g, '<span class="log-error">ERR</span>')
       .replace(/\b(WRN|WARN)\b/g, '<span class="log-warn">WRN</span>')
       .replace(/\b(DBG|DEBUG)\b/g, '<span class="log-debug">DBG</span>');
 
+    // 5. 特殊日志处理 (新版本提示)
     if (/发现新版本/.test(out)) {
       out = '<div class="log-new-version">' + out.replace(/最新版本=([^\s]+)/, '最新版本=<span class="success-highlight">$1</span>') + '</div>';
     }
+
+    // 6. 拼回时间戳
+    if (timestamp) {
+      out = '<span class="log-time">' + timestamp + '</span>' + out;
+    }
+
     return out;
   }
 
