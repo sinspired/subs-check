@@ -310,7 +310,7 @@ main {
   justify-content: space-between;
 }
 
-.sidebar.card{
+.sidebar.card {
   padding: 0;
 }
 
@@ -667,6 +667,8 @@ main {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* 避免撑破父容器 */
+  min-width: 0;
 }
 
 .progress-wrapper {
@@ -780,14 +782,46 @@ main {
   color: var(--muted);
 }
 
+.history-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  /* 确保宽度被限制 */
+  width: 100%;
+  min-width: 0;
+}
+
 .history-line {
+  /* Flex 布局设置 */
+  min-width: 0;
+  flex: 1;
+
+  /* 样式 */
   font-size: 12px;
   color: var(--muted);
+  line-height: 1.4;
+  /* 增加一点行高，多行显示时更美观 */
+
+  /* 换行核心设置 */
   white-space: normal;
+  /* 允许文本换行 */
   word-break: break-all;
-  /* 避免长字符串撑破 */
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* 关键：允许在任意字符间换行（防止长数字/长网址撑破容器） */
+  overflow-wrap: anywhere;
+  /* 现代浏览器辅助属性，增强断行能力 */
+
+  text-overflow: clip;
+  /* 换行模式下不需要省略号 */
+
+  /* 文本截断 */
+  /* white-space: nowrap;  */
+  /* 强制不换行 */
+  /* overflow: hidden;    */
+  /* 超出隐藏 */
+  /* text-overflow: ellipsis;  */
+  /* 显示省略号 */
 }
 
 .btn.small {
@@ -800,7 +834,8 @@ main {
 }
 
 #btnHistoryExit,
-#btnShare,#btnSubStore {
+#btnShare,
+#btnSubStore {
   display: none;
 }
 
@@ -1492,7 +1527,7 @@ main {
   }
 
   #shareMenu {
-    transform: translate(-50%, -50%) scale(1.2);
+    /* transform: translate(-50%, -50%) scale(1.2); */
     z-index: 2000;
   }
 
@@ -1512,7 +1547,8 @@ main {
 
   /* 小屏显示退出和分享按钮 */
   #btnHistoryExit,
-  #btnShare,#btnSubStore {
+  #btnShare,
+  #btnSubStore {
     display: inline-block;
   }
 

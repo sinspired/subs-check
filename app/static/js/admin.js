@@ -495,7 +495,13 @@
         if (notFoundEl) notFoundEl.style.display = 'none';
         if (els.historyLine) els.historyLine.style.display = '';
 
-        const prettyTime = info.lastCheckTime ? info.lastCheckTime.replace('T', ' ') : '-';
+        // 计算友好显示文本（时间格式化、时长格式化等）
+        const prettyTime = (() => {
+          try {
+            const dt = info.lastCheckTime ? new Date(String(info.lastCheckTime).replace(' ', 'T')) : null;
+            return dt && !isNaN(dt) ? dt.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : (info.lastCheckTime || '-');
+          } catch (e) { return info.lastCheckTime || '未知'; }
+        })();
         const prettyDuration = (typeof info.duration === 'number')
           ? (info.duration >= 60 ? Math.floor(info.duration / 60) + '分' + (info.duration % 60) + '秒' : info.duration + '秒')
           : (info.duration || '0');
@@ -610,33 +616,78 @@
 
   function parseCheckResultFromLogs(logs) {
     if (!logs || !Array.isArray(logs)) return null;
-    const lines = logs.map(String);
-    let startTime, endTime, totalNodes, availableNodes;
 
+    // 为了防止某些特殊对象混入，转为 String
+    const lines = logs.map(String);
+
+    let startTime = null;
+    let endTime = null;
+    let totalNodes = null;
+    let availableNodes = null; // 使用 null 区分是“未找到”还是“数量为0”
+
+    // 倒序遍历：从最新的日志开始往前找
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i];
-      if (!endTime && line.includes('检测完成')) {
-        const m = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-        if (m) endTime = m[1];
+
+      // 第 1 步：首先必须找到“检测完成”的时间，否则视为该次任务未完成，忽略后面的数据
+      if (!endTime) {
+        if (line.includes('检测完成')) {
+          const m = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+          if (m) endTime = m[1];
+        }
+        // 如果还没找到结束时间，跳过当前循环，继续往前找，
+        // 这样可以过滤掉那些“有去重数量但异常中断”的脏数据。
+        continue;
       }
-      if (!availableNodes) {
+
+      // 第 2 步：找到结束时间后，寻找最近的“可用节点数量”
+      if (availableNodes === null) {
         const m = line.match(/可用节点数量:\s*(\d+)/);
-        if (m) availableNodes = parseInt(m[1]);
+        if (m) {
+          availableNodes = parseInt(m[1], 10);
+        }
+        // 必须找到可用节点后，才能去找去重节点，所以这里 continue
+        continue;
       }
-      if (!totalNodes) {
+
+      // 第 3 步：找到可用节点后，寻找紧邻的“去重后节点数量”
+      if (totalNodes === null) {
         const m = line.match(/去重后节点数量:\s*(\d+)/);
-        if (m) totalNodes = parseInt(m[1]);
+        if (m) {
+          totalNodes = parseInt(m[1], 10);
+        }
+        // 必须找到去重节点后，才能去找开始时间，所以这里 continue
+        continue;
       }
-      if (!startTime && (line.includes('手动触发检测') || line.includes('开始准备检测代理'))) {
-        const m = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-        if (m) startTime = m[1];
-        if (startTime && endTime) break;
+
+      // 第 4 步：所有数据都齐了，最后寻找“启动时间”
+      if (!startTime) {
+        if (line.includes('手动触发检测') || line.includes('启动检测任务')) {
+          const m = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+          if (m) {
+            startTime = m[1];
+            // 第 5 步：找到了开始时间，说明这一整组数据闭环了，直接退出循环
+            break;
+          }
+        }
       }
     }
-    if (startTime && endTime && totalNodes > 0) {
-      const duration = Math.round((new Date(endTime) - new Date(startTime)) / 1000);
-      return { lastCheckTime: endTime, duration, total: totalNodes, available: availableNodes };
+
+    // 校验数据完整性
+    if (startTime && endTime && totalNodes !== null && availableNodes !== null) {
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      // 计算耗时（秒），防止时间倒流出现负数
+      const duration = Math.max(0, Math.round((end - start) / 1000));
+
+      return {
+        lastCheckTime: endTime,
+        duration: duration,
+        total: totalNodes,
+        available: availableNodes
+      };
     }
+
     return null;
   }
 
@@ -1086,7 +1137,7 @@
           const isMobile = window.innerWidth < 768;
           menu.style.top = `${rect.top}px`;
           menu.style.left = isMobile ? `${rect.left - 160}px` : `${rect.right * 0.9}px`;
-          menu.style.transform ="none";
+          menu.style.transform = "none";
           menu.classList.add('active');
         } catch (err) {
           console.error(err);

@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/goccy/go-yaml"
 	"github.com/sinspired/subs-check/check"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
 	"github.com/sinspired/subs-check/utils"
-	"gopkg.in/yaml.v3"
 )
 
 var initAPIKey string
@@ -439,7 +439,7 @@ func (app *App) getLogs(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"logs": []string{}})
 		return
 	}
-	lines, err := ReadLastNLines(logPath, 200)
+	lines, err := ReadLastNLines(logPath, 2000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志失败: %v", err)})
 		return
