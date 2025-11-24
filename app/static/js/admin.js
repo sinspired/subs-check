@@ -530,27 +530,31 @@
     // --- 5. 状态栏文字更新 ---
     if (els.statusEl) {
       if (checking) {
-        // 1. 如果已处理为0，说明刚启动，正在下载订阅文件 -> 只显示获取订阅
-        if (processed === 0) {
-          els.statusEl.textContent = "正在获取订阅...";
-        }
-        // 2. 如果已开始处理，但 ETA 还没算出来 -> 显示计算中
-        else if (!etaText || etaText === '计算中...') {
-          els.statusEl.textContent = "运行中, 计算剩余时间...";
-        }
-        // 3. 正常显示倒计时
-        else {
-          els.statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
-        }
-
         const runSec = Math.floor((now - state.startTime) / 1000);
         els.statusEl.title = `已运行: ${runSec}s`;
-        els.statusEl.className = 'muted status-label status-checking';
+
+        if (processed === 0) {
+          // 刚启动，正在下载订阅文件
+          els.statusEl.textContent = "正在获取订阅...";
+          els.statusEl.className = 'muted status-label status-get-subs';
+        } else if (!etaText || etaText === '计算中...') {
+          // 已开始处理，但 ETA 未算出
+          els.statusEl.textContent = "运行中, 计算剩余时间...";
+          els.statusEl.className = 'muted status-label status-checking';
+        } else {
+          // 正常显示倒计时
+          els.statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
+          els.statusEl.className = 'muted status-label status-checking';
+        }
+
       } else if (lastChecked || (processed >= total && total > 0)) {
+        // 检测完成
         els.statusEl.textContent = '检测完成';
         els.statusEl.title = '';
         els.statusEl.className = 'muted status-label status-logged';
+
       } else {
+        // 空闲状态
         els.statusEl.textContent = '空闲';
         els.statusEl.title = '';
         els.statusEl.className = 'muted status-label status-idle';
@@ -1092,7 +1096,10 @@
       scrollIntoView: false
     });
 
-    showToast('配置已加载', 'success');
+    showToast(
+      txt === '' ? '配置已清除' : '配置已加载',
+      txt === '' ? 'warn' : 'success'
+    );
   }
 
   async function loadConfigValidated() {

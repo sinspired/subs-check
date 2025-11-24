@@ -11,6 +11,7 @@
   --muted-hard: rgba(144, 141, 141, 0.8);
   --success: #0fd056;
   --idle: #0198d3;
+  --process: rgb(106, 213, 0);
   --warning: #d97706;
   --danger: #ed1717;
 
@@ -892,6 +893,10 @@ main {
 
 .status-idle {
   color: var(--accent);
+}
+
+.status-get-subs {
+  color: var(--process);
 }
 
 .status-logged {
