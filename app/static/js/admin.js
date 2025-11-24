@@ -539,11 +539,13 @@
           els.statusEl.className = 'muted status-label status-get-subs';
         } else if (!etaText || etaText === '计算中...') {
           // 已开始处理，但 ETA 未算出
-          els.statusEl.textContent = "运行中, 计算剩余时间...";
-          els.statusEl.className = 'muted status-label status-checking';
+          els.statusEl.innerHTML = `${STATUS_SPINNER}<span>运行中, 计算剩余时间...</span>`;
+          els.statusEl.className = 'muted status-label status-prepare';
+
         } else {
           // 正常显示倒计时
           els.statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
+          els.statusEl.innerHTML = `${STATUS_SPINNER}<span>运行中, 预计剩余: ${etaText}</span>`;
           els.statusEl.className = 'muted status-label status-checking';
         }
 
@@ -870,7 +872,7 @@
 
   function setAuthUI(ok) {
     if (els.statusEl) {
-      els.statusEl.textContent = `状态：${ok ? '空闲' : '未登录'}`;
+      els.statusEl.textContent = `${ok ? '空闲' : '未登录'}`;
       els.statusEl.className = 'muted status-label ' + (ok ? 'status-logged' : 'status-idle');
     }
     [els.toggleBtn, els.refreshLogsBtn, els.saveCfgBtn, els.searchBtn, els.reloadCfgBtn].forEach(b => b && (b.disabled = !ok));
@@ -987,7 +989,7 @@
         // 如果超时了，就不要再更新文字了
         if (!isFinished && newWindow && !newWindow.closed) {
           const statusEl = newWindow.document.getElementById('status-text');
-          if (statusEl) statusEl.innerText = "正在获取 sub-store 配置...";
+          els.statusEl.innerHTML = `${STATUS_SPINNER}<span>正在获取 sub-store 配置...</span>`;
         }
 
         configData = await fetchSubStoreConfig();
@@ -1337,6 +1339,7 @@
           let subStorePath = p?.sub_store_path ?? '';
           const yamlSubStorePath = config["sub-store-path"] ?? "";
           if (!subStorePath) return showToast('请先设置 sub_store_path', 'error');
+          if (!SubStorePathYaml || SubStorePathYaml == '') showToast("您未设置sub-store-path，当前使用随机值。请尽快设置！", "warn");
 
           const port = (config["sub-store-port"] ?? "").toString().trim().replace(/^:/, "");
           let path = subStorePath.startsWith("/") ? subStorePath : `/${subStorePath}`;
