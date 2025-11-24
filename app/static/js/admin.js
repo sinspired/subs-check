@@ -960,12 +960,12 @@
     // Value: 非空白字符
     out = out.replace(/([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)([^\s]+)/g, (match, key, eq, val) => {
       // 定义颜色变量
-      const colorKey = '#dc9e2bff'; // 金色/淡橙色，用于 Key (如 port, 本地)
+      const colorKey = '#a18248ff'; // 金色/淡橙色，用于 Key (如 port, 本地)
       const colorEq = '#666666';  // 灰色，用于 =
       let colorVal = '#a7c2b2ff';   // 绿色，默认用于 Value (字符串)
 
       // 智能判断 Value 类型并变色
-      if (val === 'true') colorVal = '#56b6c2';        // 青色 (布尔真)
+      if (val === 'true') colorVal = '#00ae60ff';        // 青色 (布尔真)
       else if (val === 'false') colorVal = '#ff6c6c';  // 红色 (布尔假)
       else if (/^[\d\.]+$/.test(val)) colorVal = '#61afef'; // 蓝色 (纯数字)
       else if (val.startsWith('http')) colorVal = '#abb2bf'; // 灰色/淡白 (URL，防止太抢眼)
