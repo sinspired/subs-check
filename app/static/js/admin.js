@@ -939,39 +939,75 @@
    * @returns {string} 
    */
   function colorize(line) {
-    // 1. 先把时间戳切出来，防止被后续正则误伤，最后再拼回去
+    // 1. 切分时间戳
     const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
     let timestamp = '';
     let body = line;
 
     if (tsMatch) {
       timestamp = tsMatch[0];
-      // body 是去除了时间戳的部分
       body = line.slice(timestamp.length);
     }
 
-    // 2. 基础转义 (防止 XSS)
+    // 2. 基础转义
     let out = escapeHtml(body);
 
-    // ==================== Key=Value 高亮 ====================
-    // 必须在 ANSI 处理之前执行，防止破坏后续生成的 HTML 标签属性
-    // 匹配模式： (Key) (=) (Value)
-    // Key: 支持字母、数字、中文、下划线、横杠、点、冒号 (如 :media)
-    // Value: 非空白字符
-    out = out.replace(/([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)([^\s]+)/g, (match, key, eq, val) => {
-      // 定义颜色变量
-      const colorKey = '#a18248ff'; // 金色/淡橙色，用于 Key (如 port, 本地)
-      const colorEq = '#666666';  // 灰色，用于 =
-      let colorVal = '#a7c2b2ff';   // 绿色，默认用于 Value (字符串)
+    // 颜色定义
+    const colorKey = '#a18248ff'; // Key 金色
+    const colorEq = '#666666';    // = 灰色
+    const colorNum = '#40a1efff'; // 数字蓝
+    const colorCheckNum = '#5cb3d5ff';
 
-      // 智能判断 Value 类型并变色
-      if (val === 'true') colorVal = '#00ae60ff';        // 青色 (布尔真)
-      else if (val === 'false') colorVal = '#ff6c6c';  // 红色 (布尔假)
-      else if (/^[\d\.]+$/.test(val)) colorVal = '#61afef'; // 蓝色 (纯数字)
-      else if (val.startsWith('http')) colorVal = '#abb2bf'; // 灰色/淡白 (URL，防止太抢眼)
+    // 生成 URL HTML
+    const formatUrl = (url) => {
+      // 样式：淡青色 + 下划线
+      return `<span style="color: #56b6c2; text-decoration: underline; cursor: pointer;">${url}</span>`;
+    };
 
-      // 返回带样式的 HTML
-      return `<span style="color:${colorKey}">${key}</span><span style="color:${colorEq}">${eq}</span><span style="color:${colorVal}">${val}</span>`;
+    // ==================== Step 2.1: 通用 Key=Value 处理 ====================
+    // 使用 [^&"\s\\]，排除反斜杠
+    const combinedRegex = /([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)(&quot;(?:\\&quot;|[^&]|&(?!quot;))*&quot;)|([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)(?!&quot;)([^\s]+)|(\\?&quot;(https?:\/\/[^&"\s\\]+)\\?&quot;)/g;
+
+    out = out.replace(combinedRegex, (match, k1, eq1, v1, k2, eq2, v2, v3, urlInner) => {
+
+      // --- Case 1: 带引号的键值对 (error="...") ---
+      if (k1) {
+        let cleanVal = v1;
+        // 在长文本内部清洗 URL (同样应用了排除反斜杠的修复)
+        cleanVal = cleanVal.replace(/\\?&quot;(https?:\/\/[^&"\s\\]+)\\?&quot;/g, (m, u) => {
+          return formatUrl(u);
+        });
+
+        // 样式：Key金色，值灰色斜体
+        return `<span style="color:${colorKey}">${k1}</span><span style="color:${colorEq}">${eq1}</span><span style="color: #71816eff; font-style: italic;">${cleanVal}</span>`;
+      }
+
+      // --- Case 2: 普通键值对 (port=8080) ---
+      else if (k2) {
+        let colorVal = '#a7c2b2ff'; // 默认绿
+
+        if (v2 === 'true') colorVal = '#00ae60ff';
+        else if (v2 === 'false') colorVal = '#ff6c6c';
+        else if (/^[\d\.]+$/.test(v2)) colorVal = colorNum; // 复用上方定义的数字蓝
+        else if (v2.startsWith('http')) colorVal = '#9476d0cf'; // 链接灰
+
+        return `<span style="color:${colorKey}">${k2}</span><span style="color:${colorEq}">${eq2}</span><span style="color:${colorVal}">${v2}</span>`;
+      }
+
+      // --- Case 3: 独立引用 URL (Post "http...") ---
+      else if (v3) {
+        return formatUrl(urlInner);
+      }
+
+      return match;
+    });
+
+    // 匹配 "数量: 123" 或 "间距: 123"
+    const cnMetricsRegex = /(数量|间距)([:：])\s*(\d+)/g;
+
+    out = out.replace(cnMetricsRegex, (match, label, colon, num) => {
+      // 保持 Label 默认颜色 (跟随正文)，仅高亮数字，数字颜色与 Case 2 保持一致
+      return `${label}${colon} <span style="color:${colorCheckNum}; font-weight: bold;">${num}</span>`;
     });
 
     // 3. ANSI 颜色代码处理
@@ -980,11 +1016,11 @@
       let html = '';
       codes.forEach(code => {
         switch (code) {
-          case '31': html += '<span style="color: #ff4d4f; font-weight: bold;">'; break; // 红
-          case '32': html += '<span style="color: #52c41a; font-weight: bold;">'; break; // 绿 (补充)
-          case '33': html += '<span style="color: #faad14; font-weight: bold;">'; break; // 黄
-          case '34': html += '<span style="color: #1890ff; font-weight: bold;">'; break; // 蓝 (补充)
-          case '36': html += '<span style="color: #13c2c2; font-weight: bold;">'; break; // 青 (补充)
+          case '31': html += '<span style="color: #ff4d4f; font-weight: bold;">'; break;
+          case '32': html += '<span style="color: #52c41a; font-weight: bold;">'; break;
+          case '33': html += '<span style="color: #faad14; font-weight: bold;">'; break;
+          case '34': html += '<span style="color: #1890ff; font-weight: bold;">'; break;
+          case '36': html += '<span style="color: #13c2c2; font-weight: bold;">'; break;
           case '9': html += '<span style="text-decoration: line-through; color: #999; opacity: 0.8;">'; break;
           case '29': html += '</span>'; break;
           case '39': case '0': html += '</span></span></span>'; break;
@@ -999,7 +1035,7 @@
       .replace(/\b(WRN|WARN)\b/g, '<span class="log-warn">WRN</span>')
       .replace(/\b(DBG|DEBUG)\b/g, '<span class="log-debug">DBG</span>');
 
-    // 5. 特殊日志处理 (新版本提示)
+    // 5. 特殊日志处理
     if (/发现新版本/.test(out)) {
       out = '<div class="log-new-version">' + out.replace(/最新版本=([^\s]+)/, '最新版本=<span class="success-highlight">$1</span>') + '</div>';
     }
