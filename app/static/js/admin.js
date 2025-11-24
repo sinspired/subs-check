@@ -921,7 +921,9 @@
     let hostname = window.location.hostname;
     if (!shouldAddPort) {
       const parts = hostname.split(".");
-      if (parts.length > 1) {
+      // 防止 IP 地址访问时生成错误的域名 (如: sub_store.104.56.43.43)
+      const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+      if (parts.length > 1 && !isIp) {
         hostname = parts.length === 2 ? "sub_store_for_subs_check." + hostname : "sub_store_for_subs_check." + parts.slice(1).join(".");
       }
     }
@@ -936,6 +938,7 @@
     };
   }
 
+  // 处理 sub-store 一键订阅管理
   async function handleOpenSubStore(e) {
     e.preventDefault();
     if (!sessionKey) { showLogin(true); return; }
@@ -943,22 +946,87 @@
     const newWindow = window.open('', '_blank');
     if (!newWindow) { showToast('窗口弹出被拦截', 'warn'); return; }
 
-    newWindow.document.title = "打开 Sub-Store...";
-    newWindow.document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;"><h3>正在跳转...</h3></div>';
+    // 1. 设置初始 Loading 界面
+    newWindow.document.title = "正在连接 Sub-Store...";
+    newWindow.document.body.style.margin = "0";
+    newWindow.document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9f9f9;color:#333;">
+        <div style="margin-bottom:15px;">
+           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0ea5a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+           <style>.spin{animation:spin 1s linear infinite}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+        </div>
+        <h3 id="status-text" style="font-weight:600;">正在跳转...</h3>
+        <p style="color:#666;font-size:13px;margin-top:5px;">正在解析 sub-store 配置并构建连接，请稍候。</p>
+      </div>
+    `;
+
+    // 2. 启动超时控制 (10秒)
+    let isFinished = false;
+    const timeoutTimer = setTimeout(() => {
+      if (isFinished) return;
+      isFinished = true; // 标记超时
+      console.warn("SubStore跳转超时");
+      if (newWindow && !newWindow.closed) {
+        newWindow.document.body.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+            <h3 style="color:#ff4d4f;">连接超时</h3>
+            <p style="color:#666;margin-bottom:20px;">获取 sub-store 配置耗时过长，请关闭重试。</p>
+            <button onclick="window.close()" style="padding:8px 20px;cursor:pointer;background:#fff;border:1px solid #ccc;border-radius:4px;">关闭窗口</button>
+          </div>
+        `;
+      }
+    }, 10000);
 
     try {
       let configData = _cachedSubStoreConfig;
       if (!configData) {
+        // 如果超时了，就不要再更新文字了
+        if (!isFinished && newWindow && !newWindow.closed) {
+          const statusEl = newWindow.document.getElementById('status-text');
+          if (statusEl) statusEl.innerText = "正在获取 sub-store 配置...";
+        }
+
         configData = await fetchSubStoreConfig();
+
+        // 获取数据后，必须再次检查是否已超时
+        if (isFinished) return;
+
         _cachedSubStoreConfig = configData;
       }
+
       const result = buildSubStoreUrl(configData);
       lastSubStorePath = result.subStorePath;
+
+      // 先清理定时器并标记结束，再执行跳转
+      if (isFinished) return;
+      isFinished = true;
+      clearTimeout(timeoutTimer);
+
       newWindow.location.href = result.url;
+
     } catch (err) {
       console.error(err);
-      newWindow.close();
-      showToast(err.message || '打开失败', 'error');
+
+      // 如果已经超时处理过了，就不再处理错误
+      if (isFinished) return;
+      isFinished = true;
+      clearTimeout(timeoutTimer);
+
+      // 优先在窗口内显示错误，不要急着 close()
+      if (newWindow && !newWindow.closed) {
+        newWindow.document.title = "错误";
+        newWindow.document.body.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;padding:20px;text-align:center;">
+            <h3 style="color:#ff4d4f;margin-bottom:10px;">发生错误</h3>
+            <p style="color:#333;background:#ffebeb;padding:10px;border-radius:5px;font-family:monospace;">${err.message || '未知错误'}</p>
+            <p style="color:#999;font-size:12px;margin-top:10px;">请检查网络或后端日志</p>
+            <button onclick="window.close()" style="margin-top:20px;padding:8px 20px;cursor:pointer;border:1px solid #d9d9d9;background:#fff;border-radius:4px;">关闭</button>
+          </div>
+        `;
+      } else {
+        // 只有窗口意外关闭了，才用 Toast
+        showToast(err.message || '打开失败', 'error');
+      }
     }
   }
 
