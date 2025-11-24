@@ -650,14 +650,14 @@ func deduplicateAndMerge(succed, history, sync []ProxyNode) ([]map[string]any, i
 	for _, p := range succed {
 		cleanMetadata(p)
 		finalList = append(finalList, p)
-		succedSet[generateProxyKey(p)] = struct{}{}
+		succedSet[GenerateProxyKey(p)] = struct{}{}
 	}
 	succedCount := len(succed)
 
 	// 2. 添加 History 节点 (去重：不在 Success 中)
 	histCount := 0
 	for _, p := range history {
-		key := generateProxyKey(p)
+		key := GenerateProxyKey(p)
 		if _, exists := succedSet[key]; !exists {
 			cleanMetadata(p)
 			finalList = append(finalList, p)
@@ -678,28 +678,6 @@ func deduplicateAndMerge(succed, history, sync []ProxyNode) ([]map[string]any, i
 func cleanMetadata(p ProxyNode) {
 	delete(p, "sub_was_succeed")
 	delete(p, "sub_from_history")
-}
-
-// 生成唯一 key
-func generateProxyKey(p map[string]any) string {
-	//TODO: http协议,需添加tls识别
-	server := strings.TrimSpace(fmt.Sprint(p["server"]))
-	port := strings.TrimSpace(fmt.Sprint(p["port"]))
-	typ := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["type"])))
-	servername := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["servername"])))
-
-	password := strings.TrimSpace(fmt.Sprint(p["password"]))
-	if password == "" {
-		password = strings.TrimSpace(fmt.Sprint(p["uuid"]))
-	}
-	if password == "" {
-		password = strings.TrimSpace(fmt.Sprint(p["private-key"])) // WireGuard
-	}
-
-	if server == "" && port == "" && typ == "" && servername == "" && password == "" {
-		return fmt.Sprintf("raw:%v", p)
-	}
-	return server + "|" + port + "|" + typ + "|" + servername + "|" + password
 }
 
 // saveStats 保存统计信息

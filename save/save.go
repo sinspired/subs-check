@@ -3,18 +3,18 @@ package save
 
 import (
 	"fmt"
+	proxyutils "github.com/sinspired/subs-check/proxy"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/sinspired/subs-check/check"
 	"github.com/sinspired/subs-check/config"
 	"github.com/sinspired/subs-check/save/method"
 	"github.com/sinspired/subs-check/utils"
-	 "github.com/goccy/go-yaml" 
 )
 
 // ProxyCategory 定义代理分类
@@ -269,7 +269,7 @@ func mergeUniqueProxies(existing, newProxies []map[string]any) []map[string]any 
 	for _, p := range existing {
 		delete(p, "sub_was_succeed")  // 删除旧的标记
 		delete(p, "sub_from_history") // 删除旧的标记
-		key := proxyKey(p)
+		key := proxyutils.GenerateProxyKey(p)
 		if !seen[key] {
 			seen[key] = true
 			result = append(result, p)
@@ -280,7 +280,7 @@ func mergeUniqueProxies(existing, newProxies []map[string]any) []map[string]any 
 	for _, p := range newProxies {
 		delete(p, "sub_was_succeed")  // 删除旧的标记
 		delete(p, "sub_from_history") // 删除旧的标记
-		key := proxyKey(p)
+		key := proxyutils.GenerateProxyKey(p)
 		if !seen[key] {
 			seen[key] = true
 			result = append(result, p)
@@ -288,27 +288,6 @@ func mergeUniqueProxies(existing, newProxies []map[string]any) []map[string]any 
 	}
 
 	return result
-}
-
-// 生成唯一 key，按 server、port、type 三个字段
-func proxyKey(p map[string]any) string {
-	server := strings.TrimSpace(fmt.Sprint(p["server"]))
-	port := strings.TrimSpace(fmt.Sprint(p["port"]))
-	typ := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["type"])))
-	servername := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["servername"])))
-
-	password := strings.TrimSpace(fmt.Sprint(p["password"]))
-	if password == "" {
-		password = strings.TrimSpace(fmt.Sprint(p["uuid"]))
-	}
-
-	// 如果全部字段都为空，则把整个 map 以简短形式作为 fallback key（避免丢失）
-	if server == "" && port == "" && typ == "" && servername == "" && password == "" {
-		// 尽量稳定地生成字符串
-		return fmt.Sprintf("raw:%v", p)
-	}
-	// 使用 '|' 分隔构建 key
-	return server + "|" + port + "|" + typ + "|" + servername + "|" + password
 }
 
 func ReadFileIfExists(path string) ([]byte, error) {
