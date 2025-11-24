@@ -1,5 +1,12 @@
 // entry.mjs - CodeMirror 6 ESM 入口
 import { EditorView, basicSetup } from "codemirror";   // 核心（EditorView + basicSetup）
+import {
+  keymap,
+  WidgetType,
+  Decoration,
+  ViewPlugin,
+  MatchDecorator
+} from "@codemirror/view";                             // 视图相关
 import { EditorState } from "@codemirror/state";       // 状态
 import { yaml } from "@codemirror/lang-yaml";          // YAML 语言支持
 import { oneDark } from "@codemirror/theme-one-dark";  // 主题
@@ -7,14 +14,7 @@ import { indentWithTab } from "@codemirror/commands";  // Tab 缩进
 import { autocompletion, startCompletion } from "@codemirror/autocomplete"; // 自动补全
 import { linter } from "@codemirror/lint";             // Lint 支持
 import * as YAML from "yaml";                          // YAML 解析库
-import {
-  EditorView as View,
-  keymap,
-  WidgetType,
-  Decoration,
-  ViewPlugin,
-  MatchDecorator
-} from "@codemirror/view";                             // 视图相关
+
 import { search, openSearchPanel, closeSearchPanel, searchPanelOpen } from "@codemirror/search"; // 搜索功能
 import { highlightSelectionMatches } from "@codemirror/search"; // 选择高亮
 

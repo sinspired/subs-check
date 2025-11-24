@@ -1074,7 +1074,25 @@
 
   function setEditorContent(txt) {
     if (!codeMirrorView) return;
-    codeMirrorView.dispatch({ changes: { from: 0, to: codeMirrorView.state.doc.length, insert: (txt || '').replace(/\r\n/g, '\n') } });
+
+    const normalizedTxt = (txt || '').replace(/\r\n/g, '\n');
+    const currentContent = codeMirrorView.state.doc.toString();
+
+    // 内容相同直接返回
+    if (currentContent === normalizedTxt) {
+      return;
+    }
+
+    codeMirrorView.dispatch({
+      changes: {
+        from: 0,
+        to: codeMirrorView.state.doc.length,
+        insert: normalizedTxt
+      },
+      scrollIntoView: false
+    });
+
+    showToast('配置已加载', 'success');
   }
 
   async function loadConfigValidated() {
@@ -1083,6 +1101,9 @@
     if (!r.ok) return showToast('读取配置失败', 'warn');
     const raw = (typeof r.payload?.content === 'string') ? r.payload.content : String(r.payload || '');
     codeMirrorView ? setEditorContent(raw) : initCodeMirror(raw);
+    if (codeMirrorView?.scrollDOM) {
+      codeMirrorView.scrollDOM.scrollTop = 0;
+    }
   }
 
   async function saveConfigWithValidation() {
@@ -1207,9 +1228,7 @@
     });
     els.saveCfgBtn?.addEventListener('click', saveConfigWithValidation);
     els.reloadCfgBtn?.addEventListener('click', async () => {
-      showToast('正在重载配置...', 'info');
       await loadConfigValidated();
-      showToast('配置已重载', 'success');
     });
     els.openEditorBtn?.addEventListener('click', () => els.editorContainer?.scrollIntoView({ behavior: 'smooth' }));
 
