@@ -672,110 +672,30 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 	return res, nil
 }
 
-// 从 Clash/Mihomo 配置中提取 proxy-providers 的 url 字段
-func extractClashProviderURLs(m map[string]any) []string {
-	if len(m) == 0 {
-		return nil
+// logSubscriptionStats 打印订阅数量统计
+func logSubscriptionStats(total, local, remote, history int) {
+	args := []any{}
+	if local > 0 {
+		args = append(args, "本地", local)
 	}
-	// 支持的可能命名
-	keys := []string{"proxy-providers", "proxy_providers", "proxyproviders"}
-	out := make([]string, 0, 8)
-	for _, k := range keys {
-		v, ok := m[k]
-		if !ok || v == nil {
-			continue
-		}
-		providers, ok := v.(map[string]any)
-		if !ok {
-			continue
-		}
-		for _, prov := range providers {
-			pm, ok := prov.(map[string]any)
-			if !ok {
-				continue
-			}
-			if u, ok := pm["url"].(string); ok {
-				u = strings.TrimSpace(u)
-				if u != "" {
-					out = append(out, u)
-				}
-			}
-		}
+	if remote > 0 {
+		args = append(args, "远程", remote)
 	}
-	return out
-}
-
-func GetDateFromSubs(rawURL string) ([]byte, error) {
-	// 内部类型：单次尝试计划
-	type tryPlan struct {
-		url      string
-		useProxy bool // true: 使用系统代理; false: 明确禁用代理
-		via      string
+	if history > 0 {
+		args = append(args, "历史", history)
+	}
+	if total < local+remote+history {
+		args = append(args, "总计(去重)", total)
+	} else {
+		args = append(args, "总计", total)
 	}
 
-	// 配置项与默认值
-	maxRetries := config.GlobalConfig.SubUrlsReTry
-	if maxRetries <= 0 {
-		maxRetries = 1
+	slog.Info("订阅链接数量", args...)
+
+	if len(config.GlobalConfig.NodeType) > 0 {
+		val := fmt.Sprintf("[%s]", strings.Join(config.GlobalConfig.NodeType, ","))
+		slog.Info("代理协议筛选", slog.String("Type", val))
 	}
-	retryInterval := config.GlobalConfig.SubUrlsRetryInterval
-	if retryInterval <= 0 {
-		retryInterval = 1
-	}
-	timeout := config.GlobalConfig.SubUrlsTimeout
-	if timeout <= 0 {
-		timeout = 10
-	}
-
-	// 占位符候选：今日 + 昨日（仅当存在占位符时）
-	candidates, hasDatePlaceholder := buildCandidateURLs(rawURL)
-
-	var lastErr error
-
-	for i := 0; i < maxRetries; i++ {
-		if i > 0 {
-			time.Sleep(time.Duration(retryInterval) * time.Second)
-		}
-
-		for _, cand := range candidates {
-			// 构建尝试顺序：
-			// 1) 原始链接 + 系统代理（若可用），否则直连
-			// 2) GitHub 代理直连（仅当 WarpURL 确实发生变化且可用）
-			plans := make([]tryPlan, 0, 2)
-
-			normalized := ensureScheme(cand)
-
-			// 只要用户配置了系统代理，或探测为可用，都先走系统代理
-			if IsSysProxyAvailable {
-				plans = append(plans, tryPlan{url: normalized, useProxy: true, via: "sys-proxy"})
-			} else {
-				plans = append(plans, tryPlan{url: normalized, useProxy: false, via: "direct"})
-			}
-
-			gh := utils.WarpURL(normalized, IsGhProxyAvailable)
-			if IsGhProxyAvailable && gh != normalized {
-				plans = append(plans, tryPlan{url: gh, useProxy: false, via: "ghproxy-direct"})
-			}
-
-			for _, p := range plans {
-				body, err, terminal := fetchOnce(p.url, p.useProxy, timeout)
-				if err == nil {
-					return body, nil
-				}
-				lastErr = err
-				if terminal {
-					if hasDatePlaceholder {
-						return nil, ErrIgnore
-					}
-
-					// 明确错误（如 404/401）直接终止所有重试
-					return nil, lastErr
-				}
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("重试%d次后失败: %v", maxRetries, lastErr)
 }
 
 // buildCandidateURLs 生成候选链接：

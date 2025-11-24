@@ -11,7 +11,7 @@
   --muted-hard: rgba(144, 141, 141, 0.8);
   --success: #0fd056;
   --idle: #0198d3;
-  --process: rgb(106, 213, 0);
+  --prepare: rgb(0, 142, 213);
   --warning: #d97706;
   --danger: #ed1717;
 
@@ -641,6 +641,16 @@ main {
   color: var(--danger);
 }
 
+.toggle-btn.state-preparing .btn-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--prepare);
+}
+
+.toggle-btn.state-preparing:hover:not(:disabled) .btn-icon {
+  color: #fff;
+}
+
 .toggle-btn.state-starting,
 .toggle-btn.state-stopping {
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
@@ -742,6 +752,14 @@ main {
 
 .success-highlight {
   animation: pulse 1.5s infinite;
+  font-weight: bold;
+  color: #28a745;
+  padding: 0 2px;
+  border-radius: 3px;
+  background-color: rgba(40, 167, 69, 0.1);
+}
+
+.available-highlight {
   font-weight: bold;
   color: #28a745;
   padding: 0 2px;
@@ -895,8 +913,8 @@ main {
   color: var(--accent);
 }
 
-.status-get-subs {
-  color: var(--process);
+.status-prepare {
+  color: var(--prepare);
 }
 
 .status-logged {

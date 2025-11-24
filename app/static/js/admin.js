@@ -70,7 +70,8 @@
     lastCheckDuration: $('#lastCheckDuration'),
     lastCheckTotal: $('#lastCheckTotal'),
     lastCheckAvailable: $('#lastCheckAvailable'),
-    historyPlaceholder: document.getElementById('historyPlaceholder'),
+    historyPlaceholder: $('#historyPlaceholder'),
+    historyTitle: $('#history-title'),
     historyLine: $(`#history-line`),
     toastContainer: document.getElementById('toastContainer') || createToastContainer()
   };
@@ -107,6 +108,10 @@
 
   // ==================== 核心工具函数 ====================
 
+  /**
+ * 创建并返回 Toast 容器
+ * @returns {HTMLDivElement} Toast 容器元素
+ */
   function createToastContainer() {
     const c = document.createElement('div');
     c.id = 'toastContainer';
@@ -114,6 +119,12 @@
     return c;
   }
 
+  /**
+ * 安全操作 localStorage (读/写/删)
+ * @param {string} key 键名
+ * @param {string|null|undefined} [value] 值；undefined=读，null=删，其他=写
+ * @returns {string|null} 获取的值或 null
+ */
   function safeLS(key, value) {
     try {
       if (value === undefined) return localStorage.getItem(key);
@@ -122,6 +133,13 @@
     } catch (e) { return null; }
   }
 
+  /**
+ * 显示 Toast 消息
+ * @param {string} msg 提示文本
+ * @param {string} [type='info'] 消息类型 (info/success/warn/error)
+ * @param {number} [timeout=3000] 显示时长 (毫秒)
+ * @returns {void}
+ */
   function showToast(msg, type = 'info', timeout = 3000) {
     const c = els.toastContainer;
     if (!c) return;
@@ -148,10 +166,20 @@
     }, timeout + 420);
   }
 
+  /**
+ * 转义 HTML 字符串
+ * @param {string} s 原始字符串
+ * @returns {string} 转义后的安全字符串
+ */
   function escapeHtml(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
+  /**
+ * 延迟执行
+ * @param {number} ms 毫秒数
+ * @returns {Promise<void>} Promise 延迟
+ */
   function sleep(ms) {
     return new Promise(res => setTimeout(res, ms));
   }
@@ -163,6 +191,7 @@
     <style>@keyframes spin-status { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
     <svg style="animation: spin-status 1s linear infinite; vertical-align: middle; margin-right: 6px; margin-bottom: 2px;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
   `;
+
 
   // 定义带旋转动画的 SVG 图标,用于检测任务
   const checking_SPINNER = `
@@ -385,6 +414,12 @@
 
   // ==================== API 通信 ====================
 
+  /**
+  * 安全请求封装
+  * @param {string} url   请求地址
+  * @param {Object} [opts] fetch 配置项
+  * @returns {Promise<Object>} 包含 ok、status、payload、error
+  */
   async function sfetch(url, opts = {}) {
     if (!sessionKey) return { ok: false, status: 401, error: '未认证' };
     opts.headers = { ...opts.headers, 'X-API-Key': sessionKey };
@@ -465,6 +500,20 @@
 
   // ==================== 业务逻辑 ====================
 
+  /**
+   * 加载并更新检测状态。
+   *
+   * 该函数会轮询后端接口获取当前检测任务的状态，
+   * 并根据返回数据动态调整 UI（状态栏、进度条、历史区等）。
+   * 包含准备阶段、检测阶段和空闲阶段的不同渲染逻辑。
+   *
+   * @async
+   * @returns {Promise<void>} 异步操作，无返回值
+   *
+   * @example
+   * // 在初始化时调用，开始状态轮询
+   * await loadStatus();
+   */
   async function loadStatus() {
     if (!sessionKey || statusPollRunning) return;
     statusPollRunning = true;
@@ -493,22 +542,58 @@
       const lastChecked = d.lastCheck && (typeof d.lastCheck.total === 'number');
 
       if (checking) {
-        updateToggleUI('checking');
-        showProgressUI(true);
-        // 传入 lastCheckInfo (历史数据) 作为第 6 个参数
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo);
-        hideLastCheckResult();
+        const processed = d.progress || 0;
+
+        // ==================== 阶段 1: 准备阶段 (Progress = 0) ====================
+        if (processed === 0) {
+          updateToggleUI('preparing');
+          showProgressUI(false); // 隐藏进度条，保留 History 面板
+
+          // 1. 更新状态栏 (只显示简略信息)
+          if (els.statusEl) {
+            els.statusEl.innerHTML = `${STATUS_SPINNER}<span>正在解析订阅...</span>`;
+            els.statusEl.className = 'muted status-label status-prepare';
+          }
+
+          // 2. 解析日志数据
+          const stats = parseSubStats(lastLogLines);
+
+          // 3. 渲染到历史表格 (Local/Remote...)
+          renderPrepareToHistory(stats);
+
+        }
+        // ==================== 阶段 2: 检测阶段 (Progress > 0) ====================
+        else {
+          updateToggleUI('checking');
+          showProgressUI(true); // 隐藏 History 面板，显示进度条
+
+          // 恢复标题 (为下次显示做准备)
+          restoreHistoryTitle();
+
+          // updateProgress 会接管 StatusEl 的倒计时显示
+          updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo);
+
+          hideLastCheckResult(); // 确保 History 隐藏
+        }
+
         if (!checkStartTime) checkStartTime = Date.now();
+
       } else {
+        // ==================== 空闲状态 ====================
         showProgressUI(false);
         updateToggleUI('idle');
-        // 传入 lastCheckInfo
+
+        // 恢复标题
+        restoreHistoryTitle();
+
         updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked, lastCheckInfo);
 
+        // 如果是刚启动尚未有数据，清空进度条
         if (els.progressBar && (d.progress === 0 || d.proxyCount === 0)) {
           els.progressBar.value = 0;
         }
 
+        // 显示真正的历史记录
         if (lastChecked) {
           showLastCheckResult({
             lastCheckTime: d.lastCheck.time || d.lastCheck.timestamp,
@@ -518,6 +603,7 @@
           });
           checkStartTime = null;
         } else if (checkStartTime && lastCheckInfo) {
+          // 内存中的最后一次
           const duration = Math.round((Date.now() - checkStartTime) / 1000);
           showLastCheckResult({
             lastCheckTime: new Date().toISOString().replace('T', ' ').split('.')[0],
@@ -537,6 +623,12 @@
     }
   }
 
+  /**
+   *增量载入日志
+   *
+   * @param {*} IntervalRun
+   * @return {*} 
+   */
   async function loadLogsIncremental(IntervalRun) {
     if (!sessionKey || logsPollRunning) return;
     logsPollRunning = true;
@@ -610,6 +702,17 @@
     }
   }
 
+
+  /**
+   *更新进度条
+   *
+   * @param {*} total
+   * @param {*} processed
+   * @param {*} available
+   * @param {*} checking
+   * @param {*} lastChecked
+   * @param {*} lastCheckData
+   */
   function updateProgress(total, processed, available, checking, lastChecked, lastCheckData) {
     // 初始化状态对象
     if (!updateProgress.etaState) {
@@ -707,7 +810,7 @@
           if (winTime > 0) realTimeRate = winCount / winTime;
         }
 
-        // --- B. 融合历史数据 (Hybrid Strategy) ---
+        // --- B. 融合历史数据 ---
         let finalRate = realTimeRate;
 
         // 只有当存在有效的历史数据时，才启用高级算法
@@ -763,7 +866,8 @@
         if (processed === 0) {
           // 刚启动，正在下载订阅文件
           els.statusEl.textContent = "正在获取订阅...";
-          els.statusEl.className = 'muted status-label status-get-subs';
+          els.statusEl.className = 'muted status-label status-prepare';
+
         } else if (!etaText || etaText === '计算中...') {
           // 已开始处理，但 ETA 未算出
           els.statusEl.innerHTML = `${checking_SPINNER}<span>运行中, 计算剩余时间...</span>`;
@@ -793,6 +897,11 @@
 
   // ==================== 界面辅助函数 ====================
 
+  /**
+   *显示隐藏进度信息
+   *
+   * @param {*} visible
+   */
   function showProgressUI(visible) {
     const v = !!visible;
     try {
@@ -819,6 +928,12 @@
     } catch (e) { console.warn(e); }
   }
 
+
+  /**
+   * 根据传入信息，显示历史检测结果
+   *
+   * @param {*} info 
+   */
   function showLastCheckResult(info) {
     if (!els.historyPlaceholder) return;
     let notFoundEl = document.getElementById('historyNotFound');
@@ -875,6 +990,10 @@
     } catch (e) { }
   }
 
+  /**
+   *隐藏上次检测结果
+   *
+   */
   function hideLastCheckResult() {
     if (els.historyPlaceholder) els.historyPlaceholder.style.display = 'none';
   }
@@ -1048,6 +1167,12 @@
     return out;
   }
 
+  /**
+   *从日志解析上次检测结果
+   *
+   * @param {*} logs
+   * @return {*} 
+   */
   function parseCheckResultFromLogs(logs) {
     if (!logs || !Array.isArray(logs)) return null;
 
@@ -1127,6 +1252,11 @@
 
   // ==================== 认证与交互 ====================
 
+  /**
+   *登录按钮事件
+   *
+   * @return {*} 
+   */
   async function onLoginBtnClick() {
     const k = els.apiKeyInput?.value?.trim();
     if (!k) {
@@ -1190,14 +1320,27 @@
     updateToggleUI(ok ? 'idle' : 'disabled');
   }
 
+  /**
+   *更新开始检测按钮状态，图标
+   *
+   * @param {*} state
+   * @return {*} 
+   */
   function updateToggleUI(state) {
     actionState = state;
     if (!els.toggleBtn) return;
     const config = {
       idle: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>', disabled: false, title: '开始检测', pressed: 'false' },
       starting: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12h-2.25c0 5.5 4.25 10 9.75 10s9.75-4.5 9.75-10-4.25-10-9.75-10-9.75 4.5-9.75 10zM12 7.5v9"/></svg>', disabled: true, title: '正在开始', pressed: 'true' },
+      preparing: {
+        // 使用云端下载图标
+        icon: '<svg class="prefix__prefix__icon" viewBox="0 0 1024 1024" width="200" height="200"><path d="M547.84 515.67a52.907 52.907 0 01-74.837 0L313.6 356.266a52.48 52.48 0 010-75.094 52.907 52.907 0 0174.923 0l68.437 68.694V53.163a52.992 52.992 0 11106.24 0v296.704l69.12-68.694a52.907 52.907 0 0174.837 0 52.48 52.48 0 010 75.094L547.84 515.669zM329.557 531.2H85.077A53.504 53.504 0 0032 584.363v371.882c0 29.27 24.32 53.078 53.163 53.078H935.68a53.504 53.504 0 0053.163-53.078V584.363A53.504 53.504 0 00935.68 531.2H691.883c-26.283 0-46.763 24.49-50.006 50.688-5.717 46.677-32 108.63-131.84 108.63-99.157 0-124.757-61.697-130.56-108.374-3.157-26.368-23.637-50.944-49.92-50.944z" fill="currentColor"/></svg>',
+        disabled: false,
+        title: '正在获取订阅 - 点击停止',
+        pressed: 'true'
+      },
       checking: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>', disabled: false, title: '检测中 - 点击停止', pressed: 'true' },
-      stopping: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12h-2.25c0 5.5 4.25 10 9.75 10s9.75-4.5 9.75-10-4.25-10-9.75-10-9.75 4.5-9.75 10zM12 7.5v9"/></svg>', disabled: true, title: '正在结束', pressed: 'true' },
+      stopping: { icon: '<svg viewBox="0 0 1024 1024" width="200" height="200" fill="currentColor"><path d="M834.4 92H189.6c-13.6 0-24-11.2-24-24 0-13.6 11.2-24 24-24h644.8c13.6 0 24 11.2 24 24 .8 12.8-10.4 24-24 24zm32 900.8h-708c-14.4 0-26.4-12-26.4-26.4 0-14.4 12-26.4 26.4-26.4h708c14.4 0 26.4 12 26.4 26.4 0 14.4-12 26.4-26.4 26.4z"/><path d="M766.4 666.4l-.8-1.6c-40.8-71.2-95.2-117.6-152.8-145.6 57.6-28.8 111.2-74.4 152.8-145.6l.8-1.6c40.8-70.4 68-166.4 72.8-294.4H792C788 196 763.2 284 725.6 348.8l-.8.8C678.4 432 626.4 476 559.2 496.8l-3.2.8h-.8c-1.6.8-2.4 1.6-4 2.4l-.8.8-1.6 1.6-1.6 1.6v.8c-.8.8-1.6 2.4-2.4 4l-.8.8-1.6 5.6v8.8l1.6 5.6.8.8c.8 1.6 1.6 2.4 2.4 4v.8l1.6 1.6v-.8l1.6.8.8.8c.8.8 2.4 1.6 4 2.4h.8l3.2 1.6c68 21.6 119.2 64.8 166.4 146.4l.8 1.6c20 33.6 35.2 74.4 47.2 121.6 2.4 13.6 11.2 43.2 12.8 81.6-37.6-33.6-141.6-57.6-266.4-59.2V464c1.6 0 2.4-.8 4-1.6v-.8l6.4-2.4h1.6c45.6-14.4 81.6-36.8 112-66.4 32-32 56.8-71.2 73.6-115.2 4.8-12-.8-25.6-13.6-30.4-12-4.8-25.6.8-30.4 12.8v.8c-14.4 36.8-35.2 71.2-62.4 98.4-24.8 24-54.4 43.2-92 54.4l-.8.8-2.4.8-4 .8-2.4-.8-1.6-.8-2.4-.8c-36.8-12-68-30.4-92-54.4-28-27.2-48-60.8-62.4-98.4-4.8-12-18.4-18.4-29.6-13.6-12 4.8-17.6 17.6-13.6 30.4 16.8 44 40.8 83.2 73.6 115.2 29.6 29.6 66.4 52 111.2 66.4h.8l6.4 2.4 1.6.8c.8.8 1.6.8 3.2 1.6v369.6c-116.8 0-218.4 20-266.4 48 1.6-19.2 5.6-40 12.8-70.4 12-48 28-88 47.2-121.6l.8-1.6c47.2-81.6 98.4-124.8 167.2-146.4l2.4-1.6h.8c1.6-.8 2.4-1.6 4-2.4l.8-.8 1.6-.8v-.8l1.6-1.6v-.8c.8-.8 1.6-2.4 2.4-4v-.8c.8-1.6 1.6-4 1.6-5.6v-8c0-1.6-.8-4-1.6-5.6v-.8c-.8-1.6-1.6-3.2-2.4-4v-.8l-1.6-1.6-1.6-1.6-2.4.8c-1.6-.8-2.4-1.6-4-2.4h-.8l-2.4-.8c-68-20.8-120-64.8-167.2-147.2l-.8-.8c-36.8-64.8-61.6-152.8-66.4-271.2h-47.2c4.8 128 32 223.2 72.8 294.4l.8 1.6C297.6 445.6 352 491.2 409.6 520c-57.6 28-111.2 74.4-152.8 145.6l-.8 1.6c-38.4 67.2-65.6 156.8-71.2 276h652.8c-5.6-120-32-209.6-71.2-276.8z"/></svg>', disabled: true, title: '正在结束', pressed: 'true' },
       disabled: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>', disabled: true, title: '请先登录', pressed: 'false' }
     };
     const cfg = config[state] || config.disabled;
@@ -1211,19 +1354,42 @@
 
   // ==================== Sub-Store & Share ====================
 
+  /**
+   * 获取 sub-store 配置，主要包括 sub-store 路径和端口。
+   *
+   * @async
+   * @returns {Object} 配置对象
+   * @returns {string} returns.subStorePath sub-store 的路径
+   * @returns {string|number} returns.portStr sub-store 的端口号
+   *
+   * @throws {Error} 当配置读取失败时抛出异常
+   *
+   * @example
+   * const cfg = await fetchSubStoreConfig();
+   * console.log(cfg.subStorePath,cfg.subStorePathYaml, cfg.portStr);
+   */
   async function fetchSubStoreConfig() {
     const r = await sfetch(API.config);
     if (!r.ok) throw new Error("读取配置失败");
     const config = YAML.parse(r.payload?.content ?? '');
     return {
       subStorePath: r.payload?.sub_store_path ?? '',
+      subStorePathYaml: config["sub-store-path"],
       portStr: config["sub-store-port"]
     };
   }
 
+  /**
+   * 构建 Sub-Store 访问 URL
+   * @param {Object} config 配置对象
+   * @param {string} config.subStorePath sub-store 路径
+   * @param {string|number} config.portStr sub-store 端口
+   * @returns {Object} 包含完整 URL 和 subStorePath
+   */
   function buildSubStoreUrl(config) {
-    const { subStorePath, portStr } = config;
+    const { subStorePath, subStorePathYaml, portStr } = config;
     if (!subStorePath) throw new Error("配置中未找到 sub_store_path");
+    if (!subStorePathYaml || subStorePathYaml == '') showToast("您未设置sub-store-path，当前使用随机值。请尽快设置！", "warn")
 
     let path = subStorePath;
     if (path && !path.startsWith('/') && path.length > 1) {
@@ -1255,7 +1421,11 @@
     };
   }
 
-  // 处理 sub-store 一键订阅管理
+  /**
+   * 打开并处理 Sub-Store 管理窗口
+   * @param {Event} e 点击事件对象
+   * @returns {Promise<void>} 异步操作，无返回值
+   */
   async function handleOpenSubStore(e) {
     e.preventDefault();
     if (!sessionKey) { showLogin(true); return; }
@@ -1347,7 +1517,12 @@
     }
   }
 
-  // 获取分享链接 Base URL
+  /**
+   * 获取分享链接的 Base URL
+   * @param {string} path 路径
+   * @param {string|number} port 端口号
+   * @returns {Promise<string>} 可用的 Base URL
+   */
   async function getBaseUrl(path, port) {
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
@@ -1508,20 +1683,40 @@
       actionInFlight = true;
       try {
         if (actionState === 'checking') {
+          // ==================== 停止逻辑 ====================
           updateToggleUI('stopping');
           showToast('正在停止...', 'info');
           await sfetch(API.forceClose, { method: 'POST' });
           const confirm = await waitForBackendChecking(false);
           if (confirm.ok) showToast('检测已停止', 'success');
         } else {
+          // ==================== 启动逻辑 ====================
           updateToggleUI('starting');
-          showProgressUI(true);
+
+          // 点击启动时，强制隐藏进度条，保持显示历史记录
+          showProgressUI(false);
+
+          // 立即更新状态栏，给用户“已响应”的反馈 (利用之前定义的 STATUS_SPINNER)
+          if (els.statusEl) {
+            // 如果 STATUS_SPINNER 变量在作用域内可用
+            if (typeof STATUS_SPINNER !== 'undefined') {
+              els.statusEl.innerHTML = `<span>正在启动任务...</span>`;
+            } else {
+              els.statusEl.textContent = "正在启动任务...";
+            }
+            els.statusEl.className = 'muted status-label status-prepare';
+          }
+
           checkStartTime = Date.now();
           showToast('启动中...', 'info');
+
           await sfetch(API.trigger, { method: 'POST' });
           const confirm = await waitForBackendChecking(true);
+
           if (confirm.ok) {
-            updateToggleUI('checking');
+            // 后端确认启动后，转为 preparing 状态
+            // 具体的 UI (显示历史还是进度条) 交给 loadStatus 的轮询去自动修正
+            updateToggleUI('preparing');
           } else {
             showProgressUI(false);
             updateToggleUI('idle');
@@ -1616,7 +1811,7 @@
       showToast('主题已重置为系统默认', 'info');
     });
 
-    // 分享菜单逻辑 (修复版)
+    // 分享菜单逻辑
     const setupShare = (id) => {
       const btn = document.getElementById(id);
       if (!btn) return;
@@ -1649,7 +1844,7 @@
           const config = YAML.parse(p?.content ?? "");
 
           let subStorePath = p?.sub_store_path ?? '';
-          const yamlSubStorePath = config["sub-store-path"] ?? "";
+          const SubStorePathYaml = config["sub-store-path"] ?? "";
           if (!subStorePath) return showToast('请先设置 sub_store_path', 'error');
           if (!SubStorePathYaml || SubStorePathYaml == '') showToast("您未设置sub-store-path，当前使用随机值。请尽快设置！", "warn");
 
