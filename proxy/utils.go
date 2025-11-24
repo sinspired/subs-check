@@ -1,3 +1,4 @@
+// utils.go
 package proxies
 
 import (
@@ -891,7 +892,7 @@ func ParseYamlFlowList(data []byte) []ProxyNode {
 		}
 
 		// 尝试将这一行作为独立的 YAML 解析
-		// 我们定义一个通用的切片来接收
+		// 定义一个通用的切片来接收
 		var tempNodes []map[string]any
 		err := yaml.Unmarshal([]byte(cleanLine), &tempNodes)
 		
@@ -906,12 +907,12 @@ func ParseYamlFlowList(data []byte) []ProxyNode {
 				}
 			}
 		} else {
-			// 如果标准解析失败（例如引号嵌套错误），尝试简单的正则提取修复
+			// TODO: 如果标准解析失败（例如引号嵌套错误），尝试简单的正则提取修复
 		}
 	}
 	
 	if len(nodes) > 0 {
-		slog.Info("使用逐行 YAML 容错解析成功", "count", len(nodes))
+		slog.Debug("使用逐行 YAML 容错解析成功", "count", len(nodes))
 	}
 	
 	return nodes

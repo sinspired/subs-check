@@ -55,7 +55,7 @@ func TestFindGhProxy(t *testing.T) {
 			// 打印耗时（毫秒）
 			slog.Info("",
 				"可用代理", r.proxy,
-				"耗时", fmt.Sprintf("%d ms", r.cost.Milliseconds()),
+				"耗时", fmt.Sprintf("%dms", r.cost.Milliseconds()),
 			)
 			allAvailable = append(allAvailable, r)
 

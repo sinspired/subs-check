@@ -1,3 +1,4 @@
+// get.go
 package proxies
 
 import (
@@ -38,6 +39,46 @@ type ProxyNode map[string]any
 
 type SubUrls struct {
 	SubUrls []string `yaml:"sub-urls" json:"sub-urls"`
+}
+
+// initEnvironment 初始化代理环境变量
+func initEnvironment() {
+	slog.Info("获取系统代理和Github代理状态")
+	// 下面这些函数来自外部包 github.com/sinspired/subs-check/utils，保留 utils. 前缀
+	utils.IsSysProxyAvailable = utils.GetSysProxy()
+	utils.IsGhProxyAvailable = utils.GetGhProxy()
+	if utils.IsSysProxyAvailable {
+		slog.Info("", "-system-proxy", config.GlobalConfig.SystemProxy)
+	}
+	if utils.IsGhProxyAvailable {
+		slog.Info("", "-github-proxy", config.GlobalConfig.GithubProxy)
+	}
+}
+
+// logSubscriptionStats 打印订阅数量统计
+func logSubscriptionStats(total, local, remote, history int) {
+	args := []any{}
+	if local > 0 {
+		args = append(args, "本地", local)
+	}
+	if remote > 0 {
+		args = append(args, "远程", remote)
+	}
+	if history > 0 {
+		args = append(args, "历史", history)
+	}
+	if total < local+remote+history {
+		args = append(args, "总计(去重)", total)
+	} else {
+		args = append(args, "总计", total)
+	}
+
+	slog.Info("订阅链接数量", args...)
+
+	if len(config.GlobalConfig.NodeType) > 0 {
+		val := fmt.Sprintf("[%s]", strings.Join(config.GlobalConfig.NodeType, ","))
+		slog.Info("代理协议筛选", slog.String("Type", val))
+	}
 }
 
 // GetProxies 主入口：获取、解析、去重及统计代理节点
@@ -171,30 +212,30 @@ func processSubscription(urlStr, tag string, wasSucced, wasHistory bool, out cha
 // parseSubscriptionData 智能分发解析器
 func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 	// 优先尝试带注释的 Sing-Box 配置
-	// # 注释，直接用标准 Unmarshal 会失败，所以最先尝试清洗解析
+	// 因为它包含 # 注释，直接用标准 Unmarshal 会失败，所以最先尝试清洗解析
 	if nodes := ParseSingBoxWithMetadata(data); len(nodes) > 0 {
-		slog.Info("识别到 Sing-Box 配置 (含元数据)")
+		slog.Debug("识别到 Sing-Box 配置 (含元数据)")
 		return nodes, nil
 	}
 
-	// 1. 优先尝试 YAML/JSON 结构化解析
+	// 尝试 YAML/JSON 结构化解析
 	var generic any
 	if err := yaml.Unmarshal(data, &generic); err == nil {
 		switch val := generic.(type) {
 		case map[string]any:
 			// Clash 格式
 			if proxies, ok := val["proxies"].([]any); ok {
-				slog.Info("提取clash格式")
+				slog.Debug("提取clash格式")
 				return convertListToNodes(proxies), nil
 			}
 			// Sing-Box 纯 JSON 格式
 			if outbounds, ok := val["outbounds"].([]any); ok {
-				slog.Info("提取singbox格式")
+				slog.Debug("提取singbox格式")
 				return ConvertSingBoxOutbounds(outbounds), nil
 			}
 			// 非标准 JSON (协议名为 Key, e.g. {"vless": [...], "hysteria": [...]})
 			if nodes := ConvertProtocolMap(val); len(nodes) > 0 {
-				slog.Info("解析到非标准 JSON格式的订阅")
+				slog.Debug("解析到非标准 JSON格式的订阅")
 				return nodes, nil
 			}
 		case []any:
@@ -202,7 +243,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 				return nil, nil
 			}
 			if _, ok := val[0].(string); ok {
-				slog.Info("解析到字符串数组 (链接列表)")
+				slog.Debug("解析到字符串数组 (链接列表)")
 				strList := make([]string, 0, len(val))
 				for _, v := range val {
 					if s, ok := v.(string); ok {
@@ -212,33 +253,32 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 				return ParseProxyLinksAndConvert(strList, subURL), nil
 			}
 			if _, ok := val[0].(map[string]any); ok {
-				slog.Info("解析到通用JSON对象数组 (Shadowsocks/SIP008等)")
+				slog.Debug("解析到通用JSON对象数组 (Shadowsocks/SIP008等)")
 				return ConvertGeneralJsonArray(val), nil
 			}
 		}
 	}
 
-	// 2. 其次尝试 Base64/V2Ray 标准转换
+	// 尝试 Base64/V2Ray 标准转换
 	if nodes, err := convert.ConvertsV2Ray(data); err == nil && len(nodes) > 0 {
-		slog.Info("v2ray格式")
 		return ToProxyNodes(nodes), nil
 	}
 
-	// 3. 针对 "局部合法、全局非法" 的多段 proxies 文件
+	// 针对 "局部合法、全局非法" 的多段 proxies 文件
 	if nodes := ExtractAndParseProxies(data); len(nodes) > 0 {
 		slog.Debug("通过多段解析，获取到代理节点", "count", len(nodes))
 		return nodes, nil
 	}
 
-	// 尝试逐行 YAML 流式解析
+	// 尝试逐行 YAML 流式解析 (这是上一步增加的容错逻辑)
 	if nodes := ParseYamlFlowList(data); len(nodes) > 0 {
 		return nodes, nil
 	}
 
-	// 4. 尝试 Surge/Surfboard 格式
+	// 尝试 Surge/Surfboard 格式
 	if bytes.Contains(data, []byte("=")) && (bytes.Contains(data, []byte("[VMess]")) || bytes.Contains(data, []byte(", 20"))) {
 		if nodes := ParseSurfboardProxies(data); len(nodes) > 0 {
-			slog.Info("Surfboard/Surge 格式", "count", len(nodes))
+			slog.Debug("Surfboard/Surge 格式", "count", len(nodes))
 			return nodes, nil
 		}
 	}
@@ -246,19 +286,19 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 	// 5. 尝试自定义 Bracket KV 格式 ([Type]Name=...)
 	
 	if nodes := ParseBracketKVProxies(data); len(nodes) > 0 {
-		slog.Info("Bracket KV 格式")
+		slog.Debug("Bracket KV 格式")
 		return nodes, nil
 	}
 
-	// 6. 尝试 V2Ray Core JSON (按行)
+	// 尝试 V2Ray Core JSON
 	if nodes := ParseV2RayJsonLines(data); len(nodes) > 0 {
-		slog.Info("识别到 V2Ray JSON Lines 格式", "count", len(nodes))
+		slog.Debug("识别到 V2Ray JSON Lines 格式", "count", len(nodes))
 		return nodes, nil
 	}
 
-	// 7. 最后尝试按行猜测
+	// 最后尝试按行猜测
 	if nodes := parseRawLines(data, subURL); len(nodes) > 0 {
-		slog.Info("按行猜测")
+		slog.Debug("按行猜测")
 		return nodes, nil
 	}
 
@@ -278,7 +318,7 @@ func parseRawLines(data []byte, subURL string) []ProxyNode {
 	if len(lines) == 0 {
 		return nil
 	}
-	
+
 	return ParseProxyLinksAndConvert(lines, subURL)
 }
 
@@ -289,7 +329,8 @@ func fallbackExtractV2Ray(data []byte, subURL string) []ProxyNode {
 	if len(links) == 0 {
 		return nil
 	}
-	slog.Info("开始处理提取到的链接", "count", len(links))
+	slog.Debug("开始处理提取到的链接", "count", len(links))
+
 	return ParseProxyLinksAndConvert(links, subURL)
 }
 
@@ -328,6 +369,7 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 	}
 
 	strategies := []strategy{}
+
 	isLocalURL := utils.IsLocalURL(rawURL)
 
 	warpFunc := func(s string) string { return utils.WarpURL(EnsureScheme(s), true) }
@@ -434,19 +476,6 @@ func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, boo
 
 	body, err := io.ReadAll(resp.Body)
 	return body, err, false
-}
-
-// initEnvironment 初始化代理环境变量
-func initEnvironment() {
-	slog.Info("获取系统代理和Github代理状态")
-	utils.IsSysProxyAvailable = utils.GetSysProxy()
-	utils.IsGhProxyAvailable = utils.GetGhProxy()
-	if utils.IsSysProxyAvailable {
-		slog.Info("", "-system-proxy", config.GlobalConfig.SystemProxy)
-	}
-	if utils.IsGhProxyAvailable {
-		slog.Info("", "-github-proxy", config.GlobalConfig.GithubProxy)
-	}
 }
 
 // resolveSubUrls 合并本地与远程订阅清单并去重
@@ -584,32 +613,6 @@ func fetchRemoteSubUrls(listURL string) ([]string, error) {
 	return res, nil
 }
 
-// logSubscriptionStats 打印订阅数量统计
-func logSubscriptionStats(total, local, remote, history int) {
-	args := []any{}
-	if local > 0 {
-		args = append(args, "本地", local)
-	}
-	if remote > 0 {
-		args = append(args, "远程", remote)
-	}
-	if history > 0 {
-		args = append(args, "历史", history)
-	}
-	if total < local+remote {
-		args = append(args, "总计（去重）", total)
-	} else {
-		args = append(args, "总计", total)
-	}
-
-	slog.Info("订阅链接数量", args...)
-
-	if len(config.GlobalConfig.NodeType) > 0 {
-		val := fmt.Sprintf("[%s]", strings.Join(config.GlobalConfig.NodeType, ","))
-		slog.Info("代理协议筛选", slog.String("Type", val))
-	}
-}
-
 // identifyLocalSubType 识别本地订阅源类型
 func identifyLocalSubType(subURL, listenPort, storePort string) (isLatest, isHistory bool, tag string) {
 	u, err := url.Parse(subURL)
@@ -620,7 +623,7 @@ func identifyLocalSubType(subURL, listenPort, storePort string) (isLatest, isHis
 	tag = u.Fragment
 	port := u.Port()
 
-	// 必须是本地地址 (调用 External utils)
+	// 必须是本地地址
 	if !utils.IsLocalURL(subURL) {
 		return false, false, tag
 	}
@@ -679,6 +682,7 @@ func cleanMetadata(p ProxyNode) {
 
 // 生成唯一 key
 func generateProxyKey(p map[string]any) string {
+	//TODO: http协议,需添加tls识别
 	server := strings.TrimSpace(fmt.Sprint(p["server"]))
 	port := strings.TrimSpace(fmt.Sprint(p["port"]))
 	typ := strings.ToLower(strings.TrimSpace(fmt.Sprint(p["type"])))
