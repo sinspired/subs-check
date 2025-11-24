@@ -863,7 +863,7 @@
       els.statusEl.textContent = `状态：${ok ? '空闲' : '未登录'}`;
       els.statusEl.className = 'muted status-label ' + (ok ? 'status-logged' : 'status-idle');
     }
-    [els.toggleBtn, els.refreshLogsBtn, els.saveCfgBtn, els.reloadCfgBtn].forEach(b => b && (b.disabled = !ok));
+    [els.toggleBtn, els.refreshLogsBtn, els.saveCfgBtn, els.searchBtn, els.reloadCfgBtn].forEach(b => b && (b.disabled = !ok));
     updateToggleUI(ok ? 'idle' : 'disabled');
   }
 
@@ -1121,6 +1121,15 @@
     els.refreshLogsBtn?.addEventListener('click', () => {
       showToast('正在刷新日志...', 'info');
       loadLogsIncremental(false);
+    });
+
+    // 绑定编辑器搜索按钮事件
+    searchBtn?.addEventListener('click', () => {
+      if (window.searchView && searchPanelOpen(window.searchView.state)) {
+        closeSearchPanel(window.searchView);
+      } else if (window.searchView) {
+        openSearchPanel(window.searchView);
+      }
     });
     els.saveCfgBtn?.addEventListener('click', saveConfigWithValidation);
     els.reloadCfgBtn?.addEventListener('click', async () => {
