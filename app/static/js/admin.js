@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  // api常量
+  // ==================== 常量定义 ====================
   const API = {
     status: '/api/status',
     logs: '/api/logs',
@@ -13,81 +13,101 @@
     publicVersion: '/admin/version'
   };
 
-  const REFRESH_STATUS_INTERVAL_MS = 1000;
-  const LOAD_LOGS_INTERVAL_MS = 1000;
+  // --- 动态轮询配置 ---
+  const STATUS_INTERVAL_FAST = 800;  // 检测中：状态刷新 0.8秒
+  const STATUS_INTERVAL_SLOW = 3000; // 空闲时：状态刷新 3秒
+
+  const LOG_INTERVAL_FAST = 1000;    // 检测中：日志刷新 1秒
+  const LOG_INTERVAL_SLOW = 3000;    // 空闲时：日志刷新 3秒
+
   const MAX_LOG_LINES = 1000;
   const MAX_FAILURE_DURATION_MS = 10000;
   const ACTION_CONFIRM_TIMEOUT_MS = 600000;
+  const THEME_KEY = 'theme';
 
-  // 页面元素
+  // ==================== DOM 元素缓存 ====================
   const $ = s => document.querySelector(s);
-  const apiKeyInput = $('#apiKeyInput');
-  const showApikeyBtn = $('#show-apikey');
-  const loginBtn = $('#login-button');
-  const rememberKey = $('#rememberKey');
-  const loginModal = $('#loginModal');
-  const statusEl = $('#status');
-  const logContainer = $('#logContainer');
-  const versionBadge = $('#version-badge');
-  const versionLogin = $(`#version-login`);
-  const versionInline = $('#versionInline');
-  const toggleBtn = $('#btnToggleCheck');
-  const refreshLogsBtn = $('#refreshLogs');
-  const saveCfgBtn = $('#saveCfg');
-  const reloadCfgBtn = $('#reloadCfg');
-  const configEditor = $('#configEditor');
-  let codeMirrorView = null;  // 新增：CodeMirror 实例
-  const editorContainer = $('#editorContainer');
-  const progressBar = $('#progress');
-  const progressText = $('#progressText');
-  const progressPercentTitle = $(`#progressPercentTitle`)
-  const successTitle = $(`#successTitle`)
-  const successText = $('#successText');
-  const progressPercent = $('#progressPercent');
-  const downloadLogsBtnSide = $('#downloadLogsBtnSide');
-  const logoutBtn = $('#logoutBtn');
-  const logoutBtnMobile = $('#logoutBtnMobile');
-  const openEditorBtn = $('#openEditor');
-  const themeToggleBtn = $('#themeToggle');
-  const iconMoon = $('#iconMoon');
-  const iconSun = $('#iconSun');
-  const shareBtn = document.getElementById("share");
-  const shareMenu = document.getElementById("shareMenu");
-  const btnShare = document.getElementById("btnShare");
-  const projectInfoBtn = document.getElementById('project-info');
-  const projectMenu = document.getElementById('projectMenu');
-  const githubMenuBtn = document.getElementById('githubMenuBtn');
-  const dockerMenuBtn = document.getElementById('dockerMenuBtn');
-  const telegramMenuBtn = document.getElementById('telegramMenuBtn');
-  const githubUrlBtn = document.getElementById('githubUrlBtn');
-  const dockerUrlBtn = document.getElementById('dockerUrlBtn');
-  const telegramUrlBtn = document.getElementById('telegramUrlBtn');
-  const subStoreBtn = document.getElementById('sub-store');
-  const subStoreBtnMobile = document.getElementById('btnSubStore');
-
-  // 上次检测结果
-  const lastCheckResult = $('#lastCheckResult');
-  const lastCheckTime = $('#lastCheckTime');
-  const lastCheckDuration = $('#lastCheckDuration');
-  const lastCheckTotal = $('#lastCheckTotal');
-  const lastCheckAvailable = $('#lastCheckAvailable');
+  const els = {
+    apiKeyInput: $('#apiKeyInput'),
+    showApikeyBtn: $('#show-apikey'),
+    loginBtn: $('#login-button'),
+    rememberKey: $('#rememberKey'),
+    loginModal: $('#loginModal'),
+    statusEl: $('#status'),
+    logContainer: $('#logContainer'),
+    versionBadge: $('#version-badge'),
+    versionLogin: $(`#version-login`),
+    versionInline: $('#versionInline'),
+    toggleBtn: $('#btnToggleCheck'),
+    refreshLogsBtn: $('#refreshLogs'),
+    saveCfgBtn: $('#saveCfg'),
+    reloadCfgBtn: $('#reloadCfg'),
+    configEditor: $('#configEditor'),
+    editorContainer: $('#editorContainer'),
+    progressBar: $('#progress'),
+    progressText: $('#progressText'),
+    progressPercentTitle: $(`#progressPercentTitle`),
+    successTitle: $(`#successTitle`),
+    successText: $('#successText'),
+    progressPercent: $('#progressPercent'),
+    downloadLogsBtnSide: $('#downloadLogsBtnSide'),
+    searchBtn: $('#searchBtn'),
+    logoutBtn: $('#logoutBtn'),
+    logoutBtnMobile: $('#logoutBtnMobile'),
+    openEditorBtn: $('#openEditor'),
+    themeToggleBtn: $('#themeToggle'),
+    iconMoon: $('#iconMoon'),
+    iconSun: $('#iconSun'),
+    projectInfoBtn: document.getElementById('project-info'),
+    projectMenu: document.getElementById('projectMenu'),
+    lastCheckTime: $('#lastCheckTime'),
+    lastCheckDuration: $('#lastCheckDuration'),
+    lastCheckTotal: $('#lastCheckTotal'),
+    lastCheckAvailable: $('#lastCheckAvailable'),
+    historyPlaceholder: document.getElementById('historyPlaceholder'),
+    historyLine: $(`#history-line`),
+    toastContainer: document.getElementById('toastContainer') || createToastContainer()
+  };
 
   // ==================== 全局状态 ====================
   let sessionKey = null;
-  let pollers = { logs: null, status: null };
+  let timers = { logs: null, status: null };
+
+  // 动态间隔控制
+  let currentStatusInterval = STATUS_INTERVAL_SLOW;
+  let currentLogInterval = LOG_INTERVAL_SLOW;
+
   let lastLogLines = [];
-  let autoScrollLogs = false;
-  let lastProgress = { time: 0, processed: 0, total: 0 };
-  let apiFailureCount = 0;
-  let firstFailureAt = null;
   let logsPollRunning = false;
   let statusPollRunning = false;
+
+  let apiFailureCount = 0;
+  let firstFailureAt = null;
+
   let actionState = 'unknown';
   let actionInFlight = false;
-  let lastCheckInfo = null; // 存储上次检测信息
-  let checkStartTime = null; // 记录检测开始时间
 
-  // 工具函数
+  let lastCheckInfo = null;
+  let checkStartTime = null;
+  let codeMirrorView = null;
+
+  // Sub-Store 跳转缓存
+  let _cachedSubStoreConfig = null;
+  let lastSubStorePath = null;
+
+  // 分享按钮缓存
+  let cachedConfigPayload = null;
+  let cachedSingboxVersions = null;
+
+  // ==================== 核心工具函数 ====================
+
+  function createToastContainer() {
+    const c = document.createElement('div');
+    c.id = 'toastContainer';
+    document.body.appendChild(c);
+    return c;
+  }
+
   function safeLS(key, value) {
     try {
       if (value === undefined) return localStorage.getItem(key);
@@ -96,51 +116,41 @@
     } catch (e) { return null; }
   }
 
-  (function initToast() {
-    if (!document.getElementById('toastContainer')) {
-      const c = document.createElement('div');
-      c.id = 'toastContainer';
-      document.body.appendChild(c);
-    }
-  })();
-
   function showToast(msg, type = 'info', timeout = 3000) {
-    const c = document.getElementById('toastContainer');
+    const c = els.toastContainer;
     if (!c) return;
-
     const el = document.createElement('div');
     el.className = 'toast ' + (type || 'info');
-
     const ico = document.createElement('span');
     ico.className = 'icon';
     el.appendChild(ico);
-
     const t = document.createElement('div');
     t.style.flex = '1';
     t.textContent = msg;
     el.appendChild(t);
-
-    // 进度条
     const bar = document.createElement('div');
     bar.className = 'progress-bar';
     bar.style.animationDuration = timeout + 'ms';
     el.appendChild(bar);
-
     c.appendChild(el);
-
     setTimeout(() => {
       el.style.opacity = '0';
       el.style.transform = 'translateX(6px)';
     }, timeout);
-
     setTimeout(() => {
       try { c.removeChild(el); } catch (e) { }
     }, timeout + 420);
   }
 
   function escapeHtml(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
+
+  function sleep(ms) {
+    return new Promise(res => setTimeout(res, ms));
+  }
+
+  // ==================== API 通信 ====================
 
   async function sfetch(url, opts = {}) {
     if (!sessionKey) return { ok: false, status: 401, error: '未认证' };
@@ -155,26 +165,23 @@
         doLogout('未授权：API Key 无效或已失效');
         return { ok: false, status: 401, payload };
       }
-
       if (r.ok) {
         resetApiFailures();
         return { ok: true, status: r.status, payload };
       }
-
-      apiFailureCount++;
-      if (!firstFailureAt) firstFailureAt = Date.now();
-      if (firstFailureAt && (Date.now() - firstFailureAt) >= MAX_FAILURE_DURATION_MS) {
-        doLogout('连续无法连接 API 超过 10 秒');
-        return { ok: false, status: r.status, payload };
-      }
+      handleApiFailure();
       return { ok: false, status: r.status, payload };
     } catch (e) {
-      apiFailureCount++;
-      if (!firstFailureAt) firstFailureAt = Date.now();
-      if (firstFailureAt && (Date.now() - firstFailureAt) >= MAX_FAILURE_DURATION_MS) {
-        doLogout('连续无法连接 API 超过 10 秒');
-      }
+      handleApiFailure();
       return { ok: false, error: e };
+    }
+  }
+
+  function handleApiFailure() {
+    apiFailureCount++;
+    if (!firstFailureAt) firstFailureAt = Date.now();
+    if (firstFailureAt && (Date.now() - firstFailureAt) >= MAX_FAILURE_DURATION_MS) {
+      doLogout('连续无法连接 API 超过 10 秒');
     }
   }
 
@@ -183,306 +190,116 @@
     firstFailureAt = null;
   }
 
-  // 认证
-  function showLogin(show) {
-    getPublicVersion();
-    if (!loginModal) return;
-    loginModal.classList.toggle('login-hidden', !show);
-    if (show) {
-      apiKeyInput?.focus();
+  // ==================== 轮询控制 (全动态变速) ====================
+
+  function startPollers() {
+    if (!sessionKey) return;
+    startLogPoller();
+    if (!timers.status) {
+      const statusLoop = async () => {
+        if (!sessionKey) return;
+        if (!statusPollRunning) {
+          await loadStatus().catch(() => { });
+        }
+        timers.status = setTimeout(statusLoop, currentStatusInterval);
+      };
+      statusLoop();
     }
   }
 
-  function updateToggleUI(state) {
-    actionState = state;
-    if (!toggleBtn) return;
+  function stopPollers() {
+    if (timers.status) {
+      clearTimeout(timers.status);
+      timers.status = null;
+    }
+    if (timers.logs) {
+      clearTimeout(timers.logs);
+      timers.logs = null;
+    }
+  }
 
-    toggleBtn.className = 'toggle-btn state-' + state;
-    const iconEl = toggleBtn.querySelector('.btn-icon');
-
-    const config = {
-      idle: {
-        icon: `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 5v14l11-7z"/>
-        </svg>
-      `,
-        disabled: false,
-        title: '开始检测',
-        pressed: 'false'
-      },
-      starting: {
-        icon: `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 12h-2.25c0 5.5 4.25 10 9.75 10s9.75-4.5 9.75-10-4.25-10-9.75-10-9.75 4.5-9.75 10zM12 7.5v9"/>
-        </svg>
-      `,
-        disabled: true,
-        title: '正在开始',
-        pressed: 'true'
-      },
-      checking: {
-        icon: `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 6h12v12H6z"/>
-        </svg>
-      `,
-        disabled: false,
-        title: '检测中 - 点击停止',
-        pressed: 'true'
-      },
-      stopping: {
-        icon: `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 12h-2.25c0 5.5 4.25 10 9.75 10s9.75-4.5 9.75-10-4.25-10-9.75-10-9.75 4.5-9.75 10zM12 7.5v9"/>
-        </svg>
-      `,
-        disabled: true,
-        title: '正在结束',
-        pressed: 'true'
-      },
-      disabled: {
-        icon: `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
-          <path d="M5 12h14"/>
-        </svg>
-      `,
-        disabled: true,
-        title: '请先登录',
-        pressed: 'false'
+  function startLogPoller() {
+    if (timers.logs) return;
+    const logLoop = async () => {
+      if (!sessionKey) return;
+      if (!logsPollRunning) {
+        await loadLogsIncremental(true).catch(() => { });
       }
+      timers.logs = setTimeout(logLoop, currentLogInterval);
     };
-
-    const cfg = config[state] || config.disabled;
-    toggleBtn.disabled = cfg.disabled;
-    toggleBtn.title = cfg.title;
-    toggleBtn.setAttribute('aria-pressed', cfg.pressed);
-    if (iconEl) iconEl.innerHTML = cfg.icon;  // 改为innerHTML，支持SVG
+    logLoop();
   }
 
-  function setAuthUI(ok) {
-    statusEl.textContent = `状态：${ok ? '空闲' : '未登录'}`;
-    statusEl.className = 'muted status-label ' + (ok ? 'status-logged' : 'status-idle');
-    [toggleBtn, refreshLogsBtn, saveCfgBtn, reloadCfgBtn].forEach(b => b && (b.disabled = !ok));
-    updateToggleUI(ok ? 'idle' : 'disabled');
-  }
+  // ==================== 业务逻辑 ====================
 
-  async function onLoginBtnClick() {
-    const k = apiKeyInput?.value?.trim();
-    if (!k) {
-      showToast('请输入 API 密钥', 'warn');
-      apiKeyInput?.focus();
-      return;
-    }
-
-    loginBtn.disabled = true;
-    loginBtn.textContent = '验证中…';
-
+  async function loadStatus() {
+    if (!sessionKey || statusPollRunning) return;
+    statusPollRunning = true;
     try {
-      const resp = await fetch(API.status, { headers: { 'X-API-Key': k } });
-      if (resp.status === 401) {
-        showToast('API 密钥无效', 'error');
-        return;
-      }
-      if (!resp.ok) {
-        showToast('验证失败，HTTP ' + resp.status, 'error');
+      const r = await sfetch(API.status);
+      if (!r.ok) {
+        if (els.statusEl) {
+          els.statusEl.textContent = '获取状态失败';
+          els.statusEl.className = 'muted status-label status-error';
+        }
         return;
       }
 
-      sessionKey = k;
-      if (rememberKey?.checked) safeLS('subscheck_api_key', k);
+      const d = r.payload || {};
+      const checking = !!d.checking;
 
-      showLogin(false);
-      document.activeElement?.blur();
-      setAuthUI(true);
-      await loadAll();
-      startPollers();
-      showToast('验证成功，已登录', 'success');
-    } catch (e) {
-      showToast('网络错误或服务器未响应', 'error');
+      // --- 动态调整频率 ---
+      if (checking) {
+        currentStatusInterval = STATUS_INTERVAL_FAST;
+        currentLogInterval = LOG_INTERVAL_FAST;
+      } else {
+        currentStatusInterval = STATUS_INTERVAL_SLOW;
+        currentLogInterval = LOG_INTERVAL_SLOW;
+      }
+
+      const lastChecked = d.lastCheck && (typeof d.lastCheck.total === 'number');
+
+      if (checking) {
+        updateToggleUI('checking');
+        showProgressUI(true);
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked);
+        hideLastCheckResult();
+        if (!checkStartTime) checkStartTime = Date.now();
+      } else {
+        showProgressUI(false);
+        updateToggleUI('idle');
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked);
+
+        if (els.progressBar && (d.progress === 0 || d.proxyCount === 0)) {
+          els.progressBar.value = 0;
+        }
+
+        if (lastChecked) {
+          showLastCheckResult({
+            lastCheckTime: d.lastCheck.time || d.lastCheck.timestamp,
+            duration: d.lastCheck.duration,
+            total: d.lastCheck.total || d.proxyCount,
+            available: d.lastCheck.available || d.available
+          });
+          checkStartTime = null;
+        } else if (checkStartTime && lastCheckInfo) {
+          const duration = Math.round((Date.now() - checkStartTime) / 1000);
+          showLastCheckResult({
+            lastCheckTime: new Date().toISOString().replace('T', ' ').split('.')[0],
+            duration: duration,
+            total: d.proxyCount || lastCheckInfo.total,
+            available: d.available || lastCheckInfo.available
+          });
+          checkStartTime = null;
+        } else if (lastCheckInfo) {
+          showLastCheckResult(lastCheckInfo);
+        } else {
+          showLastCheckResult(null);
+        }
+      }
     } finally {
-      loginBtn.disabled = false;
-      loginBtn.textContent = '进入管理界面';
+      statusPollRunning = false;
     }
-  }
-
-  function doLogout(reason = '已退出登录') {
-    stopPollers();
-    sessionKey = null;
-    safeLS('subscheck_api_key', null);
-    setAuthUI(false);
-    if (logContainer) logContainer.innerHTML = '<div class="muted" style="font-family: system-ui;">已退出登录。</div>';
-    if (configEditor) setEditorContent('');
-    resetApiFailures();
-    // 隐藏进度以避免残留 UI
-    try { showProgressUI(false); } catch (e) { }
-    showLogin(true);
-    showToast(reason, 'info');
-  }
-
-  // 日志处理
-  function colorize(line) {
-    // 1. 提取时间戳 格式为 "2025-11-23 07:02:57 ..."
-    const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-
-    // 2. HTML 转义 (防止 XSS，且保留 ANSI 码用于后续处理)
-    let out = escapeHtml(line);
-
-    // 3. 处理时间戳样式
-    if (tsMatch) {
-      const ts = tsMatch[0];
-      // 给时间戳加样式，并保留剩余字符串
-      out = '<span class="log-time">' + ts + '</span>' + out.slice(ts.length);
-    }
-
-    // 正则说明：
-    // \x1b       匹配 ESC 字符
-    // \[         匹配 [
-    // ([\d;]+)   捕获组：匹配一个或多个数字或分号 (例如 "31" 或 "31;9")
-    // m          匹配结束符 m
-    // /g         全局匹配，确保替换行内所有出现的 ANSI 块
-    out = out.replace(/\x1b\[([\d;]+)m/g, function (match, innerCode) {
-      // 将组合代码拆分，例如 "31;9" -> ["31", "9"]
-      // 如果是单纯的 "31"，则数组为 ["31"]
-      const codes = innerCode.split(';');
-      let html = '';
-
-      // 遍历当前 ANSI 块中的所有代码
-      codes.forEach(code => {
-        switch (code) {
-          // --- 颜色类 ---
-          case '31': // 红色 (Error/Fail)
-            html += '<span style="color: #ff4d4f; font-weight: bold;">';
-            break; // break 仅跳出 switch，继续下一轮 forEach
-          case '33': // 黄色 (Warn)
-            html += '<span style="color: #faad14; font-weight: bold;">';
-            break;
-
-          // --- 样式类 ---
-          case '9':  // 删除线 (Strikethrough)
-            // color: #999 让删除的文字变灰
-            html += '<span style="text-decoration: line-through; color: #999; opacity: 0.8;">';
-            break;
-
-          // --- 重置/结束类 ---
-          case '29': // 取消删除线 (Go代码中专门用于结束 \033[9m)
-            html += '</span>';
-            break;
-          case '39': // 重置默认前景色 (有时会用到)
-          case '0':  // 重置所有属性 (Reset)
-            // 输出多个闭合标签。
-            // 浏览器会自动忽略多余的闭合标签，这样能确保关闭深层嵌套的样式
-            // (例如 <span red><span strike>...</span></span>)
-            html += '</span></span></span>';
-            break;
-
-          default:
-            // 忽略不支持的代码，不输出任何 HTML
-            break;
-        }
-      });
-
-      return html;
-    });
-
-    // 4. 关键字高亮 (INF, ERR 等) - 在处理完 ANSI 后处理，避免冲突
-    out = out.replace(/\b(INF|INFO)\b/g, '<span class="log-info">INF</span>');
-    out = out.replace(/\b(ERR|ERROR)\b/g, '<span class="log-error">ERR</span>');
-    out = out.replace(/\b(WRN|WARN)\b/g, '<span class="log-warn">WRN</span>');
-    out = out.replace(/\b(DBG|DEBUG)\b/g, '<span class="log-debug">DBG</span>');
-
-    // 5. 特殊业务逻辑：发现新版本
-    if (/发现新版本/.test(out)) {
-      out = out.replace(/最新版本=([^\s]+)/, '最新版本=<span class="success-highlight">$1</span>');
-      out = '<div class="log-new-version">' + out + '</div>';
-    }
-
-    return out;
-  }
-
-  // 辅助函数：HTML 转义
-  function escapeHtml(text) {
-    if (!text) return text;
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-
-  // 鼠标进入/离开监听
-  let isMouseInsideLog = false;
-
-  if (logContainer) {
-    logContainer.addEventListener('mouseenter', () => {
-      isMouseInsideLog = true;
-    });
-    logContainer.addEventListener('mouseleave', () => {
-      isMouseInsideLog = false;
-    });
-  }
-
-  // 检查选中 + 鼠标位置
-  function isUserSelectingOrHovering() {
-    const sel = window.getSelection();
-    const hasSelection = sel && sel.toString().length > 0;
-    return hasSelection || isMouseInsideLog;  // 如果有选中或鼠标在容器内，返回 true（暂停/不强制）
-  }
-
-  function renderLogLines(lines, IntervalRun) {
-    if (!logContainer) return;
-
-    if (isUserSelectingOrHovering() && IntervalRun) {
-      logContainer.title = "暂停自动刷新";
-      return;  // 暂停刷新
-    }
-
-    logContainer.title = "";  // 清空提示
-
-    // 更新内容
-    logContainer.innerHTML = lines.map(l => '<div>' + colorize(l) + '</div>').join('');
-
-    requestAnimationFrame(() => {
-      // - 如果鼠标不在容器内，直接强制到底部
-      // - 如果在容器内，只在接近底部时滚动
-      if (!isMouseInsideLog) {
-        logContainer.scrollTop = logContainer.scrollHeight;
-      } else {
-        const isScrolledToBottom = logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 1;
-        if (isScrolledToBottom) {
-          logContainer.scrollTop = logContainer.scrollHeight;
-        }
-      }
-    });
-  }
-
-  function appendLogLines(linesToAdd) {
-    if (!logContainer || !linesToAdd?.length) return;
-
-    const frag = document.createDocumentFragment();
-    linesToAdd.forEach(l => {
-      const d = document.createElement('div');
-      d.innerHTML = colorize(l);
-      frag.appendChild(d);
-    });
-    logContainer.appendChild(frag);
-
-    while (logContainer.children.length > MAX_LOG_LINES) {
-      logContainer.removeChild(logContainer.firstChild);
-    }
-
-    requestAnimationFrame(() => {
-      if (!isMouseInsideLog) {
-        logContainer.scrollTop = logContainer.scrollHeight;
-      } else {
-        const isScrolledToBottom = logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 1;
-        if (isScrolledToBottom) {
-          logContainer.scrollTop = logContainer.scrollHeight;
-        }
-      }
-    });
   }
 
   async function loadLogsIncremental(IntervalRun) {
@@ -504,7 +321,6 @@
       if (lastLogLines.length === 0) {
         lastLogLines = newTail;
         renderLogLines(lastLogLines, IntervalRun);
-
         if (!lastCheckInfo) {
           const parsed = parseCheckResultFromLogs(newTail);
           if (parsed) {
@@ -523,7 +339,6 @@
         const added = addedPart.split('\n').filter(s => s !== '');
         if (added.length > 0) {
           appendLogLines(added);
-
           if (added.some(line => line.includes('检测完成'))) {
             const parsed = parseCheckResultFromLogs(newTail);
             if (parsed) {
@@ -542,350 +357,9 @@
     }
   }
 
-  // 从日志解析检测结果
-  function parseCheckResultFromLogs(logs) {
-    if (!logs || !Array.isArray(logs)) return null;
-
-    const lines = logs.map(String);
-    let startTime = null;
-    let endTime = null;
-    let totalNodes = 0;
-    let availableNodes = 0;
-
-    // 从后往前查找，获取最近一次完整的检测信息
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i];
-
-      // 检测完成标记
-      if (!endTime && line.includes('检测完成')) {
-        const timeMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-        if (timeMatch) endTime = timeMatch[1];
-      }
-
-      // 可用节点数量
-      if (!availableNodes && line.includes('可用节点数量:')) {
-        const match = line.match(/可用节点数量:\s*(\d+)/);
-        if (match) availableNodes = parseInt(match[1]);
-      }
-
-      // 去重后节点数量（作为总数）
-      if (!totalNodes && line.includes('去重后节点数量:')) {
-        const match = line.match(/去重后节点数量:\s*(\d+)/);
-        if (match) totalNodes = parseInt(match[1]);
-      }
-
-      // 开始检测标记
-      if (!startTime && (line.includes('手动触发检测') || line.includes('开始准备检测代理'))) {
-        const timeMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-        if (timeMatch) startTime = timeMatch[1];
-
-        if (startTime && endTime && availableNodes && totalNodes) {
-          break; // 找到开始就停止
-        }
-      }
-    }
-
-    // 如果找到了完整信息
-    if (startTime && endTime && totalNodes > 0) {
-      const start = new Date(startTime);
-      const end = new Date(endTime);
-      const duration = Math.round((end - start) / 1000); // 秒
-
-      return {
-        lastCheckTime: endTime,
-        duration: duration,
-        total: totalNodes,
-        available: availableNodes
-      };
-    }
-
-    return null;
-  }
-
-  // setEditorContent：使用 CodeMirror
-  function setEditorContent(txt) {
-    if (!codeMirrorView) return;
-    const cleaned = (txt || '').replace(/\r\n/g, '\n');
-    codeMirrorView.dispatch({
-      changes: { from: 0, to: codeMirrorView.state.doc.length, insert: cleaned }
-    });
-  }
-
-  // 初始化 CodeMirror
-  function initCodeMirror(initialValue = '') {
-    const container = $('#configEditor');
-    if (!container || codeMirrorView) return;  // 已初始化跳过
-
-    // 等待 DOM 就绪
-    requestAnimationFrame(() => {
-      codeMirrorView = window.CodeMirror.createEditor(container, initialValue, getCurrentTheme());
-      // codeMirrorView.focus();  // 自动焦点
-
-      // 主题变化监听（同步你的全局主题）
-      const observer = new MutationObserver(() => {
-        const newTheme = getCurrentTheme();
-        // 如果需要动态切换主题，可扩展 CodeMirror API（例如 dispatch 新扩展）
-        // 这里简化：重新创建视图（简单但有效；生产可优化为更新扩展）
-        if (newTheme !== getCurrentTheme()) {
-          const currentValue = codeMirrorView ? codeMirrorView.state.doc.toString() : '';
-          codeMirrorView.destroy();  // 销毁旧视图
-          codeMirrorView = window.CodeMirror.createEditor(container, currentValue, newTheme);
-        }
-      });
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    });
-  }
-
-  // 获取当前主题
-  function getCurrentTheme() {
-    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-  }
-
-  // loadConfigValidated：加载后初始化 CodeMirror
-  async function loadConfigValidated() {
-    if (!sessionKey) return;
-    const r = await sfetch(API.config);
-    if (!r.ok) {
-      showToast('读取配置失败', 'warn');
-      return;
-    }
-
-    const p = r.payload;
-    let raw = '';
-    if (p?.content !== undefined) raw = p.content;
-    else if (typeof p === 'string') raw = p;
-
-    // 初始化 CodeMirror（如果未初始化）
-    if (!codeMirrorView) {
-      initCodeMirror(raw);
-    } else {
-      setEditorContent(raw);
-    }
-  }
-
-  // saveConfigWithValidation：从 CodeMirror 获取值
-  async function saveConfigWithValidation() {
-    if (!sessionKey) {
-      showLogin(true);
-      showToast('请先登录', 'warn');
-      return;
-    }
-    if (!codeMirrorView) {
-      showToast('编辑器未初始化', 'error');
-      return;
-    }
-
-    const rawContent = codeMirrorView.state.doc.toString();
-
-    const diagnostics = (view => {
-      const diagnostics = [];
-      const text = view.state.doc.toString();
-
-      try {
-        const doc = YAML.parseDocument(text);
-
-        if (doc.errors) {
-          for (const err of doc.errors) {
-            const pos = err.pos?.[0] ?? 0;
-            // 获取错误所在行
-            const line = view.state.doc.lineAt(pos);
-
-            diagnostics.push({
-              from: line.from,   // 行首
-              to: line.to,       // 行尾
-              severity: "error",
-              message: err.message
-            });
-          }
-        }
-      } catch (e) {
-        diagnostics.push({
-          from: 0,
-          to: text.length,
-          severity: "error",
-          message: e.message
-        });
-      }
-
-      return diagnostics;
-    })(codeMirrorView);
-
-    // 如果有错误，拼接所有错误信息并通知
-    const errorMessages = diagnostics
-      .filter(d => d.severity === "error")
-      .map(d => d.message)
-      .join("；");
-
-    if (errorMessages) {
-      showToast("YAML 语法错误：" + errorMessages, "error", 6000);
-      return;
-    }
-
-    // 格式化（保留注释）
-    let formatted = rawContent;
-    try {
-      const doc = YAML.parseDocument(rawContent);
-      formatted = doc.toString();
-      setEditorContent(formatted);
-    } catch (e) {
-      // 理论上不会走到这里，因为 lint 已经拦截了
-      showToast('YAML 语法错误：' + e.message, 'error', 6000);
-      console.error("保存时 YAML 格式化失败:", e);
-    }
-
-    const r = await sfetch(API.config, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: formatted })
-    });
-
-    if (!r.ok) {
-      showToast('保存失败', 'error');
-      return;
-    }
-
-    if (r.payload?.error) {
-      showToast('保存失败：' + r.payload.error, 'error');
-    } else {
-      showToast(r.payload?.message || '保存成功', 'success');
-      await loadConfigValidated();
-    }
-  }
-
-  // 控制进度容器的显示/隐藏（隐藏: 'none'，显示: 恢复默认）
-  function showProgressUI(visible) {
-    const v = !!visible;
-    try {
-      const progWrapper = document.querySelector('#mainContent .progress-wrapper') || document.querySelector('.progress-wrapper');
-      const progBarWrap = document.querySelector('#mainContent .progress-bar-wrap') || document.querySelector('.progress-bar-wrap');
-      const history = document.getElementById('historyPlaceholder');
-      const historyLine = $(`#history-line`)
-
-      if (progWrapper) progWrapper.style.display = v ? '' : 'none';
-      if (progBarWrap) progBarWrap.style.display = v ? '' : 'none';
-
-      // 当显示进度时，隐藏历史占位；隐藏进度时，显示历史占位
-      if (history) history.style.display = v ? 'none' : '';
-      if (historyLine) historyLine.style.display = v ? 'none' : '';
-
-      if (!v) {
-        // 隐藏进度时清理进度显示，避免残留
-        try { if (progressBar) progressBar.value = 0; } catch (e) { }
-        if (progressText) progressText.textContent = '';
-        if (progressPercent) progressPercent.textContent = '';
-        if (progressPercentTitle) progressPercentTitle.textContent = '';
-        if (successTitle) successTitle.textContent = '';
-        if (successText) {
-          successText.classList.remove("success-highlight");
-          successText.textContent = '';
-        }
-
-        // 尝试获取历史信息：优先使用 lastCheckInfo -> 再尝试从 lastLogLines 解析 -> 再回退到 DOM 原有值
-        let info = lastCheckInfo || null;
-        if (!info) {
-          try {
-            const parsedFromLogs = parseCheckResultFromLogs(lastLogLines);
-            if (parsedFromLogs) info = parsedFromLogs;
-          } catch (e) { /* ignore parse errors */ }
-        }
-
-        if (!info) {
-          // 回退读取旧 DOM（若页面上手动写过历史字段）
-          const t = document.getElementById('lastCheckTime')?.textContent || '-';
-          const d = document.getElementById('lastCheckDuration')?.textContent || '-';
-          const tot = document.getElementById('lastCheckTotal')?.textContent || '-';
-          const a = document.getElementById('lastCheckAvailable')?.textContent || '-';
-          if (t !== '-' || d !== '-' || tot !== '-' || a !== '-') {
-            info = { lastCheckTime: t, duration: d, total: tot, available: a };
-          }
-        }
-
-        // 以下只修改四个 span 的文本，不替换 .history-line 的 HTML 结构，保证 CSS 不被破坏
-        const histTimeEl = document.getElementById('historyLastTime');
-        const histDurationEl = document.getElementById('historyLastDuration');
-        const histTotalEl = document.getElementById('historyLastTotal');
-        const histAvailableEl = document.getElementById('historyLastAvailable');
-        const historyPlaceholderEl = document.getElementById('historyPlaceholder');
-        const historyExitBtn = document.getElementById('btnHistoryExit');
-
-        // 确保存在一个独立的“未发现检测记录”提示元素，避免覆盖 .history-line 的结构
-        let notFoundEl = document.getElementById('historyNotFound');
-        if (!notFoundEl && historyPlaceholderEl) {
-          notFoundEl = document.createElement('div');
-          notFoundEl.id = 'historyNotFound';
-          notFoundEl.className = 'muted';
-          notFoundEl.style.fontSize = '12px';
-          notFoundEl.style.marginTop = '6px';
-          notFoundEl.textContent = '未发现检测记录';
-          const summary = historyPlaceholderEl.querySelector('.history-summary');
-          if (summary) summary.insertAdjacentElement('afterend', notFoundEl);
-          else historyPlaceholderEl.appendChild(notFoundEl);
-        }
-
-        if (info) {
-          // 计算友好显示文本（时间格式化、时长格式化等）
-          const prettyTime = (() => {
-            try {
-              const dt = info.lastCheckTime ? new Date(String(info.lastCheckTime).replace(' ', 'T')) : null;
-              return dt && !isNaN(dt) ? dt.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : (info.lastCheckTime || '-');
-            } catch (e) { return info.lastCheckTime || '未知'; }
-          })();
-
-          const prettyDuration = (typeof info.duration === 'number')
-            ? (info.duration >= 60 ? Math.floor(info.duration / 60) + '分' + (info.duration % 60) + '秒' : info.duration + '秒')
-            : (info.duration || '0');
-
-          const prettyTotal = (() => {
-            if (typeof info.total === 'number') {
-              if (info.total >= 1000000) {
-                return Math.floor(info.total / 10000) + '万';
-              } else if (info.total >= 10000) {
-                return (info.total / 10000).toFixed(1) + '万';
-              } else {
-                // 小于1万，直接显示
-                return String(info.total);
-              }
-            }
-            return info.total != null ? String(info.total) : '0';
-          })();
-
-          const prettyAvailable = info.available != null ? String(info.available) : '0';
-
-          // 仅写入 span 的文本，不改 innerHTML
-          if (histTimeEl) histTimeEl.textContent = prettyTime;
-          if (histDurationEl) histDurationEl.textContent = prettyDuration;
-          if (histTotalEl) histTotalEl.textContent = prettyTotal;
-          if (histAvailableEl) histAvailableEl.textContent = prettyAvailable;
-
-          // 隐藏“未发现检测记录”提示（若存在）
-          if (notFoundEl) notFoundEl.style.display = 'none';
-
-          // 显示历史占位与退出按钮
-          if (historyPlaceholderEl) historyPlaceholderEl.style.display = '';
-          if (historyLine) historyLine.style.display = '';
-
-          // if (historyExitBtn) historyExitBtn.style.display = '';
-          // 同步到可能存在的详细 lastCheck 元素（用于其他区域）
-          if (lastCheckTime) lastCheckTime.textContent = info.lastCheckTime || '-';
-          if (lastCheckDuration) lastCheckDuration.textContent = (typeof info.duration === 'number') ? (info.duration >= 60 ? Math.floor(info.duration / 60) + '分' + (info.duration % 60) + '秒' : info.duration + '秒') : (info.duration || '-');
-          if (lastCheckTotal) lastCheckTotal.textContent = info.total != null ? String(info.total) : '-';
-          if (lastCheckAvailable) lastCheckAvailable.textContent = info.available != null ? String(info.available) : '-';
-        } else {
-          if (notFoundEl) notFoundEl.style.display = '';
-          if (historyPlaceholderEl) historyPlaceholderEl.style.display = '';
-          if (historyLine) historyLine.style.display = 'none';
-        }
-      } else {
-        // 进入显示进度状态时，隐藏历史摘要
-        try { hideLastCheckResult(); } catch (e) { }
-      }
-    } catch (e) {
-      console.warn('showProgressUI error', e);
-    }
-  }
+  // ==================== 进度条逻辑 ====================
 
   function updateProgress(total, processed, available, checking, lastChecked) {
-    // --- 0. 初始化状态 (挂载在函数对象上，确保状态持久化) ---
     if (!updateProgress.etaState) {
       updateProgress.etaState = {
         startTime: Date.now(),
@@ -896,53 +370,39 @@
       };
     }
     const state = updateProgress.etaState;
-
-    // 数据清洗
     total = Number(total) || 0;
     processed = Number(processed) || 0;
     const now = Date.now();
 
-    // --- 1. 状态重置检测 ---
     if (processed === 0 || (processed < state.lastProcessed && processed < 5)) {
       if (processed === 0) {
         state.startTime = now;
         state.cachedEtaText = '';
       }
     }
-
-    // 更新记录
     state.lastProcessed = processed;
     state.lastTotal = total;
 
-    // --- 2. 基础UI更新 ---
     const pct = total > 0 ? Math.min(100, (processed / total) * 100) : 0;
-    if (progressBar) progressBar.value = pct;
-    if (progressText) progressText.textContent = `${processed}/${total}`;
-    if (progressPercentTitle) progressPercentTitle.textContent = '进度';
-    if (successTitle) successTitle.textContent = '可用：';
-    if (successText) {
-      successText.classList.add("success-highlight");
-      successText.textContent = available;
+    if (els.progressBar) els.progressBar.value = pct;
+    if (els.progressText) els.progressText.textContent = `${processed}/${total}`;
+    if (els.progressPercentTitle) els.progressPercentTitle.textContent = '进度';
+    if (els.successTitle) els.successTitle.textContent = '可用：';
+    if (els.successText) {
+      els.successText.classList.add("success-highlight");
+      els.successText.textContent = available;
     }
-    if (progressPercent) progressPercent.textContent = pct.toFixed(1) + "%";
+    if (els.progressPercent) els.progressPercent.textContent = pct.toFixed(1) + "%";
 
-
-    // --- 3. ETA 计算逻辑 ---
     let etaText = state.cachedEtaText;
-
     if (checking && processed < total && total > 0) {
       const timeElapsed = now - state.startTime;
-
-      // 策略A：前 30 秒为预热期 (如果已经处理了很多则跳过)
       if (timeElapsed < 30000 && processed < 5000) {
         etaText = '计算中...';
-      }
-      // 策略B：每 10 秒刷新一次
-      else if (now - state.lastUpdateUI > 5000) {
+      } else if (now - state.lastUpdateUI > 10000) {
         const safeTime = Math.max(1, timeElapsed / 1000);
         const rate = processed / safeTime;
         const remain = Math.max(0, total - processed);
-
         if (rate > 0.01) {
           const etaSec = Math.round(remain / rate);
           if (etaSec > 3600) {
@@ -964,790 +424,377 @@
       etaText = '';
     }
 
-    // --- 4. 状态栏更新 ---
-    if (statusEl) {
+    if (els.statusEl) {
       if (processed < total && total > 0 && checking) {
-        statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
-        statusEl.title = etaText ? `预计剩余: ${etaText}` : '';
-        statusEl.className = 'muted status-label status-checking';
+        els.statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
+        els.statusEl.title = etaText ? `预计剩余: ${etaText}` : '';
+        els.statusEl.className = 'muted status-label status-checking';
       } else if ((processed >= total && total > 0) || lastChecked) {
-        statusEl.textContent = '检测完成';
-        statusEl.title = '';
-        statusEl.className = 'muted status-label status-logged';
+        els.statusEl.textContent = '检测完成';
+        els.statusEl.title = '';
+        els.className = 'muted status-label status-logged';
       } else {
-        statusEl.textContent = '空闲';
-        statusEl.title = '';
-        statusEl.className = 'muted status-label status-idle';
+        els.statusEl.textContent = '空闲';
+        els.statusEl.title = '';
+        els.className = 'muted status-label status-idle';
       }
     }
-
-    lastProgress = { time: now, processed, total };
   }
 
-  // 显示上次检测结果
-  function showLastCheckResult(info) {
-    if (!info) return;
-    // 记录供其它地方使用
-    lastCheckInfo = info;
+  // ==================== 界面辅助函数 ====================
 
-    // 触发一次 UI 填充（通过 showProgressUI(false) 的隐藏分支填充）
+  function showProgressUI(visible) {
+    const v = !!visible;
     try {
-      // 保证历史占位可见并被填充
-      showProgressUI(false);
-    } catch (e) {
-      console.warn('showLastCheckResult error', e);
-    }
-  }
+      const progWrapper = document.querySelector('#mainContent .progress-wrapper') || document.querySelector('.progress-wrapper');
+      const progBarWrap = document.querySelector('#mainContent .progress-bar-wrap') || document.querySelector('.progress-bar-wrap');
 
-  // 隐藏上次检测结果
-  function hideLastCheckResult() {
-    const history = document.getElementById('historyPlaceholder');
-    if (history) history.style.display = 'none';
-  }
+      if (progWrapper) progWrapper.style.display = v ? '' : 'none';
+      if (progBarWrap) progBarWrap.style.display = v ? '' : 'none';
+      if (els.historyPlaceholder) els.historyPlaceholder.style.display = v ? 'none' : '';
+      if (els.historyLine) els.historyLine.style.display = v ? 'none' : '';
 
-
-  // 加载api状态
-  async function loadStatus() {
-    if (!sessionKey || statusPollRunning) return;
-    statusPollRunning = true;
-    try {
-      const r = await sfetch(API.status);
-      if (!r.ok) {
-        if (statusEl) {
-          statusEl.textContent = '获取状态失败';
-          statusEl.className = 'muted status-label status-error';
+      if (!v) {
+        if (els.progressBar) els.progressBar.value = 0;
+        ['progressText', 'progressPercent', 'progressPercentTitle', 'successTitle'].forEach(k => { if (els[k]) els[k].textContent = ''; });
+        if (els.successText) {
+          els.successText.classList.remove("success-highlight");
+          els.successText.textContent = '';
         }
+        if (lastCheckInfo) showLastCheckResult(lastCheckInfo);
+        else showLastCheckResult(null);
+      } else {
+        hideLastCheckResult();
+      }
+    } catch (e) { console.warn(e); }
+  }
+
+  function showLastCheckResult(info) {
+    if (!els.historyPlaceholder) return;
+    let notFoundEl = document.getElementById('historyNotFound');
+    if (!notFoundEl) {
+      notFoundEl = document.createElement('div');
+      notFoundEl.id = 'historyNotFound';
+      notFoundEl.className = 'muted';
+      notFoundEl.style.fontSize = '12px';
+      notFoundEl.style.marginTop = '6px';
+      notFoundEl.textContent = '未发现检测记录';
+      const summary = els.historyPlaceholder.querySelector('.history-summary');
+      if (summary) summary.insertAdjacentElement('afterend', notFoundEl);
+      else els.historyPlaceholder.appendChild(notFoundEl);
+    }
+
+    try {
+      if (!actionInFlight && actionState !== 'checking') {
+        els.historyPlaceholder.style.display = '';
+        if (!info) {
+          if (els.historyLine) els.historyLine.style.display = 'none';
+          if (notFoundEl) notFoundEl.style.display = '';
+          return;
+        }
+        if (notFoundEl) notFoundEl.style.display = 'none';
+        if (els.historyLine) els.historyLine.style.display = '';
+
+        const prettyTime = info.lastCheckTime ? info.lastCheckTime.replace('T', ' ') : '-';
+        const prettyDuration = (typeof info.duration === 'number')
+          ? (info.duration >= 60 ? Math.floor(info.duration / 60) + '分' + (info.duration % 60) + '秒' : info.duration + '秒')
+          : (info.duration || '0');
+        const prettyTotal = info.total >= 10000 ? (info.total / 10000).toFixed(1) + '万' : info.total;
+
+        const histTimeEl = document.getElementById('historyLastTime');
+        const histDurationEl = document.getElementById('historyLastDuration');
+        const histTotalEl = document.getElementById('historyLastTotal');
+        const histAvailableEl = document.getElementById('historyLastAvailable');
+
+        if (histTimeEl) histTimeEl.textContent = prettyTime;
+        if (histDurationEl) histDurationEl.textContent = prettyDuration;
+        if (histTotalEl) histTotalEl.textContent = prettyTotal;
+        if (histAvailableEl) histAvailableEl.textContent = info.available;
+
+        if (els.lastCheckTime) els.lastCheckTime.textContent = prettyTime;
+        if (els.lastCheckDuration) els.lastCheckDuration.textContent = prettyDuration;
+        if (els.lastCheckTotal) els.lastCheckTotal.textContent = info.total;
+        if (els.lastCheckAvailable) els.lastCheckAvailable.textContent = info.available;
+      }
+    } catch (e) { }
+  }
+
+  function hideLastCheckResult() {
+    if (els.historyPlaceholder) els.historyPlaceholder.style.display = 'none';
+  }
+
+  // ==================== 日志渲染 ====================
+
+  let isMouseInsideLog = false;
+  if (els.logContainer) {
+    els.logContainer.addEventListener('mouseenter', () => isMouseInsideLog = true);
+    els.logContainer.addEventListener('mouseleave', () => isMouseInsideLog = false);
+  }
+
+  function renderLogLines(lines, IntervalRun) {
+    if (!els.logContainer) return;
+    if (isUserSelectingOrHovering() && IntervalRun) {
+      els.logContainer.title = "暂停自动刷新";
+      return;
+    }
+    els.logContainer.title = "";
+    els.logContainer.innerHTML = lines.map(l => '<div>' + colorize(l) + '</div>').join('');
+    scrollToBottomSafe();
+  }
+
+  function appendLogLines(linesToAdd) {
+    if (!els.logContainer || !linesToAdd?.length) return;
+    const frag = document.createDocumentFragment();
+    linesToAdd.forEach(l => {
+      const d = document.createElement('div');
+      d.innerHTML = colorize(l);
+      frag.appendChild(d);
+    });
+    els.logContainer.appendChild(frag);
+
+    while (els.logContainer.children.length > MAX_LOG_LINES) {
+      els.logContainer.removeChild(els.logContainer.firstChild);
+    }
+    scrollToBottomSafe();
+  }
+
+  function scrollToBottomSafe() {
+    requestAnimationFrame(() => {
+      if (!isMouseInsideLog) {
+        els.logContainer.scrollTop = els.logContainer.scrollHeight;
+      } else {
+        const isScrolledToBottom = els.logContainer.scrollHeight - els.logContainer.clientHeight <= els.logContainer.scrollTop + 50;
+        if (isScrolledToBottom) els.logContainer.scrollTop = els.logContainer.scrollHeight;
+      }
+    });
+  }
+
+  function isUserSelectingOrHovering() {
+    const sel = window.getSelection();
+    return (sel && sel.toString().length > 0) || isMouseInsideLog;
+  }
+
+  function colorize(line) {
+    const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+    let out = escapeHtml(line);
+    if (tsMatch) {
+      const ts = tsMatch[0];
+      out = '<span class="log-time">' + ts + '</span>' + out.slice(ts.length);
+    }
+
+    out = out.replace(/\x1b\[([\d;]+)m/g, function (match, innerCode) {
+      const codes = innerCode.split(';');
+      let html = '';
+      codes.forEach(code => {
+        switch (code) {
+          case '31': html += '<span style="color: #ff4d4f; font-weight: bold;">'; break;
+          case '33': html += '<span style="color: #faad14; font-weight: bold;">'; break;
+          case '9': html += '<span style="text-decoration: line-through; color: #999; opacity: 0.8;">'; break;
+          case '29': html += '</span>'; break;
+          case '39': case '0': html += '</span></span></span>'; break;
+        }
+      });
+      return html;
+    });
+
+    out = out.replace(/\b(INF|INFO)\b/g, '<span class="log-info">INF</span>')
+      .replace(/\b(ERR|ERROR)\b/g, '<span class="log-error">ERR</span>')
+      .replace(/\b(WRN|WARN)\b/g, '<span class="log-warn">WRN</span>')
+      .replace(/\b(DBG|DEBUG)\b/g, '<span class="log-debug">DBG</span>');
+
+    if (/发现新版本/.test(out)) {
+      out = '<div class="log-new-version">' + out.replace(/最新版本=([^\s]+)/, '最新版本=<span class="success-highlight">$1</span>') + '</div>';
+    }
+    return out;
+  }
+
+  function parseCheckResultFromLogs(logs) {
+    if (!logs || !Array.isArray(logs)) return null;
+    const lines = logs.map(String);
+    let startTime, endTime, totalNodes, availableNodes;
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      if (!endTime && line.includes('检测完成')) {
+        const m = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+        if (m) endTime = m[1];
+      }
+      if (!availableNodes) {
+        const m = line.match(/可用节点数量:\s*(\d+)/);
+        if (m) availableNodes = parseInt(m[1]);
+      }
+      if (!totalNodes) {
+        const m = line.match(/去重后节点数量:\s*(\d+)/);
+        if (m) totalNodes = parseInt(m[1]);
+      }
+      if (!startTime && (line.includes('手动触发检测') || line.includes('开始准备检测代理'))) {
+        const m = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+        if (m) startTime = m[1];
+        if (startTime && endTime) break;
+      }
+    }
+    if (startTime && endTime && totalNodes > 0) {
+      const duration = Math.round((new Date(endTime) - new Date(startTime)) / 1000);
+      return { lastCheckTime: endTime, duration, total: totalNodes, available: availableNodes };
+    }
+    return null;
+  }
+
+  // ==================== 认证与交互 ====================
+
+  async function onLoginBtnClick() {
+    const k = els.apiKeyInput?.value?.trim();
+    if (!k) {
+      showToast('请输入 API 密钥', 'warn');
+      els.apiKeyInput?.focus();
+      return;
+    }
+    els.loginBtn.disabled = true;
+    els.loginBtn.textContent = '验证中…';
+    try {
+      const resp = await fetch(API.status, { headers: { 'X-API-Key': k } });
+      if (resp.status === 401) {
+        showToast('API 密钥无效', 'error');
         return;
       }
-
-      const d = r.payload || {};
-      const checking = !!d.checking;
-      const lastChecked = d.lastCheck && d.lastCheck.total > 0 && d.lastCheck.available > 0;
-
-      if (checking) {
-        updateToggleUI('checking');
-        showProgressUI(true); // 开始检测：显示进度区域
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked);
-        // 检测中时隐藏上次结果
-        hideLastCheckResult();
-
-        // 记录检测开始时间（如果还没记录）
-        if (!checkStartTime) {
-          checkStartTime = Date.now();
-        }
-      } else {
-        // 检测结束：先隐藏进度相关 UI（再显示上次检测结果）
-        showProgressUI(false);
-        updateToggleUI('idle');
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked);
-        if (progressBar && (d.progress === 0 || d.proxyCount === 0)) {
-          progressBar.value = 0;
-        }
-
-        // 检测结束时显示上次检测结果
-        // 优先使用后端返回的数据，如果没有则使用前端记录
-        if (lastChecked) {
-          showLastCheckResult({
-            lastCheckTime: d.lastCheck.time || d.lastCheck.timestamp,
-            duration: d.lastCheck.duration,
-            total: d.lastCheck.total || d.proxyCount,
-            available: d.lastCheck.available || d.available
-          });
-          checkStartTime = null; // 重置开始时间
-        } else if (checkStartTime && lastCheckInfo) {
-          // 如果前端记录了开始时间，计算用时
-          const duration = Math.round((Date.now() - checkStartTime) / 1000);
-          showLastCheckResult({
-            lastCheckTime: new Date().toISOString().replace('T', ' ').split('.')[0],
-            duration: duration,
-            total: d.proxyCount || lastCheckInfo.total,
-            available: d.available || lastCheckInfo.available
-          });
-          checkStartTime = null;
-        } else if (lastCheckInfo) {
-          // 显示之前的检测结果
-          showLastCheckResult(lastCheckInfo);
-        }
+      if (!resp.ok) {
+        showToast('验证失败，HTTP ' + resp.status, 'error');
+        return;
       }
+      sessionKey = k;
+      if (els.rememberKey?.checked) safeLS('subscheck_api_key', k);
+      showLogin(false);
+      document.activeElement?.blur();
+      setAuthUI(true);
+      await loadAll();
+      startPollers();
+      showToast('验证成功，已登录', 'success');
+    } catch (e) {
+      showToast('网络错误或服务器未响应', 'error');
     } finally {
-      statusPollRunning = false;
+      els.loginBtn.disabled = false;
+      els.loginBtn.textContent = '进入管理界面';
     }
   }
 
-  function sleep(ms) {
-    return new Promise(res => setTimeout(res, ms));
+  function doLogout(reason = '已退出登录') {
+    stopPollers();
+    sessionKey = null;
+    safeLS('subscheck_api_key', null);
+    setAuthUI(false);
+    if (els.logContainer) els.logContainer.innerHTML = '<div class="muted" style="font-family: system-ui;">已退出登录。</div>';
+    if (els.configEditor && codeMirrorView) setEditorContent('');
+    resetApiFailures();
+    showProgressUI(false);
+    showLogin(true);
+    showToast(reason, 'info');
   }
 
-  async function waitForBackendChecking(desired, timeoutMs = ACTION_CONFIRM_TIMEOUT_MS) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      try {
-        const r = await sfetch(API.status);
-        if (r.ok && Boolean(r.payload?.checking) === Boolean(desired)) {
-          return { ok: true, payload: r.payload };
-        }
-      } catch (e) { /* ignore */ }
-      await sleep(600);
+  function showLogin(show) {
+    getPublicVersion();
+    if (els.loginModal) els.loginModal.classList.toggle('login-hidden', !show);
+    if (show) els.apiKeyInput?.focus();
+  }
+
+  function setAuthUI(ok) {
+    if (els.statusEl) {
+      els.statusEl.textContent = `状态：${ok ? '空闲' : '未登录'}`;
+      els.statusEl.className = 'muted status-label ' + (ok ? 'status-logged' : 'status-idle');
     }
-    return { ok: false, error: 'timeout' };
+    [els.toggleBtn, els.refreshLogsBtn, els.saveCfgBtn, els.reloadCfgBtn].forEach(b => b && (b.disabled = !ok));
+    updateToggleUI(ok ? 'idle' : 'disabled');
   }
 
-  // --- 全局变量 ---
-  let _cachedSubStoreConfig = null; // 用于缓存配置 { subStorePath, port }
-  let lastSubStorePath = null;      // 用于判断是否需要拼接参数
+  function updateToggleUI(state) {
+    actionState = state;
+    if (!els.toggleBtn) return;
+    const config = {
+      idle: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>', disabled: false, title: '开始检测', pressed: 'false' },
+      starting: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12h-2.25c0 5.5 4.25 10 9.75 10s9.75-4.5 9.75-10-4.25-10-9.75-10-9.75 4.5-9.75 10zM12 7.5v9"/></svg>', disabled: true, title: '正在开始', pressed: 'true' },
+      checking: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>', disabled: false, title: '检测中 - 点击停止', pressed: 'true' },
+      stopping: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 12h-2.25c0 5.5 4.25 10 9.75 10s9.75-4.5 9.75-10-4.25-10-9.75-10-9.75 4.5-9.75 10zM12 7.5v9"/></svg>', disabled: true, title: '正在结束', pressed: 'true' },
+      disabled: { icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>', disabled: true, title: '请先登录', pressed: 'false' }
+    };
+    const cfg = config[state] || config.disabled;
+    els.toggleBtn.disabled = cfg.disabled;
+    els.toggleBtn.className = 'toggle-btn state-' + state;
+    els.toggleBtn.title = cfg.title;
+    els.toggleBtn.setAttribute('aria-pressed', cfg.pressed);
+    const iconEl = els.toggleBtn.querySelector('.btn-icon');
+    if (iconEl) iconEl.innerHTML = cfg.icon;
+  }
 
-  //  buildSubStoreUrl 辅助函数：根据配置和当前环境构造跳转 URL
+  // ==================== Sub-Store & Share ====================
+
+  async function fetchSubStoreConfig() {
+    const r = await sfetch(API.config);
+    if (!r.ok) throw new Error("读取配置失败");
+    const config = YAML.parse(r.payload?.content ?? '');
+    return {
+      subStorePath: r.payload?.sub_store_path ?? '',
+      portStr: config["sub-store-port"]
+    };
+  }
+
   function buildSubStoreUrl(config) {
     const { subStorePath, portStr } = config;
+    if (!subStorePath) throw new Error("配置中未找到 sub_store_path");
 
-    if (!subStorePath) {
-      throw new Error("配置中未找到 sub_store_path");
-    }
-
-    // 1. 处理 Path
     let path = subStorePath;
     if (path && !path.startsWith('/') && path.length > 1) {
       path = '/' + path;
     }
 
-    // 2. 处理 Port
     const cleanPort = (portStr ?? "").toString().trim().replace(/^:/, "");
-
-    // 3. 处理 Hostname & Protocol (基于当前窗口)
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
     const currentPort = window.location.port;
-
-    // 判断是否需要添加端口
     const shouldAddPort = currentPort && currentPort !== '';
     const portToAdd = (shouldAddPort && cleanPort) ? ':' + cleanPort : '';
 
-    // 判断是否需要修改 Hostname (针对二级域名逻辑)
-    let sub_store_hostname = hostname;
+    let hostname = window.location.hostname;
     if (!shouldAddPort) {
       const parts = hostname.split(".");
       if (parts.length > 1) {
-        sub_store_hostname = parts.length === 2
-          ? "sub_store_for_subs_check." + sub_store_hostname
-          : "sub_store_for_subs_check." + parts.slice(1).join(".");
+        hostname = parts.length === 2 ? "sub_store_for_subs_check." + hostname : "sub_store_for_subs_check." + parts.slice(1).join(".");
       }
     }
 
-    const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
-
-    // 4. 决定最终 URL
     const isFirstTime = lastSubStorePath === null;
     const isPathChanged = lastSubStorePath !== subStorePath;
-
-    let url;
-    if (isFirstTime || isPathChanged) {
-      url = baseUrlWithoutPort + portToAdd + '?api=' + path;
-    } else {
-      url = baseUrlWithoutPort + portToAdd;
-    }
-
-    return { url, subStorePath }; // 返回 URL 和 path 用于更新全局状态
-  }
-
-  // fetchSubStoreConfig 辅助函数：从后端拉取并解析配置
-  async function fetchSubStoreConfig() {
-    const r = await sfetch(API.config);
-    if (!r.ok) throw new Error("读取配置失败");
-
-    const p = r.payload;
-    const yamlContent = p?.content ?? '';
-    const parsedYaml = YAML.parse(yamlContent); // 假设你有 YAML 解析库
+    const baseUrl = window.location.protocol + '//' + hostname + portToAdd;
 
     return {
-      subStorePath: p?.sub_store_path ?? '',
-      portStr: parsedYaml["sub-store-port"]
+      url: (isFirstTime || isPathChanged) ? `${baseUrl}?api=${path}` : baseUrl,
+      subStorePath
     };
   }
 
-  // handleOpenSubStore 跳转sub-store前端并一键设置后端api地址
   async function handleOpenSubStore(e) {
     e.preventDefault();
+    if (!sessionKey) { showLogin(true); return; }
 
-    // 1. 立即打开空白窗口 (持有引用)
     const newWindow = window.open('', '_blank');
+    if (!newWindow) { showToast('窗口弹出被拦截', 'warn'); return; }
 
-    if (newWindow) {
-      newWindow.document.title = "正在打开sub-store...";
-      newWindow.document.body.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
-        <h3 id="status-text">正在跳转...</h3>
-        <p style="color:#666;font-size:14px;">正在解析配置，请稍候。</p>
-      </div>
-    `;
-    } else {
-      showToast('窗口弹出被拦截，请检查浏览器设置', 'warn');
-      return;
-    }
-
-    // 用于超时控制
-    let isFinished = false;
-    const timeoutTimer = setTimeout(() => {
-      if (isFinished) return;
-      isFinished = true;
-      console.warn("SubStore跳转超时");
-      if (newWindow && !newWindow.closed) {
-        newWindow.document.body.innerHTML = `
-        <div style="text-align:center;padding:50px;font-family:sans-serif;">
-          <h3 style="color:red;">跳转超时</h3>
-          <p>获取配置耗时过长，请关闭重试。</p>
-          <button onclick="window.close()" style="padding:10px 20px;cursor:pointer;">关闭窗口</button>
-        </div>
-      `;
-      }
-    }, 10000);
+    newWindow.document.title = "打开 Sub-Store...";
+    newWindow.document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;"><h3>正在跳转...</h3></div>';
 
     try {
-      // 检查登录 (这是一个同步检查，很快)
-      if (!sessionKey) {
-        if (newWindow) newWindow.close();
-        showLogin(true);
-        clearTimeout(timeoutTimer);
-        return;
-      }
-
-      let finalUrl = '';
-
-      // --- 核心优化 ---
-      try {
-        // 步骤 A: 尝试使用缓存
-        if (_cachedSubStoreConfig) {
-          const result = buildSubStoreUrl(_cachedSubStoreConfig);
-          finalUrl = result.url;
-          // 更新 lastSubStorePath 状态
-          lastSubStorePath = result.subStorePath;
-        } else {
-          // 无缓存，抛出错误进入 catch 流程去 fetch
-          throw new Error("No Cache");
-        }
-      } catch (cacheErr) {
-        // 步骤 B: 缓存不存在 或 缓存数据导致构建失败 -> 发起网络请求
-        if (cacheErr.message !== "No Cache") {
-          console.warn("缓存配置异常，尝试重新获取:", cacheErr);
-        }
-
-        // 如果已经超时，就不发请求了
-        if (isFinished) return;
-
-        // 更新 UI 提示用户正在联网获取
-        if (newWindow && !newWindow.closed) {
-          const statusEl = newWindow.document.getElementById('status-text');
-          if (statusEl) statusEl.innerText = "正在获取最新配置...";
-        }
-
-        // 重新 Fetch
-        const configData = await fetchSubStoreConfig();
-
-        // 更新全局缓存
+      let configData = _cachedSubStoreConfig;
+      if (!configData) {
+        configData = await fetchSubStoreConfig();
         _cachedSubStoreConfig = configData;
-
-        // 再次构建 URL
-        const result = buildSubStoreUrl(configData);
-        finalUrl = result.url;
-        lastSubStorePath = result.subStorePath;
       }
-      // --- 核心优化结束 ---
-
-      if (isFinished) return;
-
-      // 2. 执行跳转
-      isFinished = true;
-      clearTimeout(timeoutTimer);
-
-      if (newWindow && !newWindow.closed) {
-        newWindow.location.href = finalUrl;
-      }
-
+      const result = buildSubStoreUrl(configData);
+      lastSubStorePath = result.subStorePath;
+      newWindow.location.href = result.url;
     } catch (err) {
-      if (isFinished) return;
-      isFinished = true;
-      clearTimeout(timeoutTimer);
-
-      console.error("打开订阅管理失败", err);
-
-      // 错误兜底显示
-      if (newWindow && !newWindow.closed) {
-        newWindow.document.body.innerHTML = `
-        <div style="text-align:center;padding:50px;font-family:sans-serif;">
-          <h3 style="color:red;">发生错误</h3>
-          <p>${err.message || '未知错误'}</p>
-          <button onclick="window.close()" style="padding:8px 16px;">关闭</button>
-        </div>
-      `;
-      } else {
-        showToast(err.message || '打开失败', 'error');
-      }
+      console.error(err);
+      newWindow.close();
+      showToast(err.message || '打开失败', 'error');
     }
   }
 
-  async function handleOpenSubStoreNormal(e) {
-    e.preventDefault();
-    try {
-      if (!sessionKey) { showLogin(true); return; }
-      const r = await sfetch(API.config);
-      if (!r.ok) { showToast('读取配置失败', 'warn'); return; }
-
-      const p = r.payload;
-      const yamlContent = p?.content ?? '';
-      const config = YAML.parse(yamlContent);
-      let subStorePath = p?.sub_store_path ?? '';
-      const yamlSubStorePath = (config["sub-store-path"] ?? "")
-
-      if (!subStorePath) {
-        showToast('请先设置 sub_store_path', 'error');
-        return;
-      }
-
-      // 获取并清理端口
-      const port = (config["sub-store-port"] ?? "")
-        .toString()
-        .trim()
-        .replace(/^:/, "");
-
-      // 确保 path 以 / 开头
-      let path = subStorePath;
-      if (path && !path.startsWith('/') && path.length > 1) {
-        path = '/' + path;
-      }
-
-      // 基础 URL
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-
-      const currentPort = window.location.port;
-      const shouldAddPort = currentPort && currentPort !== '';
-      const portToAdd = (shouldAddPort && port) ? ':' + port : '';
-
-      let sub_store_hostname = hostname
-      if (!shouldAddPort) {
-        const parts = hostname.split(".");
-        if (parts.length > 1) {
-          sub_store_hostname = parts.length === 2
-            ? "sub_store_for_subs_check." + sub_store_hostname
-            : "sub_store_for_subs_check." + parts.slice(1).join(".");
-        }
-      }
-
-      const baseUrlWithoutPort = protocol + '//' + sub_store_hostname;
-      // 判断是否第一次或 subStorePath 变化
-      const isFirstTime = lastSubStorePath === null;
-      const isPathChanged = lastSubStorePath !== subStorePath;
-
-      let url;
-      if (isFirstTime || isPathChanged) {
-        url = baseUrlWithoutPort + portToAdd + '?api=' + path;
-      } else {
-        url = baseUrlWithoutPort + portToAdd;
-      }
-
-      // 更新记录
-      lastSubStorePath = subStorePath;
-
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      console.error("打开订阅管理失败", err);
-      showToast('打开失败，请检查配置或后台日志', 'error');
-    }
-  }
-
-  // ==================== 控件事件绑定 ====================
-  function bindControls() {
-    loginBtn?.addEventListener('click', onLoginBtnClick);
-
-    // 绑定订阅管理按钮事件
-    subStoreBtn?.addEventListener('click', handleOpenSubStore);
-    subStoreBtnMobile?.addEventListener('click', handleOpenSubStore);
-
-    // 查看项目信息点击事件
-    projectInfoBtn?.addEventListener('click', (e) => {
-      // 检查是否已经是显示状态：如果是，则直接隐藏
-      if (projectMenu.classList.contains("active")) {
-        projectMenu.classList.remove("active");
-        return; // 提前退出，无需其他逻辑
-      }
-      // 定位菜单
-      if (window.innerWidth < 768) {
-        // 小屏幕：居中显示
-        const rect = projectInfoBtn.getBoundingClientRect();
-        projectMenu.style.top = `${rect.top}px`;
-        projectMenu.style.left = `${rect.left - 160}px`;
-        projectMenu.style.transform = "none";
-      } else {
-        // 大屏幕：跟随按钮
-        const rect = projectInfoBtn.getBoundingClientRect();
-        projectMenu.style.top = `${rect.top}px`;
-        projectMenu.style.left = `${rect.right * 0.9}px`;
-        projectMenu.style.transform = "none";
-      }
-
-      // 显示菜单
-      projectMenu.classList.add("active");
-
-    });
-
-    githubMenuBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
-      window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer');
-    });
-
-    dockerMenuBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check';
-      window.open(DOCKER_URL, '_blank', 'noopener,noreferrer');
-    });
-
-    telegramMenuBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const TELEGRAM_URL = 'https://t.me/subs_check_pro';
-      window.open(TELEGRAM_URL, '_blank', 'noopener,noreferrer');
-    });
-
-    githubUrlBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
-      window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer');
-    });
-
-    dockerUrlBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check';
-      window.open(DOCKER_URL, '_blank', 'noopener,noreferrer');
-    });
-
-    telegramUrlBtn?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const TELEGRAM_URL = 'https://t.me/subs_check_pro';
-      window.open(TELEGRAM_URL, '_blank', 'noopener,noreferrer');
-    });
-
-    downloadLogsBtnSide?.addEventListener('click', () => {
-      const t = logContainer?.innerText || '';
-      const blob = new Blob([t], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'subs-check-logs.txt';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      showToast('已开始下载日志', 'info');
-    });
-
-    toggleBtn?.addEventListener('click', async () => {
-      if (!sessionKey) {
-        showLogin(true);
-        showToast('请先登录', 'warn');
-        return;
-      }
-      if (actionInFlight) return;
-
-      actionInFlight = true;
-      try {
-        if (actionState === 'checking') {
-          // 停止检测
-          updateToggleUI('stopping');
-          showToast('已发送停止信号，等待后端响应...', 'info');
-
-          try {
-            const r = await sfetch(API.forceClose, { method: 'POST' });
-            if (!r.ok) showToast('发送结束请求失败', 'error');
-          } catch (e) {
-            showToast('网络错误：无法发送结束请求', 'error');
-          }
-
-          const confirm = await waitForBackendChecking(false);
-          if (confirm.ok) {
-            showProgressUI(false); // 停止确认 -> 隐藏进度
-            updateToggleUI('idle');
-            showToast('检测已停止', 'success');
-          } else {
-            showProgressUI(false);
-            updateToggleUI('idle');
-            showToast('结束操作超时，请刷新查看状态', 'warn', 6000);
-          }
-        } else {
-          // 开始检测
-          updateToggleUI('starting');
-          showProgressUI(true); // 立即展示进度区域（占位）
-          showToast('正在启动检测...', 'info');
-
-          // 记录开始时间
-          checkStartTime = Date.now();
-
-          try {
-            const r = await sfetch(API.trigger, { method: 'POST' });
-            if (!r.ok) showToast('触发检测请求失败', 'error');
-          } catch (e) {
-            showToast('网络错误：无法触发检测', 'error');
-          }
-
-          const confirm = await waitForBackendChecking(true);
-          if (confirm.ok) {
-            updateToggleUI('checking');
-            await loadLogsIncremental(true).catch(() => { });
-            showToast('检测已开始', 'success');
-          } else {
-            updateToggleUI('idle');
-            checkStartTime = null; // 重置
-            showProgressUI(false);
-            showToast('启动超时，请检查服务端或重试', 'warn', 6000);
-          }
-        }
-      } finally {
-        await sleep(300);
-        actionInFlight = false;
-      }
-    });
-
-    saveCfgBtn?.addEventListener('click', saveConfigWithValidation);
-    reloadCfgBtn?.addEventListener('click', () => {
-      showToast('正在重载配置...', 'info');
-      loadConfigValidated();
-    });
-    refreshLogsBtn?.addEventListener('click', () => {
-      showToast('正在刷新日志...', 'info');
-      loadLogsIncremental(false);
-    });
-    openEditorBtn?.addEventListener('click', () => {
-      editorContainer?.scrollIntoView({ behavior: 'smooth' });
-    });
-    logoutBtn?.addEventListener('click', () => {
-      if (window.confirm('确定退出并清除本地保存的 API 密钥？')) doLogout();
-    });
-
-    // 小屏退出按钮
-    logoutBtnMobile?.addEventListener('click', () => {
-      if (window.confirm('确定退出并清除本地保存的 API 密钥？')) doLogout();
-    });
-
-    apiKeyInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        onLoginBtnClick();
-      }
-    });
-
-    // 密钥可见性切换
-    if (apiKeyInput && showApikeyBtn) {
-      apiKeyInput.addEventListener('input', () => {
-        const hasValue = (apiKeyInput.value || '').trim().length > 0;
-        showApikeyBtn.classList.toggle('visible', hasValue);
-      });
-
-      showApikeyBtn.addEventListener('click', () => {
-        const isPassword = apiKeyInput.type === 'password';
-        apiKeyInput.type = isPassword ? 'text' : 'password';
-        showApikeyBtn.textContent = isPassword ? '隐藏' : '显示';
-        showApikeyBtn.classList.toggle('active', isPassword);
-      });
-    }
-
-    const historyExitBtn = document.getElementById('btnHistoryExit');
-    historyExitBtn?.addEventListener('click', () => {
-      if (!window.confirm('确定退出并清除本地保存的 API 密钥？')) return;
-      try {
-        // 额外保险：立即清除本地存储
-        safeLS('subscheck_api_key', null);
-      } catch (e) { /* ignore */ }
-      // doLogout 会停止轮询、清除 sessionKey 并展示登录界面
-      try { doLogout('已退出并清除本地 API 密钥'); } catch (e) { console.warn(e); }
-    });
-
-    // 主题切换
-    themeToggleBtn?.addEventListener('click', toggleTheme);
-    themeToggleBtn?.addEventListener('dblclick', () => {
-      safeLS('theme', null);
-      const sys = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      applyTheme(sys);
-      showToast('主题已重置为系统默认', 'info');
-    });
-
-    // 绑定编辑器搜索按钮事件
-    const searchBtn = document.getElementById('searchBtn');
-    searchBtn.addEventListener('click', () => {
-      if (window.searchView && searchPanelOpen(window.searchView.state)) {
-        closeSearchPanel(window.searchView);
-      } else if (window.searchView) {
-        openSearchPanel(window.searchView);
-      }
-    });
-  }
-
-  // 轮询
-  function startPollers() {
-    if (!sessionKey) return;
-    stopPollers();
-    loadLogsIncremental(true).catch(() => { });
-    loadStatus().catch(() => { });
-    pollers.logs = setInterval(() => {
-      if (!logsPollRunning) loadLogsIncremental(true).catch(() => { });
-    }, LOAD_LOGS_INTERVAL_MS);
-    pollers.status = setInterval(() => {
-      if (!statusPollRunning) loadStatus().catch(() => { });
-    }, REFRESH_STATUS_INTERVAL_MS);
-  }
-
-  function stopPollers() {
-    if (pollers.logs) clearInterval(pollers.logs);
-    if (pollers.status) clearInterval(pollers.status);
-    pollers.logs = pollers.status = null;
-  }
-
-  // 获取版本号
-  async function getVersion() {
-    if (!sessionKey) return;
-    try {
-      const r = await sfetch(API.version);
-      if (r.payload?.version && versionInline) {
-        versionInline.textContent = r.payload.version;
-      }
-      if (r.payload?.latest_version && r.payload.version != r.payload?.latest_version) {
-        versionInline.textContent = `有新版本 v${r.payload?.latest_version}`;
-        versionInline.classList.add("new-version");
-        versionInline.title = `有新版本 v${r.payload?.latest_version}`;
-        versionInline.addEventListener("click", function () {
-          const url = "https://github.com/sinspired/subs-check/releases/latest";
-          window.open(url, "_blank");
-        });
-
-        // 设置 transform
-        versionInline.style.transform = "translate(1px, -2px)";
-        versionInline.style.padding = "2px 6px"
-      }
-    } catch (e) { /* ignore */ }
-  }
-  // 登录界面时获取版本号（不需要验证）
-  async function getPublicVersion() {
-    try {
-      const r = await fetch(API.publicVersion);   // 注意这里是 /version
-      const data = await r.json();
-      versionLogin.textContent = data.version;
-
-      if (data?.latest_version && data.version != data?.latest_version) {
-        versionBadge.classList.add("new-version");
-        versionBadge.title = `有新版本 v${data.latest_version}`;
-        versionBadge.addEventListener("click", function () {
-          const url = "https://github.com/sinspired/subs-check/releases/latest";
-          window.open(url, "_blank");
-        });
-      }
-    } catch (e) {
-      console.error('获取版本失败', e);
-    }
-  }
-
-  // 加载所有
-  async function loadAll() {
-    if (!sessionKey) {
-      showLogin(true);
-      setAuthUI(false);
-      return;
-    }
-    await Promise.all([
-      loadConfigValidated().catch(() => { }),
-      loadLogsIncremental(false).catch(() => { }),
-      loadStatus().catch(() => { }),
-      getVersion()
-    ]);
-  }
-
-  // 勾选保存密钥时自动登录
-  (async function initAutoLogin() {
-    try {
-      getPublicVersion()
-      const saved = safeLS('subscheck_api_key');
-      if (saved) {
-        sessionKey = saved;
-        const r = await sfetch(API.status);
-        if (r.status === 401) {
-          sessionKey = null;
-          safeLS('subscheck_api_key', null);
-          showLogin(true);
-          setAuthUI(false);
-          return;
-        }
-        if (r.ok) {
-          showLogin(false);
-          setAuthUI(true);
-          await loadAll();
-          startPollers();
-          showToast('自动登录成功', 'success');
-          return;
-        }
-      }
-    } catch (e) { /* ignore */ }
-    showLogin(true);
-    setAuthUI(false);
-  })();
-
-  // ==================== 主题处理 ====================
-  const THEME_KEY = 'theme';
-
-  function applyTheme(theme) {
-    const root = document.documentElement;
-    if (theme === 'dark') {
-      root.setAttribute('data-theme', 'dark');
-      themeToggleBtn?.setAttribute('aria-pressed', 'true');
-      if (iconMoon) iconMoon.style.display = '';
-      if (iconSun) iconSun.style.display = 'none';
-      if (themeToggleBtn) themeToggleBtn.title = '切换到浅色模式';
-    } else {
-      root.removeAttribute('data-theme');
-      themeToggleBtn?.setAttribute('aria-pressed', 'false');
-      if (iconMoon) iconMoon.style.display = 'none';
-      if (iconSun) iconSun.style.display = '';
-      if (themeToggleBtn) themeToggleBtn.title = '切换到深色模式';
-    }
-  }
-
-  function getInitialTheme() {
-    const saved = safeLS(THEME_KEY);
-    if (saved === 'dark' || saved === 'light') return saved;
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-
-  function hasSavedTheme() {
-    const saved = safeLS(THEME_KEY);
-    return saved === 'dark' || saved === 'light';
-  }
-
-  // 更新 toggleTheme：通知 CodeMirror 主题变化
-  function toggleTheme() {
-    const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    const next = current === 'dark' ? 'light' : 'dark';
-    applyTheme(next);
-    safeLS(THEME_KEY, next);
-
-    // 同步到 CodeMirror（如果已初始化）
-    if (codeMirrorView) {
-      const currentValue = codeMirrorView.state.doc.toString();
-      codeMirrorView.destroy();
-      codeMirrorView = window.CodeMirror.createEditor($('#configEditor'), currentValue, next);
-    }
-  }
-
-  // 初始化主题
-  (function initTheme() {
-    const initial = getInitialTheme();
-    applyTheme(initial);
-
-    if (window.matchMedia) {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      mq.addEventListener?.('change', (e) => {
-        if (!hasSavedTheme()) {
-          applyTheme(e.matches ? 'dark' : 'light');
-        }
-      });
-    }
-  })();
-
-
+  // 获取分享链接 Base URL
   async function getBaseUrl(path, port) {
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
@@ -1778,201 +825,360 @@
     }
   }
 
+  // ==================== 配置编辑器 ====================
 
-  // 初始化分享按钮
-  // 1. 在函数外部定义缓存变量
-  let cachedConfigPayload = null;
-  let cachedSingboxVersions = null;
-
-  function setupShareButton(btnId) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-
-    btn.addEventListener("click", async (e) => {
-      e.preventDefault();
-
-      const shareMenu = document.getElementById("shareMenu");
-      if (!shareMenu) return console.warn("shareMenu 元素不存在");
-
-      // 如果菜单已打开，点击则关闭，直接返回
-      if (shareMenu.classList.contains("active")) {
-        shareMenu.classList.remove("active");
-        return;
-      }
-
-      try {
-        if (!sessionKey) { showLogin(true); return; }
-
-        // 2. 检查配置缓存，如果没有则请求
-        if (!cachedConfigPayload) {
-          const r = await sfetch(API.config);
-          if (!r.ok) return showToast('读取配置失败', 'warn');
-          cachedConfigPayload = r.payload; // 存入缓存
-        }
-
-        // 3. 检查版本缓存，如果没有则请求
-        if (!cachedSingboxVersions) {
-          const v = await sfetch(API.singboxVersions);
-          if (!v.ok) return showToast('读取singbox版本', 'warn');
-          cachedSingboxVersions = v.payload; // 存入缓存
-        }
-
-        // 使用缓存的数据
-        const p = cachedConfigPayload;
-        const d = cachedSingboxVersions;
-
-        const config = YAML.parse(p?.content ?? "");
-        let subStorePath = p?.sub_store_path ?? '';
-        const yamlSubStorePath = config["sub-store-path"] ?? "";
-
-        if (!subStorePath) return showToast('请先设置 sub_store_path', 'error');
-        if (!yamlSubStorePath.trim()) showToast('请修改 config.yaml 设置sub-store-path，当前使用随机路径', 'warn');
-
-        const port = (config["sub-store-port"] ?? "").toString().trim().replace(/^:/, "");
-        let path = subStorePath.startsWith("/") ? subStorePath : `/${subStorePath}`;
-
-        const latestSingboxName = `singbox-${d.latest}`;
-        const oldSingboxName = `singbox-${d.old}`;
-
-        const baseUrl = await getBaseUrl(path, port);
-
-        // 设置链接
-        document.getElementById("commonSub-item").dataset.link = `${baseUrl}/download/sub`;
-        document.getElementById("mihomoSub-item").dataset.link = `${baseUrl}/api/file/mihomo`;
-        document.getElementById("singboxOldSub-item").textContent = `${oldSingboxName} 订阅`;
-        document.getElementById("singboxLatestSub-item").textContent = `${latestSingboxName} 订阅`;
-        document.getElementById("singboxLatestSub-item").title = `ios设备当前最高兼容 1.11 版本, 当前为 ${latestSingboxName}`;
-        document.getElementById("singboxOldSub-item").dataset.link = `${baseUrl}/api/file/${oldSingboxName}`;
-        document.getElementById("singboxLatestSub-item").dataset.link = `${baseUrl}/api/file/${latestSingboxName}`;
-
-        // 绑定复制事件
-        ["commonSub-item", "mihomoSub-item", "singboxOldSub-item", "singboxLatestSub-item"].forEach(bindCopyOnClick);
-
-        // 菜单定位
-        const rect = btn.getBoundingClientRect();
-        if (window.innerWidth < 768) {
-          shareMenu.style.top = `${rect.top}px`;
-          shareMenu.style.left = `${rect.left - 160}px`;
-        } else {
-          shareMenu.style.top = `${rect.top}px`;
-          shareMenu.style.left = `${rect.right * 0.9}px`;
-        }
-        shareMenu.style.transform = "none";
-        shareMenu.classList.add("active");
-
-      } catch (e) {
-        console.error("获取订阅链接失败", e);
-
-        // 4. 发生异常时清空缓存，确保下次点击时重新获取最新数据
-        cachedConfigPayload = null;
-        cachedSingboxVersions = null;
-
-        showToast('获取失败，请重试', 'error');
-      }
+  function initCodeMirror(val = '') {
+    const container = els.configEditor;
+    if (!container || codeMirrorView) return;
+    requestAnimationFrame(() => {
+      const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      codeMirrorView = window.CodeMirror.createEditor(container, val, theme);
     });
   }
 
-  // 初始化绑定两个按钮
-  setupShareButton("share");
-  setupShareButton("btnShare");
+  function setEditorContent(txt) {
+    if (!codeMirrorView) return;
+    codeMirrorView.dispatch({ changes: { from: 0, to: codeMirrorView.state.doc.length, insert: (txt || '').replace(/\r\n/g, '\n') } });
+  }
 
-  // 点击空白处关闭菜单
-  document.addEventListener("click", (e) => {
-    const shareMenu = document.getElementById("shareMenu");
-    if (shareMenu.classList.contains("active") &&
-      !shareMenu.contains(e.target) &&
-      e.target.id !== "share" &&
-      e.target.id !== "btnShare") {
-      shareMenu.classList.remove("active");
-    }
-    if (projectMenu.classList.contains("active") &&
-      !projectMenu.contains(e.target) &&
-      !projectInfoBtn.contains(e.target)) {
-      projectMenu.classList.remove("active");
-    }
-  });
+  async function loadConfigValidated() {
+    if (!sessionKey) return;
+    const r = await sfetch(API.config);
+    if (!r.ok) return showToast('读取配置失败', 'warn');
+    const raw = (typeof r.payload?.content === 'string') ? r.payload.content : String(r.payload || '');
+    codeMirrorView ? setEditorContent(raw) : initCodeMirror(raw);
+  }
 
-  // 复制事件绑定函数（现在绑定到 list-item）
-  function bindCopyOnClick(itemId) {
-    const el = document.getElementById(itemId);
-    if (!el || el.dataset.bound === "true") return;
-    el.dataset.bound = "true";
-
-    const handler = async (e) => {
-      e.preventDefault();
-      const url = el.dataset.link; // 从 data-link 获取 URL
-      if (!url) return; // 安全检查
-
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(url);
-          showToast("已复制链接到剪贴板", "info", 2000);
-        } else {
-          fallbackCopy(url);
-          return; // fallback 已处理隐藏
-        }
-      } catch (err) {
-        console.error("复制失败", err);
-        fallbackCopy(url);
-        return;
+  async function saveConfigWithValidation() {
+    if (!sessionKey || !codeMirrorView) return;
+    const rawContent = codeMirrorView.state.doc.toString();
+    try {
+      const doc = YAML.parseDocument(rawContent);
+      if (doc.errors && doc.errors.length > 0) {
+        return showToast("YAML 语法错误：" + doc.errors[0].message, "error", 5000);
       }
+      const formatted = doc.toString();
+      setEditorContent(formatted);
+      const r = await sfetch(API.config, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: formatted })
+      });
+      if (r.ok) {
+        showToast(r.payload?.message || '保存成功', 'success');
+        _cachedSubStoreConfig = null;
+        cachedConfigPayload = null; // 清除分享配置缓存
+      } else {
+        showToast('保存失败: ' + (r.payload?.error || '未知错误'), 'error');
+      }
+    } catch (e) {
+      showToast("校验失败：" + e.message, "error");
+    }
+  }
 
-      // 复制成功：隐藏菜单
-      const shareMenu = document.getElementById("shareMenu");
-      shareMenu.classList.remove("active");
+  // ==================== 其他辅助 ====================
 
-      // 复制后自动打开新标签（如果需要，取消注释下一行）
-      // window.open(url, '_blank');
+  async function waitForBackendChecking(desired) {
+    const start = Date.now();
+    while (Date.now() - start < ACTION_CONFIRM_TIMEOUT_MS) {
+      try {
+        const r = await sfetch(API.status);
+        if (r.ok && !!r.payload?.checking === desired) return { ok: true };
+      } catch (e) { }
+      await sleep(600);
+    }
+    return { ok: false };
+  }
+
+  async function getVersion() {
+    if (!sessionKey) return;
+    try {
+      const r = await sfetch(API.version);
+      const p = r.payload;
+      if (p?.version && els.versionInline) els.versionInline.textContent = p.version;
+      if (p?.latest_version && p.version != p.latest_version) {
+        els.versionInline.textContent = `有新版本 v${p.latest_version}`;
+        els.versionInline.classList.add("new-version");
+        els.versionInline.onclick = () => window.open("https://github.com/sinspired/subs-check/releases/latest", "_blank");
+      }
+    } catch (e) { }
+  }
+
+  async function getPublicVersion() {
+    try {
+      const r = await fetch(API.publicVersion);
+      const d = await r.json();
+      if (els.versionLogin) els.versionLogin.textContent = d.version;
+      if (d?.latest_version && d.version != d.latest_version) {
+        els.versionBadge.classList.add("new-version");
+        els.versionBadge.title = `有新版本 v${d.latest_version}`;
+        els.versionBadge.onclick = () => window.open("https://github.com/sinspired/subs-check/releases/latest", "_blank");
+      }
+    } catch (e) { }
+  }
+
+  // ==================== 初始化 ====================
+
+  function bindControls() {
+    els.loginBtn?.addEventListener('click', onLoginBtnClick);
+    els.subStoreBtn = document.getElementById('sub-store');
+    els.subStoreBtnMobile = document.getElementById('btnSubStore');
+    els.subStoreBtn?.addEventListener('click', handleOpenSubStore);
+    els.subStoreBtnMobile?.addEventListener('click', handleOpenSubStore);
+
+    els.toggleBtn?.addEventListener('click', async () => {
+      if (!sessionKey || actionInFlight) return;
+      actionInFlight = true;
+      try {
+        if (actionState === 'checking') {
+          updateToggleUI('stopping');
+          showToast('正在停止...', 'info');
+          await sfetch(API.forceClose, { method: 'POST' });
+          const confirm = await waitForBackendChecking(false);
+          if (confirm.ok) showToast('检测已停止', 'success');
+        } else {
+          updateToggleUI('starting');
+          showProgressUI(true);
+          checkStartTime = Date.now();
+          showToast('启动中...', 'info');
+          await sfetch(API.trigger, { method: 'POST' });
+          const confirm = await waitForBackendChecking(true);
+          if (confirm.ok) {
+            updateToggleUI('checking');
+          } else {
+            showProgressUI(false);
+            updateToggleUI('idle');
+            showToast('启动超时', 'warn');
+          }
+        }
+      } finally {
+        actionInFlight = false;
+      }
+    });
+
+    els.refreshLogsBtn?.addEventListener('click', () => {
+      showToast('正在刷新日志...', 'info');
+      loadLogsIncremental(false);
+    });
+    els.saveCfgBtn?.addEventListener('click', saveConfigWithValidation);
+    els.reloadCfgBtn?.addEventListener('click', async () => {
+      showToast('正在重载配置...', 'info');
+      await loadConfigValidated();
+      showToast('配置已重载', 'success');
+    });
+    els.openEditorBtn?.addEventListener('click', () => els.editorContainer?.scrollIntoView({ behavior: 'smooth' }));
+
+    els.downloadLogsBtnSide?.addEventListener('click', () => {
+      const t = els.logContainer?.innerText || '';
+      if (!t) return showToast('日志为空', 'warn');
+      const blob = new Blob([t], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'subs-check-logs.txt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('已开始下载日志', 'success');
+    });
+
+    const logoutHandler = () => { if (confirm('确定退出？')) doLogout(); };
+    els.logoutBtn?.addEventListener('click', logoutHandler);
+    els.logoutBtnMobile?.addEventListener('click', logoutHandler);
+
+    els.apiKeyInput?.addEventListener('keydown', e => { if (e.key === 'Enter') onLoginBtnClick(); });
+
+    if (els.showApikeyBtn) {
+      els.apiKeyInput.addEventListener('input', () => els.showApikeyBtn.classList.toggle('visible', els.apiKeyInput.value.length > 0));
+      els.showApikeyBtn.addEventListener('click', () => {
+        const isPwd = els.apiKeyInput.type === 'password';
+        els.apiKeyInput.type = isPwd ? 'text' : 'password';
+        els.showApikeyBtn.textContent = isPwd ? '隐藏' : '显示';
+      });
+    }
+
+    const applyTheme = (t) => {
+      document.documentElement.setAttribute('data-theme', t);
+      if (els.iconMoon) els.iconMoon.style.display = t === 'dark' ? '' : 'none';
+      if (els.iconSun) els.iconSun.style.display = t === 'light' ? '' : 'none';
+      if (codeMirrorView) {
+        const val = codeMirrorView.state.doc.toString();
+        codeMirrorView.destroy();
+        codeMirrorView = window.CodeMirror.createEditor(els.configEditor, val, t);
+      }
     };
 
-    // 绑定多种事件，支持键盘访问（Enter/Space）
-    el.addEventListener("click", handler);
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        handler(e);
-      }
+    const initTheme = safeLS(THEME_KEY) || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(initTheme);
+
+    els.themeToggleBtn?.addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      safeLS(THEME_KEY, next);
     });
-    el.addEventListener("touchend", handler, { passive: false }); // 移动端，现代 passive 选项
+
+    // 分享菜单逻辑 (修复版)
+    const setupShare = (id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const menu = document.getElementById('shareMenu');
+        if (menu.classList.contains('active')) { menu.classList.remove('active'); return; }
+
+        if (!sessionKey) { showLogin(true); return; }
+
+        try {
+          // 1. 检查配置缓存
+          if (!cachedConfigPayload) {
+            const r = await sfetch(API.config);
+            if (!r.ok) return showToast('读取配置失败', 'warn');
+            cachedConfigPayload = r.payload;
+          }
+
+          // 2. 检查版本缓存
+          if (!cachedSingboxVersions) {
+            const v = await sfetch(API.singboxVersions);
+            if (!v.ok) return showToast('读取singbox版本', 'warn');
+            cachedSingboxVersions = v.payload;
+          }
+
+          // 3. 数据准备
+          const p = cachedConfigPayload;
+          const d = cachedSingboxVersions;
+          const config = YAML.parse(p?.content ?? "");
+
+          let subStorePath = p?.sub_store_path ?? '';
+          const yamlSubStorePath = config["sub-store-path"] ?? "";
+          if (!subStorePath) return showToast('请先设置 sub_store_path', 'error');
+
+          const port = (config["sub-store-port"] ?? "").toString().trim().replace(/^:/, "");
+          let path = subStorePath.startsWith("/") ? subStorePath : `/${subStorePath}`;
+
+          const latestSingboxName = `singbox-${d.latest}`;
+          const oldSingboxName = `singbox-${d.old}`;
+
+          // 4. 使用 getBaseUrl 获取正确地址
+          const baseUrl = await getBaseUrl(path, port);
+
+          // 5. 更新 DOM
+          const setLink = (eid, suffix) => {
+            const el = document.getElementById(eid);
+            if (el) el.dataset.link = `${baseUrl}${suffix}`;
+          };
+
+          setLink("commonSub-item", "/download/sub");
+          setLink("mihomoSub-item", "/api/file/mihomo");
+
+          const oldItem = document.getElementById("singboxOldSub-item");
+          oldItem.textContent = `${oldSingboxName} 订阅`;
+          oldItem.dataset.link = `${baseUrl}/api/file/${oldSingboxName}`;
+
+          const newItem = document.getElementById("singboxLatestSub-item");
+          newItem.textContent = `${latestSingboxName} 订阅`;
+          newItem.title = `ios设备当前最高兼容 1.11 版本, 当前为 ${latestSingboxName}`;
+          newItem.dataset.link = `${baseUrl}/api/file/${latestSingboxName}`;
+
+          // 6. 显示菜单
+          const rect = btn.getBoundingClientRect();
+          const isMobile = window.innerWidth < 768;
+          menu.style.top = `${rect.top}px`;
+          menu.style.left = isMobile ? `${rect.left - 160}px` : `${rect.right * 0.9}px`;
+          menu.style.transform ="none";
+          menu.classList.add('active');
+        } catch (err) {
+          console.error(err);
+          showToast('获取链接失败', 'error');
+          cachedConfigPayload = null;
+          cachedSingboxVersions = null;
+        }
+      });
+    };
+    setupShare("share");
+    setupShare("btnShare");
+
+    document.addEventListener('click', (e) => {
+      const sm = document.getElementById('shareMenu');
+      const pm = document.getElementById('projectMenu');
+      if (sm?.classList.contains('active') && !sm.contains(e.target)) sm.classList.remove('active');
+      if (pm?.classList.contains('active') && !els.projectInfoBtn.contains(e.target)) pm.classList.remove('active');
+    });
+
+    els.projectInfoBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pm = els.projectMenu;
+      if (pm.classList.contains('active')) { pm.classList.remove('active'); return; }
+      const rect = els.projectInfoBtn.getBoundingClientRect();
+      pm.style.top = `${rect.top}px`;
+      pm.style.left = (window.innerWidth < 768) ? `${rect.left - 160}px` : `${rect.right * 0.9}px`;
+      pm.classList.add('active');
+    });
+
+    document.querySelectorAll('[id$="Sub-item"]').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        const link = el.dataset.link;
+        if (!link) return;
+        try {
+          await navigator.clipboard.writeText(link);
+          showToast('已复制链接', 'success');
+        } catch (err) {
+          const inp = document.createElement('input');
+          inp.value = link;
+          document.body.appendChild(inp);
+          inp.select();
+          document.execCommand('copy');
+          document.body.removeChild(inp);
+          showToast('已复制链接', 'success');
+        }
+        document.getElementById('shareMenu').classList.remove('active');
+      });
+    });
   }
 
-  function fallbackCopy(text) {
-    const input = document.createElement("input");
-    input.value = text;
-    input.style.opacity = "0"; // 现代：隐藏 input，提升 UX
-    input.style.position = "absolute";
-    document.body.appendChild(input);
-    input.select();
-    input.setSelectionRange(0, 99999); // 现代：兼容移动端全选
-    try {
-      document.execCommand("copy");
-      showToast("已复制链接到剪贴板", "info", 2000);
-    } catch (err) {
-      showToast("复制失败，请手动复制", "error", 2000);
-    }
-    document.body.removeChild(input);
-
-    // 复制成功：隐藏菜单
-    const shareMenu = document.getElementById("shareMenu");
-    shareMenu.classList.remove("active");
+  async function loadAll() {
+    await Promise.all([
+      loadConfigValidated().catch(() => { }),
+      loadLogsIncremental().catch(() => { }),
+      loadStatus().catch(() => { }),
+      getVersion().catch(() => { })
+    ]);
   }
 
-  // ==================== 启动 ====================
-  (function bootstrap() {
-    try {
-      const saved = safeLS('subscheck_api_key');
-      if (saved && apiKeyInput) apiKeyInput.value = saved;
-    } catch (e) { /* ignore */ }
+  (async function bootstrap() {
+    const saved = safeLS('subscheck_api_key');
+    if (saved && els.apiKeyInput) els.apiKeyInput.value = saved;
 
     bindControls();
 
-    window.addEventListener('beforeunload', () => {
-      if (codeMirrorView) codeMirrorView.destroy();  // 清理
-      stopPollers();
-    });
-    setAuthUI(false);
+    try {
+      if (saved) {
+        sessionKey = saved;
+        const r = await sfetch(API.status);
+        if (r.ok) {
+          showLogin(false);
+          setAuthUI(true);
+          await loadAll();
+          startPollers();
+          showToast('自动登录成功', 'success');
+        } else {
+          throw new Error('auth failed');
+        }
+      } else {
+        throw new Error('no key');
+      }
+    } catch (e) {
+      sessionKey = null;
+      safeLS('subscheck_api_key', null);
+      showLogin(true);
+      setAuthUI(false);
+    }
 
-    // 初始化时隐藏进度区
-    try { showProgressUI(false); } catch (e) { }
+    window.addEventListener('beforeunload', () => {
+      stopPollers();
+      if (codeMirrorView) codeMirrorView.destroy();
+    });
   })();
+
 })();
