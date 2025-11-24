@@ -1247,6 +1247,12 @@
       document.documentElement.setAttribute('data-theme', t);
       if (els.iconMoon) els.iconMoon.style.display = t === 'dark' ? '' : 'none';
       if (els.iconSun) els.iconSun.style.display = t === 'light' ? '' : 'none';
+
+      // 根据当前主题设置按钮提示
+      if (els.themeToggleBtn) {
+        els.themeToggleBtn.title = t === 'dark' ? '切换到浅色模式' : '切换到深色模式';
+      }
+
       if (codeMirrorView) {
         const val = codeMirrorView.state.doc.toString();
         codeMirrorView.destroy();
@@ -1261,6 +1267,13 @@
       const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       applyTheme(next);
       safeLS(THEME_KEY, next);
+    });
+
+    els.themeToggleBtn?.addEventListener('dblclick', () => {
+      safeLS('theme', null);
+      const sys = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      applyTheme(sys);
+      showToast('主题已重置为系统默认', 'info');
     });
 
     // 分享菜单逻辑 (修复版)
