@@ -262,13 +262,15 @@
       if (checking) {
         updateToggleUI('checking');
         showProgressUI(true);
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked);
+        // 传入 lastCheckInfo (历史数据) 作为第 6 个参数
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo);
         hideLastCheckResult();
         if (!checkStartTime) checkStartTime = Date.now();
       } else {
         showProgressUI(false);
         updateToggleUI('idle');
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked);
+        // 传入 lastCheckInfo
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked, lastCheckInfo);
 
         if (els.progressBar && (d.progress === 0 || d.proxyCount === 0)) {
           els.progressBar.value = 0;
@@ -359,64 +361,159 @@
 
   // ==================== 进度条逻辑 ====================
 
-  function updateProgress(total, processed, available, checking, lastChecked) {
+  /**
+   * 格式化秒数为易读字符串
+   */
+  function formatDuration(seconds) {
+    if (!seconds || seconds < 0) return '...';
+    if (seconds > 3600) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.round((seconds % 3600) / 60);
+      return `${h}小时 ${m}分`;
+    } else if (seconds >= 60) {
+      return Math.round(seconds / 60) + '分钟';
+    } else {
+      return Math.floor(seconds) + '秒';
+    }
+  }
+
+  function updateProgress(total, processed, available, checking, lastChecked, lastCheckData) {
+    // 初始化状态对象
     if (!updateProgress.etaState) {
       updateProgress.etaState = {
-        startTime: Date.now(),
-        lastUpdateUI: 0,
+        startTime: 0,          // 任务总开始时间
+        lastUpdateUI: 0,       // 上次更新 UI 时间
+        lastRecordHistory: 0,  // 上次记录历史数据的时间
+        history: [],           // 滑动窗口历史记录
         cachedEtaText: '',
-        lastProcessed: -1,
-        lastTotal: 0
+        isRunning: false,
+        historicalRate: 0      // 新增：历史基准速率 (个/秒)
       };
     }
+
     const state = updateProgress.etaState;
-    total = Number(total) || 0;
-    processed = Number(processed) || 0;
     const now = Date.now();
 
-    if (processed === 0 || (processed < state.lastProcessed && processed < 5)) {
-      if (processed === 0) {
-        state.startTime = now;
-        state.cachedEtaText = '';
+    total = Number(total) || 0;
+    processed = Number(processed) || 0;
+
+    // --- 1. 状态管理与重置 ---
+    if (checking && (!state.isRunning || processed === 0)) {
+      state.isRunning = true;
+      state.startTime = now;
+      state.lastUpdateUI = 0;
+      state.history = [];
+      state.cachedEtaText = '计算中...';
+
+      // 记录初始点 (时间0，数量0)
+      state.history.push({ t: now, c: 0 });
+
+      // [核心]：计算历史基准速率
+      state.historicalRate = 0;
+      if (lastCheckData && lastCheckData.total > 0 && lastCheckData.duration > 0) {
+        state.historicalRate = lastCheckData.total / lastCheckData.duration;
+      }
+    } else if (!checking) {
+      state.isRunning = false;
+      state.startTime = 0;
+      state.history = [];
+    }
+
+    // --- 2. 记录历史数据 ---
+    if (state.isRunning && checking) {
+      if (now - state.lastRecordHistory > 500) {
+        state.history.push({ t: now, c: processed });
+        state.lastRecordHistory = now;
+        // 保留最近 30 秒
+        const threshold = now - 30000;
+        while (state.history.length > 0 && state.history[0].t < threshold) {
+          state.history.shift();
+        }
       }
     }
-    state.lastProcessed = processed;
-    state.lastTotal = total;
 
+    // --- 3. 基础 UI 更新 ---
     const pct = total > 0 ? Math.min(100, (processed / total) * 100) : 0;
     if (els.progressBar) els.progressBar.value = pct;
     if (els.progressText) els.progressText.textContent = `${processed}/${total}`;
-    if (els.progressPercentTitle) els.progressPercentTitle.textContent = '进度';
+    if (els.progressPercent) els.progressPercent.textContent = pct.toFixed(1) + "%";
+
     if (els.successTitle) els.successTitle.textContent = '可用：';
     if (els.successText) {
       els.successText.classList.add("success-highlight");
       els.successText.textContent = available;
     }
-    if (els.progressPercent) els.progressPercent.textContent = pct.toFixed(1) + "%";
 
+    // --- 4. 智能 ETA 算法 ---
     let etaText = state.cachedEtaText;
-    if (checking && processed < total && total > 0) {
-      const timeElapsed = now - state.startTime;
-      if (timeElapsed < 30000 && processed < 5000) {
+
+    if (checking && total > 0 && processed < total) {
+      const totalTimeElapsed = now - state.startTime;
+
+      // 前 3 秒强制预热，给用户一点反应时间，也避免除0
+      if (totalTimeElapsed < 3000) {
         etaText = '计算中...';
-      } else if (now - state.lastUpdateUI > 10000) {
-        const safeTime = Math.max(1, timeElapsed / 1000);
-        const rate = processed / safeTime;
-        const remain = Math.max(0, total - processed);
-        if (rate > 0.01) {
-          const etaSec = Math.round(remain / rate);
-          if (etaSec > 3600) {
-            const h = Math.floor(etaSec / 3600);
-            const m = Math.round((etaSec % 3600) / 60);
-            etaText = `${h}h ${m}m`;
-          } else if (etaSec > 60) {
-            etaText = Math.round(etaSec / 60) + 'm';
-          } else {
-            etaText = etaSec + 's';
-          }
+        state.cachedEtaText = etaText;
+      }
+      // 计算期：每 1 秒刷新一次 UI
+      else if (now - state.lastUpdateUI > 2000) {
+
+        // --- A. 计算实时速率 (Real-time Rate) ---
+        let realTimeRate = 0;
+
+        if (pct < 15) {
+          // 阶段一 (<15%)：使用全局平均 (Processed / TotalTime)
+          // 目的：把启动时的慢速时间全部算入分母，避免速率虚高
+          realTimeRate = processed / (totalTimeElapsed / 1000);
         } else {
-          etaText = '...';
+          // 阶段二 (>=15%)：使用滑动窗口 (Last 30s)
+          // 目的：反映当前真实网速
+          const startPoint = state.history.length > 0 ? state.history[0] : { t: state.startTime, c: 0 };
+          const winTime = (now - startPoint.t) / 1000;
+          const winCount = processed - startPoint.c;
+          if (winTime > 0) realTimeRate = winCount / winTime;
         }
+
+        // --- B. 融合历史数据 (Hybrid Strategy) ---
+        let finalRate = realTimeRate;
+
+        // 只有当存在有效的历史数据时，才启用高级算法
+        if (state.historicalRate > 0) {
+
+          // === 策略 1: 冷启动保守阶段 (< 15%) ===
+          if (pct < 15) {
+            // 如果实时速率 > 历史速率 (看起来比以前快)，我们认为是“假快”或预热假象。
+            // 此时强制使用较慢的历史速率，这样算出来的 ETA 会更长（更保守）。
+            if (realTimeRate > state.historicalRate) {
+              finalRate = state.historicalRate;
+            }
+            // 如果实时速率 < 历史速率 (真的卡)，那就用实时的，如实反映慢速。
+            else {
+              finalRate = realTimeRate;
+            }
+          }
+
+          // === 策略 2: 巡航加权阶段 (>= 15%) ===
+          else {
+            // 计算权重 w (代表实时速率的权重)
+            // 15% 时 w=0.3 (30%信实时, 70%信历史) -> 平滑过渡
+            // 100% 时 w=1.0 (100%信实时)
+            let w = 0.3 + ((pct - 15) / 85) * 0.7;
+
+            // 限制范围
+            w = Math.min(1, Math.max(0, w));
+
+            finalRate = (realTimeRate * w) + (state.historicalRate * (1 - w));
+          }
+        }
+
+        // --- C. 计算最终时间 ---
+        if (finalRate > 0) {
+          const remaining = total - processed;
+          const etaSeconds = remaining / finalRate;
+          etaText = formatDuration(etaSeconds);
+        }
+
         state.cachedEtaText = etaText;
         state.lastUpdateUI = now;
       }
@@ -424,19 +521,33 @@
       etaText = '';
     }
 
+    // --- 5. 状态栏文字更新 ---
     if (els.statusEl) {
-      if (processed < total && total > 0 && checking) {
-        els.statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
-        els.statusEl.title = etaText ? `预计剩余: ${etaText}` : '';
+      if (checking) {
+        // 1. 如果已处理为0，说明刚启动，正在下载订阅文件 -> 只显示获取订阅
+        if (processed === 0) {
+          els.statusEl.textContent = "正在获取订阅...";
+        }
+        // 2. 如果已开始处理，但 ETA 还没算出来 -> 显示计算中
+        else if (!etaText || etaText === '计算中...') {
+          els.statusEl.textContent = "运行中, 计算剩余时间...";
+        }
+        // 3. 正常显示倒计时
+        else {
+          els.statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
+        }
+
+        const runSec = Math.floor((now - state.startTime) / 1000);
+        els.statusEl.title = `已运行: ${runSec}s`;
         els.statusEl.className = 'muted status-label status-checking';
-      } else if ((processed >= total && total > 0) || lastChecked) {
+      } else if (lastChecked || (processed >= total && total > 0)) {
         els.statusEl.textContent = '检测完成';
         els.statusEl.title = '';
-        els.className = 'muted status-label status-logged';
+        els.statusEl.className = 'muted status-label status-logged';
       } else {
         els.statusEl.textContent = '空闲';
         els.statusEl.title = '';
-        els.className = 'muted status-label status-idle';
+        els.statusEl.className = 'muted status-label status-idle';
       }
     }
   }
