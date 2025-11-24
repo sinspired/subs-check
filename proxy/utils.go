@@ -45,9 +45,7 @@ var (
 	v2rayLinkRegexCompiled *regexp.Regexp
 )
 
-// ======================
-// 核心解析入口
-// ======================
+// --------核心解析入口--------
 
 // ParseProxyLinksAndConvert 统一处理链接列表
 // 能够同时处理 WireGuard, SSR (手动解析) 和 V2Ray/Clash 支持的标准协议 (调用 Mihomo)
@@ -56,6 +54,9 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 	var finalNodes []ProxyNode
 	var batchLinks []string
 
+	// 获取文件名推测的协议（作为上下文参考）
+	fileGuessedScheme := guessSchemeByURL(subURL)
+
 	for _, link := range links {
 		link = strings.TrimSpace(link)
 		if link == "" {
@@ -63,7 +64,6 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 		}
 
 		// 1. 优先处理手动解析的协议 (WG, SSR)
-		// 这些协议 Mihomo 的转换器可能不支持或支持不全，或者我们需要特殊处理
 		if strings.HasPrefix(link, "wireguard://") || strings.HasPrefix(link, "wg://") {
 			if node := ParseWireGuardURI(link); node != nil {
 				finalNodes = append(finalNodes, ProxyNode(node))
@@ -78,34 +78,41 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 			continue
 		}
 
-		// 2. 标准化链接或处理 IP:Port
-		fixedLink := link
+		// 2. 标准化链接 或 智能扩展 IP:Port
 		if strings.Contains(link, "://") {
-			fixedLink = FixupProxyLink(link)
+			// 已有协议头，进行简单修复
+			batchLinks = append(batchLinks, FixupProxyLink(link))
 		} else {
-			// 尝试猜测协议 (IP:Port -> scheme://IP:Port)
-			scheme := guessSchemeByURL(subURL)
-			// 只有当文件名包含明确的协议指示时才尝试拼接，避免将乱码识别为 http
-			if prefix, ok := protocolSchemes[scheme]; ok {
-				host, port := SplitHostPortLoose(link)
-				if host != "" && port != "" {
-					// 简单的数字检查防止非 IP:Port 字符串混入
-					if _, err := strconv.Atoi(port); err == nil {
-						fixedLink = fmt.Sprintf("%s%s:%s", prefix, host, port)
+			// 处理纯 IP:Port 或域名:Port
+			host, port := SplitHostPortLoose(link)
+
+			// 简单的合法性校验，防止将普通文本误判为节点
+			if host != "" && port != "" {
+				if _, err := strconv.Atoi(port); err == nil {
+					prefix, isKnown := protocolSchemes[fileGuessedScheme]
+
+					if isKnown && fileGuessedScheme != "http" {
+						batchLinks = append(batchLinks, fmt.Sprintf("%s%s:%s", prefix, host, port))
+					} else {
+						// 添加 HTTPS (会转换为 type: http, tls: true)
+						batchLinks = append(batchLinks, fmt.Sprintf("https://%s:%s", host, port))
+
+						// 添加 SOCKS5
+						batchLinks = append(batchLinks, fmt.Sprintf("socks5://%s:%s", host, port))
+
+						// 如果端口是 80 或 8080，可能还是得试试纯 HTTP
+						if port == "80" || port == "8080" {
+							batchLinks = append(batchLinks, fmt.Sprintf("http://%s:%s", host, port))
+						}
 					}
 				}
 			}
 		}
-
-		// 将处理后的链接加入批处理列表
-		if strings.Contains(fixedLink, "://") {
-			batchLinks = append(batchLinks, fixedLink)
-		}
 	}
 
 	// 3. 批量转换剩余链接 (Vmess, Vless, SS, Trojan, Hysteria, etc.)
-	// 调用 Mihomo 的 convert 库进行批量转换，效率较高
 	if len(batchLinks) > 0 {
+		// 使用换行符拼接，交给 Mihomo 转换器批量处理
 		data := []byte(strings.Join(batchLinks, "\n"))
 		if nodes, err := convert.ConvertsV2Ray(data); err == nil {
 			finalNodes = append(finalNodes, ToProxyNodes(nodes)...)
@@ -179,11 +186,9 @@ func ToProxyNodes(list []map[string]any) []ProxyNode {
 	return res
 }
 
-// ======================
-// 节点标准化与清洗
-// ======================
+// --------节点标准化与清洗--------
 
-// NormalizeNode 统一清洗节点字段
+// NormalizeNode 统一清洗节点字段，注入默认值
 // 将各种非标准或类型不确定的字段转换为 Clash/Mihomo 标准格式
 func NormalizeNode(m map[string]any) {
 	// 1. 端口标准化 (确保是 int)
@@ -191,26 +196,43 @@ func NormalizeNode(m map[string]any) {
 		m["port"] = ToIntPort(p)
 	}
 
-	// 2. 布尔值标准化 (处理字符串形式的 "true"/"false"/"1"/"0")
+	// 2. 布尔值标准化
 	normalizeBool(m, "tls")
 	normalizeBool(m, "udp")
 	normalizeBool(m, "skip-cert-verify")
 	normalizeBool(m, "tfo")
 	normalizeBool(m, "allow-insecure")
 
-	// 3. 协议特定修正
+	// 3. 协议特定修正与默认值注入
 	if t, ok := m["type"].(string); ok {
-		// Hysteria2 字段名修正 (obfs_password -> obfs-password)
-		if t == "hysteria2" || t == "hy2" {
+		t = strings.ToLower(t)
+		m["type"] = t
+
+		switch t {
+		case "trojan":
+			// Trojan 协议隐含 TLS，强制设为 true 以便去重 Key 正确生成
+			m["tls"] = true
+		case "https":
+			// 处理部分旧格式将 https 作为 type 的情况
+			m["type"] = "http"
+			m["tls"] = true
+		case "hysteria2", "hy2":
+			// 修正 Hysteria2 字段名
 			if val, exists := m["obfs_password"]; exists {
 				m["obfs-password"] = val
 				delete(m, "obfs_password")
 			}
+			// Hysteria2 通常基于 UDP 且加密（类似 TLS），虽然 Clash 字段不强制 tls: true，
+			// 但如果有 sni，通常建议确保指纹包含 sni
+		case "vmess", "vless":
+			// 确保 security="tls" 时 tls 字段被正确设置
+			if val, ok := m["security"].(string); ok && strings.ToLower(val) == "tls" {
+				m["tls"] = true
+			}
 		}
 	}
 
-	// 4. 处理扁平化的 WS 字段 (Flow Style)
-	// 有些订阅将 ws-path 直接写在根对象中，需要移入 ws-opts
+	// 4. 处理扁平化的 WS 字段
 	normalizeWsFields(m)
 }
 
@@ -296,9 +318,7 @@ func ToIntPort(v any) int {
 	return 0
 }
 
-// ======================
-// 基础工具
-// ======================
+// --------基础工具--------
 
 func EnsureScheme(s string) string {
 	s = strings.TrimSpace(s)
@@ -380,9 +400,7 @@ func TryDecodeBase64(data []byte) []byte {
 	return data
 }
 
-// ======================
-// 正则提取逻辑
-// ======================
+// --------正则提取逻辑--------
 
 func ExtractV2RayLinks(data []byte) []string {
 	var links []string
@@ -418,9 +436,7 @@ func ExtractV2RayLinks(data []byte) []string {
 	return lo.Uniq(out)
 }
 
-// ======================
-// 特定格式转换器
-// ======================
+// --------特定格式转换器--------
 
 // ConvertSingBoxOutbounds 将 Sing-Box 的 outbounds 转换为 Clash 代理节点
 func ConvertSingBoxOutbounds(outbounds []any) []ProxyNode {
@@ -872,12 +888,12 @@ func ParseYamlFlowList(data []byte) []ProxyNode {
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		
+
 		// 快速过滤：必须包含 '{' 和 '}'，且通常以 '-' 开头或直接以 '{' 开头
 		if !strings.Contains(line, "{") || !strings.Contains(line, "}") {
 			continue
 		}
-		
+
 		// 尝试清理行首，使其成为一个合法的 YAML 列表项 "- { ... }"
 		cleanLine := line
 		if !strings.HasPrefix(cleanLine, "-") {
@@ -895,7 +911,7 @@ func ParseYamlFlowList(data []byte) []ProxyNode {
 		// 定义一个通用的切片来接收
 		var tempNodes []map[string]any
 		err := yaml.Unmarshal([]byte(cleanLine), &tempNodes)
-		
+
 		// 解析成功且有内容
 		if err == nil && len(tempNodes) > 0 {
 			for _, m := range tempNodes {
@@ -910,11 +926,11 @@ func ParseYamlFlowList(data []byte) []ProxyNode {
 			// TODO: 如果标准解析失败（例如引号嵌套错误），尝试简单的正则提取修复
 		}
 	}
-	
+
 	if len(nodes) > 0 {
 		slog.Debug("使用逐行 YAML 容错解析成功", "count", len(nodes))
 	}
-	
+
 	return nodes
 }
 

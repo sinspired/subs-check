@@ -389,7 +389,7 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 		strategies = append(strategies, strategy{false, warpFunc})
 	}
 
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		if i > 0 {
 			time.Sleep(time.Duration(max(1, conf.SubUrlsRetryInterval)) * time.Second)
 		}
