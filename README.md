@@ -59,12 +59,16 @@ High-performance proxy subscription checker.
   - [🔐 使用 `分享码` 分享)](#-使用-分享码-分享)
   - [🗂️ 无密码保护分享](#️-无密码保护分享)
 
+### 📣 使用交流，功能讨论，issure反馈，新版本通知
+
+- > Telegram 群组: [subs-check性能版](https://t.me/subs_check_pro)⁠
+- > Telegram 频道: [关注频道](https://t.me/subs_check_ai)⁠
+
 > [!TIP]
 >
 > 功能更新频繁，请务必查看最新的 [配置文件示例](https://github.com/sinspired/subs-check/blob/main/config/config.yaml.example) 以获取最新功能支持。  
 
 > [!NOTE]
->
 > 查看新增功能及设置方法： [新增功能和性能优化详情](#-新增功能和性能优化详情)
 
 ## 📸 预览
