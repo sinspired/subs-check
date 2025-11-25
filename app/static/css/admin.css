@@ -819,7 +819,7 @@ main {
   /* 文本截断 */
   /* white-space: nowrap;  */
   /* 强制不换行 */
-  /* overflow: hidden;    */
+  overflow: hidden;   
   /* 超出隐藏 */
   /* text-overflow: ellipsis;  */
   /* 显示省略号 */
@@ -865,7 +865,7 @@ main {
 
 .muted {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   margin-bottom: 0px;
   position: relative;
 }

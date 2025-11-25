@@ -79,7 +79,7 @@
           <span class="icon" id="iconMoon">☀️</span>
           <span class="icon" id="iconSun" style="display:none;margin-bottom: 3px;">🌙</span>
         </button>
-        <span class="theme-label muted">切换主题</span>
+        <span class="muted theme-label">切换主题</span>
       </div>
     </div>
   </header>
@@ -229,7 +229,8 @@
               <div id="historyPlaceholder" class="history-placeholder" style="display:none;">
                 <div class="history-title-row"
                   style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-                  <div class="history-title" style="font-weight:600;font-size:13px;color:var(--muted)">上次检测</div>
+                  <div id="history-title" class="history-title"
+                    style="font-weight:600;font-size:13px;color:var(--muted)">上次检测</div>
                   <div style="margin-left:14px">
                     <button id="btnSubStore" class="btn small" title="进入sub-store，编辑、管理、分享订阅">管理</button>
                     <button id="btnShare" class="btn small" title="分享订阅">分享</button>
@@ -237,9 +238,8 @@
                   </div>
                 </div>
 
-                <div class="history-summary"
-                  style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px">
-                  <div id="history-line" class="history-line muted">
+                <div class="history-summary">
+                  <div id="history-line" class="muted history-line">
                     <span id="historyLastTime"></span>
                     用时 <span id="historyLastDuration"></span> |
                     总数 <span id="historyLastTotal"></span> |
@@ -284,7 +284,7 @@
           </div>
           <!-- <div class="muted">在此编辑并保存配置</div> -->
           <div style="align-self: flex-start; margin-top: -20px;">
-            <span class="config-path muted" title="{{.configPath}}">{{.configPath}}</span>
+            <span class="muted config-path" title="{{.configPath}}">{{.configPath}}</span>
           </div>
 
         </div>
