@@ -12,6 +12,7 @@
   --success: #0fd056;
   --idle: #0198d3;
   --prepare: rgb(0, 142, 213);
+  --calculating: #a81c3398;
   --warning: #d97706;
   --danger: #ed1717;
 
@@ -837,7 +838,7 @@ main {
   /* 文本截断 */
   /* white-space: nowrap;  */
   /* 强制不换行 */
-  overflow: hidden;   
+  overflow: hidden;
   /* 超出隐藏 */
   /* text-overflow: ellipsis;  */
   /* 显示省略号 */
@@ -915,6 +916,10 @@ main {
 
 .status-prepare {
   color: var(--prepare);
+}
+
+.status-calculating {
+  color: var(--calculating);
 }
 
 .status-logged {

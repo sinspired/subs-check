@@ -870,12 +870,11 @@
 
         } else if (!etaText || etaText === '计算中...') {
           // 已开始处理，但 ETA 未算出
-          els.statusEl.innerHTML = `${checking_SPINNER}<span>运行中, 计算剩余时间...</span>`;
-          els.statusEl.className = 'muted status-label status-checking';
+          els.statusEl.innerHTML = `${checking_SPINNER}<span>已启动, 计算剩余时间...</span>`;
+          els.statusEl.className = 'muted status-label status-calculating';
 
         } else {
           // 正常显示倒计时
-          els.statusEl.textContent = `运行中, 预计剩余: ${etaText}`;
           els.statusEl.innerHTML = `${checking_SPINNER}<span>运行中, 预计剩余: ${etaText}</span>`;
           els.statusEl.className = 'muted status-label status-checking';
         }
