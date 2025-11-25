@@ -1579,6 +1579,7 @@
         const isPwd = els.apiKeyInput.type === 'password';
         els.apiKeyInput.type = isPwd ? 'text' : 'password';
         els.showApikeyBtn.textContent = isPwd ? '隐藏' : '显示';
+        els.showApikeyBtn.classList.toggle('active', isPwd);
       });
     }
 
