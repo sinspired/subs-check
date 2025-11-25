@@ -104,19 +104,33 @@ jobs:
     runs-on: ubuntu-latest
     needs: [releaser, docker] # 依赖前两个 job，确保成功后运行
     steps:
+      - name: Determine Notification Title
+        id: meta
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          # 使用正则匹配常见的预发布后缀 (忽略大小写)
+          if [[ "$TAG_NAME" =~ (beta|alpha|rc|dev|snapshot|dev|test) ]]; then
+            echo "title=🚧 *subs-check 预发布*" >> $GITHUB_OUTPUT
+          else
+            echo "title=🚀 *subs-check 更新*" >> $GITHUB_OUTPUT
+          fi
+
       - name: Send Telegram message on push
         uses: appleboy/telegram-action@master
         with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }} # 频道 ID
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }} # Bot Token
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           format: markdown
           message: |
-            🚀 *subs-check 更新*
+            ${{ steps.meta.outputs.title }}
 
             版本: `${{ github.ref_name }}`
             项目: `${{ github.repository }}`
 
             *说明:*
-              - 修复一键订阅管理在移动设备被当做弹窗拦截的错误
-
+              - 添加超级解码，提高拉取订阅成功率
+              - 优化WebUI，提升体验
+              - 错误修复
+              - 请添加tg群反馈或在频道留言
+              
             🔗 [查看详情](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
