@@ -23,42 +23,73 @@ import (
 	"github.com/sinspired/subs-check/utils"
 )
 
-var initAPIKey string
-var geneAPIKey string
+const (
+	DefaultPort     = ":8199"
+	LogTimeFormat   = "2006-01-02 15:04:05"
+	MaxLogLines     = 2000
+	ShareDirName    = "more"
+	TemplatePattern = "templates/*.html"
+	StaticPrefix    = "/static"
+	AdminPath       = "/admin"
+	APIAuthHeader   = "X-API-Key"
+	HeaderFromCheck = "X-From-Subs-Check"
+	QueryFromCheck  = "from_subs_check"
+)
 
-// initHTTPServer 初始化HTTP服务器
+var (
+	initAPIKey string
+	geneAPIKey string
+)
+
+// initHTTPServer 初始化并启动HTTP服务器
 func (app *App) initHTTPServer() error {
 	gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
-	router.Use(gin.Recovery()) // 必要的 recovery
 
-	// 仅当不是 from_subs_check 请求时，才走默认 Logger
-	router.Use(func(c *gin.Context) {
-		if c.Request.URL.Query().Get("from_subs_check") == "true" ||
-			strings.EqualFold(c.GetHeader("X-From-Subs-Check"), "true") {
-			// 静默日志
-			c.Next()
-		} else {
-			// 调用 gin.Logger()，然后继续处理
-			gin.Logger()(c)
-		}
-	})
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(app.silentLoggerMiddleware())
 
 	saver, err := method.NewLocalSaver()
 	if err != nil {
 		return fmt.Errorf("获取http监听目录失败: %w", err)
 	}
 
-	// 静态文件路由 - 订阅服务相关，始终启用
-	router.StaticFile("/ACL4SSR_Online_Full.yaml", saver.OutputPath+"/ACL4SSR_Online_Full.yaml")
-	// CM佬用的布丁狗
-	router.StaticFile("/bdg.yaml", saver.OutputPath+"/bdg.yaml")
+	app.ensureAPIKey()
+	app.registerStaticRoutes(router, saver.OutputPath)
 
-	// 兼容旧配置
-	router.StaticFile("/sub/ACL4SSR_Online_Full.yaml", saver.OutputPath+"/ACL4SSR_Online_Full.yaml")
-	// CM佬用的布丁狗
-	router.StaticFile("/sub/bdg.yaml", saver.OutputPath+"/bdg.yaml")
+	if err := app.registerShareRoutes(router, saver.OutputPath); err != nil {
+		slog.Error("注册分享路由失败", "error", err)
+	}
 
+	if !config.GlobalConfig.EnableWebUI {
+		slog.Info("Web控制面板已禁用, 仍可通过apiKey访问订阅文件", "api-key", config.GlobalConfig.APIKey)
+		router.GET(AdminPath, func(c *gin.Context) {
+			c.String(http.StatusForbidden, "Web 控制面板已禁用，请在配置中启用 EnableWebUI")
+		})
+	} else {
+		app.registerWebUIRoutes(router)
+		app.registerAPIRoutes(router)
+	}
+
+	listenAddr := normalizeListenAddr(config.GlobalConfig.ListenPort)
+	srv := &http.Server{
+		Addr:    listenAddr,
+		Handler: router,
+	}
+	app.httpServer = srv
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("HTTP服务器启动失败", "error", err)
+		}
+	}()
+
+	slog.Info("HTTP 服务器启动", "port", strings.TrimPrefix(listenAddr, ":"))
+	return nil
+}
+
+// ensureAPIKey 如未设置，生成一个随机值
+func (app *App) ensureAPIKey() {
 	initAPIKey = config.GlobalConfig.APIKey
 	if config.GlobalConfig.APIKey == "" {
 		if apiKey := os.Getenv("API_KEY"); apiKey != "" {
@@ -69,279 +100,110 @@ func (app *App) initHTTPServer() error {
 			slog.Warn("未设置api-key，已随机生成", "api-key", config.GlobalConfig.APIKey)
 		}
 	}
+}
 
-	// 提供一个相对安全暴露 output 文件夹的方案
-	// TODO: 不使用output目录,使用output/subs目录
+// silentLoggerMiddleware 通过软件自身发出的部分请求，不显示日志
+func (app *App) silentLoggerMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.URL.Query().Get(QueryFromCheck) == "true" ||
+			strings.EqualFold(c.GetHeader(HeaderFromCheck), "true") {
+			c.Next()
+		} else {
+			gin.Logger()(c)
+		}
+	}
+}
+
+// registerStaticRoutes 注册静态路由
+//
+// - 公共文件：无需鉴权，直接暴露
+//
+// - 受保护文件：需要鉴权中间件
+func (app *App) registerStaticRoutes(router *gin.Engine, outputPath string) {
+	// 公共静态文件映射（无需鉴权）
+	publicFiles := map[string]string{
+		"/ACL4SSR_Online_Full.yaml":     "ACL4SSR_Online_Full.yaml",
+		"/bdg.yaml":                     "bdg.yaml",
+		"/sub/ACL4SSR_Online_Full.yaml": "ACL4SSR_Online_Full.yaml",
+		"/sub/bdg.yaml":                 "bdg.yaml",
+	}
+	for routePath, fileName := range publicFiles {
+		router.StaticFile(routePath, filepath.Join(outputPath, fileName))
+	}
+
+	// 受保护静态文件映射（需鉴权）
+	authGroup := router.Group("/")
+	authGroup.Use(app.authMiddleware())
+	protectedFiles := map[string]string{
+		"/all.yaml":     "all.yaml",     // 最新节点
+		"/history.yaml": "history.yaml", // 历史节点
+		"/base64.yaml":  "base64.yaml",  // Base64 格式
+		"/mihomo.yaml":  "mihomo.yaml",  // Mihomo 格式
+	}
+	for routePath, fileName := range protectedFiles {
+		authGroup.StaticFile(routePath, filepath.Join(outputPath, fileName))
+	}
+}
+
+// registerShareRoutes 注册分享路由
+func (app *App) registerShareRoutes(router *gin.Engine, outputPath string) error {
+	// 加密分享
 	if config.GlobalConfig.SharePassword != "" {
 		slog.Info("订阅分享 已启用", "code", config.GlobalConfig.SharePassword)
-
-		// 提供一个用户自由分享目录
-		router.GET("/sub/"+config.GlobalConfig.SharePassword+"/*filepath", func(c *gin.Context) {
-			relPath := c.Param("filepath") // 带前缀的路径，如 "/abc.txt"
-
-			if relPath == "" || relPath == "/" {
-				// 访问根目录时返回 HTML 提示页
-				c.Header("Content-Type", "text/html; charset=utf-8")
-				c.String(200, `
-<!DOCTYPE html>
-<html lang="zh-CN">
-
-<head>
-    <meta charset="UTF-8">
-    <title>Subs-Check 文件分享（通过分享码）</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            margin: 0;
-            background: #fafafa;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        .box {
-            padding: 2em;
-            border: 1px solid #cccccca7;
-            border-radius: 12px;
-            background: #fff;
-            max-width: 800px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
-        }
-
-        h2 {
-            color: #009768;
-        }
-
-        p {
-            margin: 0.5em 0;
-        }
-
-        code {
-            background: #f7f7f5;
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-family: "Menlo", "Monaco", monospace;
-            color: #5d5454;
-            font-size: 0.9em;
-            word-break: break-all;
-            border: 1px solid #eee;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="box">
-        <h2>🔒 订阅分享</h2>
-        <p>您正在通过<code>share-password</code>访问 <b>/output/</b>。</p>
-        <p>请输入正确的文件名访问，例如：<code>/sub/{share-password}/filename.txt</code></p>
-        </br>
-        <b>💡 提示：</b>
-        <p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code></p>
-        </br>
-        <p>🚨 请请勿将本网址随意分享给他人！</p>
-        <p style="font-size: 0.9em; color: #999;">🚦 建议定期更换分享码。</p>
-    </div>
-</body>
-
-</html>
-        `)
-				return
-			}
-
-			// 拼接绝对路径
-			absPath := filepath.Join(saver.OutputPath, relPath)
-
-			// 判断文件是否存在
-			info, err := os.Stat(absPath)
-			if err != nil || info.IsDir() {
-				c.String(404, "❌ 文件不存在")
-				return
-			}
-
-			// 存在则返回文件
-			c.File(absPath)
-		})
+		sharePath := "/sub/" + config.GlobalConfig.SharePassword + "/*filepath"
+		router.GET(sharePath, app.handleFileShare(outputPath, true))
 	}
 
-	// 确保 自由分享 文件夹存在
-	moreDirPath := filepath.Join(saver.OutputPath, "more")
+	// 公开分享
+	moreDirPath := filepath.Join(outputPath, ShareDirName)
 	if _, err := os.Stat(moreDirPath); os.IsNotExist(err) {
 		if err := os.MkdirAll(moreDirPath, 0755); err != nil {
-			slog.Error(fmt.Sprintf("创建 %s/more 文件夹失败", saver.OutputPath))
+			return err
 		}
 	}
 
-	// 提供一个用户自由分享目录
-	router.GET("/more/*filepath", func(c *gin.Context) {
-		relPath := c.Param("filepath") // 带前缀的路径，如 "/abc.txt"
-
-		if relPath == "" || relPath == "/" {
-			// 访问根目录时返回 HTML 提示页
-			c.Header("Content-Type", "text/html; charset=utf-8")
-			c.String(200, `
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>Subs-Check 文件分享</title>
-    <style>
-        body { font-family: sans-serif; margin: 0; background: #fafafa; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .box { padding: 2em; border: 1px solid #cccccca7; border-radius: 12px; background: #fff; max-width: 800px; box-shadow: 0 10px 25px rgba(0,0,0,0.05);  }
-        h2 { color: #d9534f; }
-        p { margin: 0.5em 0; }
-        code {    
-            background: #f7f7f5; padding: 3px 8px; border-radius: 6px; font-family: "Menlo", "Monaco", monospace; color: #5d5454; font-size: 0.9em; word-break: break-all; border: 1px solid #eee;  
-        }  
-    </style>
-</head>
-<body>
-    <div class="box">
-        <h2>⚠️ 注意</h2>
-        <p>您正在访问 <b>无密码保护的目录</b>。</p>
-        <p>请输入正确的文件名访问，例如：<code>/more/filename.txt</code></p>
-		</br>
-		<b>💡 提示：</b>
-        <p>如需保留之前成功的代理节点，仅需开启 <code>keep-success-proxies: true</code></p>
-		</br>
-		<p>🚨 请勿在该目录存放敏感文件，以免资源泄露！</p>
-        <p style="font-size: 0.9em; color: #999;">🚦 除非文件确实没啥泄露价值。</p>
-    </div>
-</body>
-</html>
-        `)
-			return
-		}
-
-		// 拼接绝对路径
-		absPath := filepath.Join(moreDirPath, relPath)
-
-		// 判断文件是否存在
-		info, err := os.Stat(absPath)
-		if err != nil || info.IsDir() {
-			c.String(404, "❌ 文件不存在")
-			return
-		}
-
-		// 存在则返回文件
-		c.File(absPath)
-	})
-
-	// 通过配置控制webUI开关
-	if !config.GlobalConfig.EnableWebUI {
-		slog.Info("Web控制面板已禁用,仍可通过apiKey访问订阅文件", "api-key", config.GlobalConfig.APIKey)
-		router.GET("/admin", func(c *gin.Context) {
-			c.String(http.StatusForbidden, "Web 控制面板已禁用，请在配置中启用 EnableWebUI")
-		})
-	} else {
-		// 根据配置决定是否启用Web控制面板
-		slog.Info("启用Web控制面板", "path", "http://ip:port/admin", "api-key", config.GlobalConfig.APIKey)
-
-		// 设置模板加载 - 只有在启用Web控制面板时才加载
-		router.SetHTMLTemplate(template.Must(template.New("").ParseFS(configFS, "templates/*.html")))
-
-		// 挂载嵌入的 static 目录
-		staticSub, _ := fs.Sub(staticFS, "static")
-		router.StaticFS("/static", http.FS(staticSub))
-
-		// 配置页面
-		router.GET("/admin", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin.html", gin.H{
-				"configPath": app.configPath,
-			})
-		})
-
-		// 暴露版本号
-		router.GET("/admin/version", app.getOriginVersion)
-	}
-
-	// 通过认证访问的订阅文件
-	router.Use(app.authMiddleware()) // 根路径加认证
-	// router.Static("/", saver.OutputPath)
-
-	router.GET("/all.yaml", func(c *gin.Context) {
-		c.File(saver.OutputPath + "/all.yaml")
-	})
-	router.GET("/history.yaml", func(c *gin.Context) {
-		c.File(saver.OutputPath + "/history.yaml")
-	})
-	router.GET("/base64.yaml", func(c *gin.Context) {
-		c.File(saver.OutputPath + "/base64.yaml")
-	})
-	router.GET("/mihomo.yaml", func(c *gin.Context) {
-		c.File(saver.OutputPath + "/mihomo.yaml")
-	})
-
-	// 根据配置决定是否启用Web控制面板
-	if config.GlobalConfig.EnableWebUI {
-		// API路由
-		api := router.Group("/api")
-		api.Use(app.authMiddleware()) // 添加认证中间件
-		{
-			// 配置相关API
-			api.GET("/config", app.getConfig)
-			api.POST("/config", app.updateConfig)
-
-			// 状态相关API
-			api.GET("/status", app.getStatus)
-			api.POST("/trigger-check", app.triggerCheckHandler)
-			api.POST("/force-close", app.forceCloseHandler)
-			// 版本相关API
-			api.GET("/version", app.getVersion)
-			api.GET("/singbox-versions", app.getSingboxVersions)
-
-			// 日志相关API
-			api.GET("/logs", app.getLogs)
-		}
-	}
-
-	// 启动HTTP服务器
-	listenAddr := normalizeListenAddr(config.GlobalConfig.ListenPort)
-	srv := &http.Server{
-		Addr:    listenAddr,
-		Handler: router,
-	}
-	app.httpServer = srv
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error(fmt.Sprintf("HTTP服务器启动失败: %v", err))
-		}
-	}()
-	listenPort := strings.TrimPrefix(config.GlobalConfig.ListenPort, ":")
-	slog.Info("HTTP 服务器启动", "port", listenPort)
-
+	router.GET("/more/*filepath", app.handleFileShare(moreDirPath, false))
 	return nil
 }
 
-// normalizeListenAddr 确保Addr格式合法
-func normalizeListenAddr(s string) string {
-	const def = ":8199"
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return def
-	}
+// registerWebUIRoutes 注册WebUI路由
+func (app *App) registerWebUIRoutes(router *gin.Engine) {
+	slog.Info("启用Web控制面板", "path", "http://ip:port/admin", "api-key", config.GlobalConfig.APIKey)
 
-	// 纯数字端口
-	if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= 65535 {
-		return ":" + s
-	}
-	// host:port 格式
-	if host, port, err := net.SplitHostPort(s); err == nil {
-		if n, err := strconv.Atoi(port); err == nil && n > 0 && n <= 65535 {
-			return net.JoinHostPort(host, port)
-		}
-		return def
-	}
+	router.SetHTMLTemplate(template.Must(template.New("").ParseFS(configFS, TemplatePattern)))
 
-	return def
+	staticSub, _ := fs.Sub(staticFS, "static")
+	router.StaticFS(StaticPrefix, http.FS(staticSub))
+
+	router.GET(AdminPath, func(c *gin.Context) {
+		c.HTML(http.StatusOK, "admin.html", gin.H{
+			"configPath": app.configPath,
+		})
+	})
+
+	router.GET("/admin/version", app.getOriginVersion)
 }
 
-// authMiddleware API认证中间件
+// registerAPIRoutes 注册api状态路由
+func (app *App) registerAPIRoutes(router *gin.Engine) {
+	api := router.Group("/api")
+	api.Use(app.authMiddleware())
+	{
+		api.GET("/config", app.getConfig)
+		api.POST("/config", app.updateConfig)
+		api.GET("/status", app.getStatus)
+		api.POST("/trigger-check", app.triggerCheckHandler)
+		api.POST("/force-close", app.forceCloseHandler)
+		api.GET("/version", app.getVersion)
+		api.GET("/singbox-versions", app.getSingboxVersions)
+		api.GET("/logs", app.getLogs)
+	}
+}
+
+// authMiddleware 认证中间件
 func (app *App) authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		apiKey := c.GetHeader("X-API-Key")
-		// 动态获取apikey
+		apiKey := c.GetHeader(APIAuthHeader)
 		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(config.GlobalConfig.APIKey)) != 1 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "无效的API密钥"})
 			return
@@ -350,57 +212,69 @@ func (app *App) authMiddleware() gin.HandlerFunc {
 	}
 }
 
-// getConfig 获取配置文件内容
+// normalizeListenAddr 处理监听端口
+func normalizeListenAddr(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return DefaultPort
+	}
+	if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= 65535 {
+		return ":" + s
+	}
+	if host, port, err := net.SplitHostPort(s); err == nil {
+		if n, err := strconv.Atoi(port); err == nil && n > 0 && n <= 65535 {
+			return net.JoinHostPort(host, port)
+		}
+		return DefaultPort
+	}
+	return DefaultPort
+}
+
+// API 处理方法
+
+// getConfig 获取配置
 func (app *App) getConfig(c *gin.Context) {
 	configData, err := os.ReadFile(app.configPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取配置文件失败: %v", err)})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"content":        string(configData),
 		"sub_store_path": config.GlobalConfig.SubStorePath,
 	})
 }
 
-// updateConfig 更新配置文件内容
+// updateConfig 更新配置
 func (app *App) updateConfig(c *gin.Context) {
 	var req struct {
 		Content string `json:"content"`
 	}
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求格式"})
 		return
 	}
-	// 验证YAML格式
 	var yamlData map[string]any
 	if err := yaml.Unmarshal([]byte(req.Content), &yamlData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("YAML格式错误: %v", err)})
 		return
 	}
-
-	// 写入新配置
 	if err := os.WriteFile(app.configPath, []byte(req.Content), 0644); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("保存配置文件失败: %v", err)})
 		return
 	}
-
-	// 配置文件监听器会自动重新加载配置
 	c.JSON(http.StatusOK, gin.H{"message": "配置已更新"})
 }
 
-// getStatus 获取应用状态
+// getStatus 获取检测状态
 func (app *App) getStatus(c *gin.Context) {
-	// 准备 lastCheck 数据
 	lastCheckTime := ""
 	if t, ok := app.lastCheck.time.Load().(time.Time); ok && !t.IsZero() {
-		lastCheckTime = t.Format("2006-01-02 15:04:05")
+		lastCheckTime = t.Format(LogTimeFormat)
 	}
 
 	lastCheck := gin.H{}
-	if lastCheckTime != "" || app.lastCheck.duration.Load() != 0 || app.lastCheck.Total.Load() != 0 || app.lastCheck.available.Load() != 0 {
+	if lastCheckTime != "" || app.lastCheck.duration.Load() != 0 || app.lastCheck.Total.Load() != 0 {
 		lastCheck = gin.H{
 			"time":      lastCheckTime,
 			"duration":  app.lastCheck.duration.Load(),
@@ -418,28 +292,24 @@ func (app *App) getStatus(c *gin.Context) {
 	})
 }
 
-// triggerCheckHandler 手动触发检测
 func (app *App) triggerCheckHandler(c *gin.Context) {
 	app.TriggerCheck()
 	c.JSON(http.StatusOK, gin.H{"message": "已触发检测"})
 }
 
-// forceCloseHandler 强制关闭
 func (app *App) forceCloseHandler(c *gin.Context) {
 	check.ForceClose.Store(true)
 	c.JSON(http.StatusOK, gin.H{"message": "已强制关闭"})
 }
 
-// getLogs 获取最近日志
+// getLogs 获取日志
 func (app *App) getLogs(c *gin.Context) {
-	// 简单实现，从日志文件读取最后xx行
 	logPath := TempLog()
-
 	if _, err := os.Stat(logPath); os.IsNotExist(err) {
 		c.JSON(http.StatusOK, gin.H{"logs": []string{}})
 		return
 	}
-	lines, err := ReadLastNLines(logPath, 2000)
+	lines, err := ReadLastNLines(logPath, MaxLogLines)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志失败: %v", err)})
 		return
@@ -447,30 +317,20 @@ func (app *App) getLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"logs": lines})
 }
 
-// getLogs 获取版本号
+// getVersion 获取版本
 func (app *App) getVersion(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"version":        app.version,
-		"latest_version": app.latestVersion, // 建议用下划线，避免 JS 解析问题})
-	})
+	c.JSON(http.StatusOK, gin.H{"version": app.version, "latest_version": app.latestVersion})
 }
 
-// getOriginVersion 获取原始程序版本
 func (app *App) getOriginVersion(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"version":        app.originVersion,
-		"latest_version": app.latestVersion, // 建议用下划线，避免 JS 解析问题
-	})
+	c.JSON(http.StatusOK, gin.H{"version": app.originVersion, "latest_version": app.latestVersion})
 }
 
-// getSingboxVersions 获取 singbox 版本
 func (app *App) getSingboxVersions(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"latest": utils.LatestSingboxVersion,
-		"old":    utils.OldSingboxVersion,
-	})
+	c.JSON(http.StatusOK, gin.H{"latest": utils.LatestSingboxVersion, "old": utils.OldSingboxVersion})
 }
 
+// ReadLastNLines 读取最新日志
 func ReadLastNLines(filePath string, n int) ([]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -482,7 +342,6 @@ func ReadLastNLines(filePath string, n int) ([]string, error) {
 	ring := make([]string, n)
 	count := 0
 
-	// 使用环形缓冲区读取
 	for scanner.Scan() {
 		ring[count%n] = scanner.Text()
 		count++
@@ -491,13 +350,13 @@ func ReadLastNLines(filePath string, n int) ([]string, error) {
 		return nil, err
 	}
 
-	// 处理结果
 	if count <= n {
 		return ring[:count], nil
 	}
 
-	// 调整顺序，从最旧到最新
+	result := make([]string, n)
 	start := count % n
-	result := append(ring[start:], ring[:start]...)
+	copy(result, ring[start:])
+	copy(result[n-start:], ring[:start])
 	return result, nil
 }
