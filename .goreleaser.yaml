@@ -1,5 +1,3 @@
-# --- .goreleaser.yaml ---
-
 version: 2
 
 before:
@@ -9,32 +7,61 @@ before:
     - go generate ./...
 
 release:
-  # 自动检测是否为预发布版本（例如，tag 中包含 -rc, -beta 等）
+  # 自动检测是否为预发布版本
   prerelease: auto
+
+# 变更日志配置 (新增部分)
+changelog:
+  # 排序方式：asc (旧->新) 或 desc (新->旧)
+  sort: asc
+  # 使用 github 自动链接 issue 和处理贡献者
+  use: github
+  # 过滤掉不需要显示在日志中的提交
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^style:"
+      - "^Merge pull request"
+      - "^Merge branch"
+      - "go mod tidy"
+  # 提交分组配置
+  groups:
+    - title: "✨ 新功能"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "🐛 Bug 修复"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: "🚀 性能优化"
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: "🔧 维护与重构"
+      regexp: "^.*(chore|refactor|build|ci)[(\\w)]*:+.*$"
+      order: 3
+    - title: "📝 文档"
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 4
+    - title: "其他"
+      order: 999
 
 # 构建配置
 builds:
   - id: subs-check
-    # 启用 CGO_ENABLED=0 来创建静态链接的二进制文件
     env:
       - CGO_ENABLED=0
-      # 实验特性
       - GOEXPERIMENT=greenteagc,jsonv2
-    # 目标操作系统
     goos:
       - linux
       - windows
       - darwin
-    # 目标 CPU 架构
     goarch:
       - amd64
       - arm64
       - arm
       - "386"
-    # 为 arm 架构指定版本
     goarm:
       - "7"
-    # 忽略不支持的平台组合
     ignore:
       - goos: darwin
         goarch: arm
@@ -42,23 +69,18 @@ builds:
         goarch: arm
       - goos: darwin
         goarch: "386"
-    # 使用 Git 提交的时间戳作为模块的时间戳，确保可复现构建
     mod_timestamp: "{{ .CommitTimestamp }}"
-    # 构建标志
     flags:
       - -trimpath
-    # 链接器标志，用于注入版本信息并减小二进制文件大小
     ldflags:
       - -s -w -X main.Version={{ .Version }} -X main.CurrentCommit={{ .ShortCommit }}
 
-# 归档配置（用于创建 .tar.gz 和 .zip 文件）
+# 归档配置
 archives:
   - ids:
       - subs-check
-    # 归档文件的打包
     formats:
       - tar.gz
-    # 自定义归档文件的命名模板
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -67,7 +89,6 @@ archives:
       {{- else if eq .Arch "arm64" }}aarch64
       {{- else if eq .Arch "arm" }}armv7
       {{- else }}{{ .Arch }}{{ end }}
-    # 针对 Windows 系统，覆盖打包格式为 zip
     format_overrides:
       - goos: windows
         formats: zip
