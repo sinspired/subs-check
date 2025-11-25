@@ -284,7 +284,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 	}
 
 	// 5. 尝试自定义 Bracket KV 格式 ([Type]Name=...)
-	
+
 	if nodes := ParseBracketKVProxies(data); len(nodes) > 0 {
 		slog.Debug("Bracket KV 格式")
 		return nodes, nil
@@ -353,11 +353,8 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 	maxRetries := max(1, conf.SubUrlsReTry)
 	timeout := max(10, conf.SubUrlsTimeout)
 
-	if strings.Contains(rawURL, "github.com") && strings.Contains(rawURL, "/blob/") {
-		// 把 github.com/.../blob/... 转换为 raw.githubusercontent.com/.../...
-		rawURL = strings.Replace(rawURL, "github.com/", "raw.githubusercontent.com/", 1)
-		rawURL = strings.Replace(rawURL, "/blob/", "/", 1)
-	}
+	// 处理为标准的raw地址
+	rawURL = NormalizeGitHubRawURL(rawURL)
 
 	candidates, hasPlaceholder := buildCandidateURLs(rawURL)
 	var lastErr error
@@ -489,6 +486,8 @@ func resolveSubUrls() ([]string, int, int, int) {
 	if len(config.GlobalConfig.SubUrlsRemote) != 0 {
 		slog.Info("获取远程订阅列表")
 		for _, subURLRemote := range config.GlobalConfig.SubUrlsRemote {
+			// 处理为标准的raw地址
+			subURLRemote = NormalizeGitHubRawURL(subURLRemote)
 			warped := utils.WarpURL(subURLRemote, utils.IsGhProxyAvailable)
 			if remote, err := fetchRemoteSubUrls(warped); err != nil {
 				if !errors.Is(err, ErrIgnore) {
@@ -825,4 +824,29 @@ func logFatal(err error, urlStr string) {
 		// 普通错误
 		slog.Error("获取失败", "URL", urlStr, "error", err)
 	}
+}
+
+// NormalizeGitHubRawURL 将 GitHub 的 blob 或 raw 页面链接转换为 raw.githubusercontent.com 直链
+func NormalizeGitHubRawURL(urlStr string) string {
+	// 如果不是 github.com 的链接，或者已经是 raw.githubusercontent.com，直接返回
+	if !strings.Contains(urlStr, "github.com") || strings.Contains(urlStr, "raw.githubusercontent.com") {
+		return urlStr
+	}
+
+	// 移除可能存在的 www. 前缀，统一处理
+	urlStr = strings.Replace(urlStr, "www.github.com", "github.com", 1)
+
+	// 检查是否包含 /blob/ 或 /raw/
+	// GitHub 结构通常是: github.com/{user}/{repo}/[blob|raw]/{branch}/{path}
+	// 目标结构是: raw.githubusercontent.com/{user}/{repo}/{branch}/{path}
+
+	if strings.Contains(urlStr, "/blob/") {
+		urlStr = strings.Replace(urlStr, "github.com", "raw.githubusercontent.com", 1)
+		urlStr = strings.Replace(urlStr, "/blob/", "/", 1)
+	} else if strings.Contains(urlStr, "/raw/") {
+		urlStr = strings.Replace(urlStr, "github.com", "raw.githubusercontent.com", 1)
+		urlStr = strings.Replace(urlStr, "/raw/", "/", 1)
+	}
+
+	return urlStr
 }
