@@ -1,4 +1,4 @@
-# --------------------进度显示--------------------
+# -----------进度显示-----------
 # 是否显示检测进度（终端）
 print-progress: false
 # 进度条显示模式:
@@ -6,7 +6,7 @@ print-progress: false
 # "stage": 每个阶段完成,显示下一阶段剩余任务
 progress-mode: "auto"
 
-# --------------------计划任务--------------------
+# -----------计划任务-----------
 # 支持标准cron表达式，如：
 # "0 */6 * * *" 表示每6小时的整点执行
 # "0 0 */2 * *" 表示每2天的0点执行
@@ -22,7 +22,7 @@ progress-mode: "auto"
 # 高峰期检测意义真的不大，节点少，而且不稳定
 check-interval: 720
 
-# --------------------检测参数--------------------
+# -----------检测参数-----------
 # 流水线任务并发数,如不知怎么设置，可将以下任意一个设为 0，将自动设置
 # 测活任务受限于CPU和路由器芯片,占用带宽较小,可适当大一点,量力而行
 # 测速阶段占用带宽,如果要设大,建议设置total-speed-limit避免拉满带宽
@@ -49,12 +49,13 @@ concurrent: 20
 success-limit: 200
 
 # 此选项将保存并加载 {上次检测成功的节点} 和 {历次检测成功的节点}
-# 如果为true，则保留之前测试成功的节点，这样就不会因为上游链接更新，导致可用的节点被清除掉
+# 如果为true，则保留之前测试成功的节点
+# 避免因为上游链接更新，导致可用节点丢失
 # 本项目已移除未经验证的 /all.yaml /sub/all.yaml访问
 # 可放心设置CF Tunnel隧道,在外网访问、修改配置、分享订阅
 keep-success-proxies: true
 
-# --------------------下载参数--------------------
+# -----------下载参数-----------
 # 注意: 节点可能被测速测死(暂时或永久), 经过多次测试, 不用怀疑!
 # 强烈建议设置较低的 min-speed, 强烈建议保留 download-timeout 和 download-mb
 # 最低测速结果舍弃(KB/s)
@@ -85,7 +86,7 @@ speed-test-url: ""
 # 以下设置仅能 [减少] 节点被测速测死的概率, 无法避免被 "反代机房" 中断节点
 threshold: 0.75
 
-# --------------------版本更新--------------------
+# -----------版本更新-----------
 # 是否开启新版本更新
 # 支持启动时检查更新及定时更新任务,无缝升级新版本
 # 支持apprise API通知渠道
@@ -103,7 +104,7 @@ prerelease: false
 # 请输入整数
 update-timeout: 2
 
-# --------------------WebUI--------------------
+# -----------WebUI-----------
 # 监听端口，用于直接返回节点信息，方便订阅转换
 # 注意：为方便小白默认监听0.0.0.0:8199，请自行修改
 # 更新需重启程序
@@ -129,7 +130,7 @@ api-key: ""
 # 首次设置需重启生效
 share-password: ""
 
-# --------------------SUB-STORE--------------------
+# -----------SUB-STORE-----------
 # sub-store的启动端口，为空则不启动sub-store
 # 更新需重启程序，不可监听局域网IP，只有三种写法 :8299, 127.0.0.1:8299, 0.0.0.0:8299
 sub-store-port: ":8299"
@@ -153,17 +154,17 @@ mihomo-overwrite-url: http://127.0.0.1:8199/ACL4SSR_Online_Full.yaml
 singbox-latest:
   version: 1.12
   json:
-    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json
+    - "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.json"
   js:
-    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.js
+    - "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.12.x/sing-box.js"
 
 # singbox 1.11 版本配置（iOS 兼容）
 singbox-old:
   version: 1.11
   json:
-    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.json
+    - "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.json"
   js:
-    - https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.js
+    - "https://raw.githubusercontent.com/sinspired/sub-store-template/main/1.11.x/sing-box.js"
 
 # 以下配置查看sub-store相关的教程：https://hub.docker.com/r/xream/sub-store
 # sub-store同步gist定时任务
@@ -175,14 +176,14 @@ sub-store-sync-cron: "55 5-23/2 * * *"
 # 即每 2 小时处理一次单条订阅 sub_A，每 3 小时处理一次组合订阅 col_B。
 # subs-check 默认上传的订阅名为： sub
 # 比如你有一个sub-store订阅,名称为 jichang,就可以填 0 */2 * * *,sub,sub,jichang
-sub-store-produce-cron: 0 */2 * * *,sub,sub
+sub-store-produce-cron: "0 */2 * * *,sub,sub"
 # sub-store推送服务地址
 # 例如：Bark: "SUB_STORE_PUSH_SERVICE=https://api.day.app/XXXXXXXXXXXX/[推送标题]/[推送内容]"
 # 注意：仅需修改 XXXXXXXXXXXX 为自己的 token，[推送标题]/[推送内容] 会被sub-store自动替换为对应的内容
 # 苹果 App Store 下载 Brak，APP内获取 token
 sub-store-push-service: ""
 
-# --------------------节点处理--------------------
+# -----------节点处理-----------
 # 以节点IP查询位置重命名节点
 # 质量差的节点可能造成IP查询失败，造成整体检查速度稍微变慢，默认true
 rename-node: true
@@ -232,7 +233,7 @@ maxmind-db-path: ""
 # 注意如果使用docker，目前docker使用的alpine，只有sh，不支持bash
 callback-script: ""
 
-# --------------------通知设置--------------------
+# -----------通知设置-----------
 # 配置通知渠道，将自动发送检测结果通知，新版本通知
 # 复制 https://vercel.com/new/clone?repository-url=https://github.com/sinspired/apprise_vercel 到浏览器
 # 按提示部署，建议为 Vercel 项目设置自定义域名（国内访问 Vercel 可能受限）。
@@ -248,26 +249,26 @@ apprise-api-server: "https://apprised.netlib.re/notify"
 # QQ邮箱：mailto://{QQ号}:{邮箱授权码}@qq.com
 # 邮箱授权码：设置-账号-POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务-开通-继续获取授权码
 recipient-url:
-  # - tgram://xxxxxx/-1002149239223
-  # - dingtalk://xxxxxx@xxxxxxx
-  # - mailto://xxxxx:xxxxxx@qq.com
+  # - "tgram://xxxxxx/-1002149239223"
+  # - "dingtalk://xxxxxx@xxxxxxx"
+  # - "mailto://xxxxx:xxxxxx@qq.com"
 
 # 自定义通知标题
 notify-title: "🔔 节点状态更新"
 
-# --------------------存储参数--------------------
+# -----------存储参数-----------
 # 输出目录
 # 如果为空，则为程序所在目录的config目录
 output-dir: ""
 
 # 保存方法
 # 目前支持的保存方法: r2, local, gist, webdav, s3
-save-method: local
+save-method: "local"
 
 # webdav
-webdav-url: https://example.com/dav/
-webdav-username: admin
-webdav-password: admin
+webdav-url: "https://example.com/dav/"
+webdav-username: "admin"
+webdav-password: "admin"
 
 # gist id
 github-gist-id: ""
@@ -277,24 +278,24 @@ github-token: ""
 github-api-mirror: ""
 
 # 将测速结果推送到Worker的地址
-worker-url: https://example.worker.dev
+worker-url: "https://example.worker.dev"
 # Worker令牌
 worker-token: 1234567890
 
 # 将测速结果推送到S3/Minio的地址
-s3-endpoint: 127.0.0.1:9000
+s3-endpoint: "127.0.0.1:9000"
 # S3的访问凭证
-s3-access-id: ak
-s3-secret-key: sk
+s3-access-id: "ak"
+s3-secret-key: "sk"
 # S3的Bucket名称
-s3-bucket: public
+s3-bucket: "public"
 # 是否使用SSL
 s3-use-ssl: false
 # 默认自动判断dns还是path，但一些云厂商不遵循规范，所以有时需要手动设置
 # 可选值：auto, path, dns
-s3-bucket-lookup: auto
+s3-bucket-lookup: "auto"
 
-# --------------------代理环境--------------------
+# -----------代理环境-----------
 # 优先级 1.system-proxy;2.github-proxy;3.ghproxy-group
 # 即使未设置,也会检测常见端口(v2ray\clash)的系统代理自动设置
 
@@ -309,29 +310,29 @@ system-proxy: ""
 github-proxy: ""
 # GitHub 代理列表：程序会自动筛选可用的 GitHub 代理
 ghproxy-group:
-  - https://github.intellisensing.tech/
-  - https://ghproxy.wjsphy.top/
-  - https://githubacc.caiaiwan.com/
-  - https://l0l0l.cc/
-  - https://cdn-gh.141888.xyz/
-  - https://ghjs.131412.eu.org/
-  - https://gh.dev.438250.xyz/
-  - https://git-clone.ccrui.dev/
-  - https://b.yesican.top/
-  - https://hub.why-ing.top/
-  - https://q-github.cnxiaobai.com/
-  - https://g.108964.xyz/
-  - https://git.maomao.ovh/
-  - https://git.llvho.com/
-  - https://ghp.opendatahub.xyz/
-  - https://privateghproxy.iil.im/
-  - https://gh.mtx72.cc/
-  - https://git.loushi.site/
-  - https://ghproxy.gopher.ink/
-  - https://gh.tou.lu/
-  - https://gh.aurzex.top/
+  - "https://github.intellisensing.tech/"
+  - "https://ghproxy.wjsphy.top/"
+  - "https://githubacc.caiaiwan.com/"
+  - "https://l0l0l.cc/"
+  - "https://cdn-gh.141888.xyz/"
+  - "https://ghjs.131412.eu.org/"
+  - "https://gh.dev.438250.xyz/"
+  - "https://git-clone.ccrui.dev/"
+  - "https://b.yesican.top/"
+  - "https://hub.why-ing.top/"
+  - "https://q-github.cnxiaobai.com/"
+  - "https://g.108964.xyz/"
+  - "https://git.maomao.ovh/"
+  - "https://git.llvho.com/"
+  - "https://ghp.opendatahub.xyz/"
+  - "https://privateghproxy.iil.im/"
+  - "https://gh.mtx72.cc/"
+  - "https://git.loushi.site/"
+  - "https://ghproxy.gopher.ink/"
+  - "https://gh.tou.lu/"
+  - "https://gh.aurzex.top/"
 
-# --------------------获取订阅--------------------
+# -----------获取订阅-----------
 # 重试次数(获取订阅失败后重试次数)
 sub-urls-retry: 3
 # 网络实在太差，就调高一点，比如 15
@@ -349,19 +350,19 @@ sub-urls-stats: false
 # 支持时间占位符与 github-proxy，例如包含 {Ymd}、{Y}-{m}-{d}
 # 支持mihomo proxy-providers格式
 sub-urls-remote:
-  # - https://example.com/sub-list.txt
-  # - https://example.com/sub-list.yaml
-  # - https://raw.githubusercontent.com/beck-8/sub-urls/main/%E5%B0%8F%E8%80%8C%E7%BE%8E.txt
-  # - http://localhost:8199/more/extra.txt
-  - https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/col.txt
-  - https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/cm.txt
-  - https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/scan.txt
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l.yaml
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l2.yaml
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f.yaml
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f2.yaml
-  - https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_spr.yaml
-  - https://github.com/snakem982/proxypool/raw/main/source/nodelist.txt
+  # - "https://example.com/sub-list.txt"
+  # - "https://example.com/sub-list.yaml"
+  # - "https://raw.githubusercontent.com/beck-8/sub-urls/main/%E5%B0%8F%E8%80%8C%E7%BE%8E.txt"
+  # - "http://localhost:8199/more/extra.txt"
+  - "https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/col.txt"
+  - "https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/cm.txt"
+  - "https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/scan.txt"
+  - "https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l.yaml"
+  - "https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_l2.yaml"
+  - "https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f.yaml"
+  - "https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f2.yaml"
+  - "https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_spr.yaml"
+  - "https://github.com/snakem982/proxypool/raw/main/source/nodelist.txt"
 
 # 订阅地址 支持 clash/mihomo/v2ray/base64 格式的订阅链接
 # 如果用户想明确使用clash类型，那可以在支持的订阅链接结尾加上 &flag=clash.meta
@@ -369,55 +370,55 @@ sub-urls-remote:
 # 如果用户想区分节点来源，可在订阅链接结尾加上 #备注 ，备注字段会自动加到节点命名结尾
 # 支持时间占位符，例如包含 {Ymd}、{Y}-{m}-{d}
 sub-urls:
-  # - https://example.com/sub.txt
-  # - https://example.com/sub2.txt
-  # - https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a
-  # - https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a?flag=clash.meta
-  # - https://raw.githubusercontent.com/example/repo/main/config/{Ymd}.yaml
-  # - https://raw.githubusercontent.com/example/repo/main/daily/daily-{Y}-{m}-{d}.yaml
-  # - https://example.com/sub.txt#我是备注
-  - https://free.datiya.com/uploads/{Ymd}-clash.yaml
-  - https://node.freeclashnode.com/uploads/{Y}/{m}/0-{Ymd}.yaml
-  - https://node.freeclashnode.com/uploads/{Y}/{m}/1-{Ymd}.yaml
-  - https://node.freeclashnode.com/uploads/{Y}/{m}/2-{Ymd}.yaml
-  - https://node.freeclashnode.com/uploads/{Y}/{m}/3-{Ymd}.yaml
-  - https://node.freeclashnode.com/uploads/{Y}/{m}/4-{Ymd}.yaml
-  - https://clashbest.github.io/uploads/{Y}/{m}/0-{Ymd}.yaml
-  - https://clashbest.github.io/uploads/{Y}/{m}/1-{Ymd}.yaml
-  - https://clashbest.github.io/uploads/{Y}/{m}/2-{Ymd}.yaml
-  - https://clashbest.github.io/uploads/{Y}/{m}/3-{Ymd}.yaml
-  - https://clashbest.github.io/uploads/{Y}/{m}/4-{Ymd}.yaml
-  - https://free-v2raynode.github.io/uploads/{Y}/{m}/0-{Ymd}.yaml
-  - https://free-v2raynode.github.io/uploads/{Y}/{m}/1-{Ymd}.yaml
-  - https://free-v2raynode.github.io/uploads/{Y}/{m}/2-{Ymd}.yaml
-  - https://free-v2raynode.github.io/uploads/{Y}/{m}/3-{Ymd}.yaml
-  - https://free-v2raynode.github.io/uploads/{Y}/{m}/4-{Ymd}.yaml
-  - https://raw.githubusercontent.com/firefoxmmx2/v2rayshare_subcription/main/subscription/clash_sub.yaml
-  - https://raw.githubusercontent.com/Q3dlaXpoaQ/V2rayN_Clash_Node_Getter/main/APIs/sc0.yaml
-  - https://raw.githubusercontent.com/xiaoji235/airport-free/main/clash/naidounode.txt
-  - https://raw.githubusercontent.com/mahdibland/SSAggregator/master/sub/sub_merge_yaml.yml
-  - https://raw.githubusercontent.com/snakem982/proxypool/main/source/clash-meta.yaml
-  - https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.yml
-  - https://raw.githubusercontent.com/zhangkaiitugithub/passcro/main/speednodes.yaml
-  - https://raw.githubusercontent.com/aiboboxx/v2rayfree/main/README.md
-  - https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/snippets/nodes.meta.yml
-  - https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.meta.yml
-  - https://raw.githubusercontent.com/anaer/Sub/main/clash.yaml
-  - https://raw.githubusercontent.com/free18/v2ray/main/c.yaml
-  - https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.yml
-  - https://raw.githubusercontent.com/Ruk1ng001/freeSub/main/clash.yaml
-  - https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt
-  - https://raw.githubusercontent.com/ripaojiedian/freenode/main/clash
-  - https://raw.githubusercontent.com/go4sharing/sub/main/sub.yaml
-  - https://raw.githubusercontent.com/actionsfz/v2ray/master/all.yaml
-  - https://raw.githubusercontent.com/Pawdroid/Free-servers/main/sub
-  - https://raw.githubusercontent.com/aiboboxx/v2rayfree/main/v2
-  - https://raw.githubusercontent.com/acymz/AutoVPN/main/data/V2.txt
-  - https://raw.githubusercontent.com/ggborr/FREEE-VPN/main/6V2ray
-  - https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/wenode.txt
-  - https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/v2rayshare.txt
-  - https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/nodefree.txt
-  - https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/ndnode.txt
-  - https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/clashmeta.txt
-  - https://raw.githubusercontent.com/xiaoji235/airport-free/main/v2ray/v2rayshare.txt
-  - https://raw.githubusercontent.com/xiaoji235/airport-free/main/v2ray.txt
+  # - "https://example.com/sub.txt"
+  # - "https://example.com/sub2.txt"
+  # - "https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a"
+  # - "https://example.com/sub?token=43fa8f0dc9bb00dcfec2afb21b14378a?flag=clash.meta"
+  # - "https://raw.githubusercontent.com/example/repo/main/config/{Ymd}.yaml"
+  # - "https://raw.githubusercontent.com/example/repo/main/daily/daily-{Y}-{m}-{d}.yaml"
+  # - "https://example.com/sub.txt#我是备注"
+  - "https://free.datiya.com/uploads/{Ymd}-clash.yaml"
+  - "https://node.freeclashnode.com/uploads/{Y}/{m}/0-{Ymd}.yaml"
+  - "https://node.freeclashnode.com/uploads/{Y}/{m}/1-{Ymd}.yaml"
+  - "https://node.freeclashnode.com/uploads/{Y}/{m}/2-{Ymd}.yaml"
+  - "https://node.freeclashnode.com/uploads/{Y}/{m}/3-{Ymd}.yaml"
+  - "https://node.freeclashnode.com/uploads/{Y}/{m}/4-{Ymd}.yaml"
+  - "https://clashbest.github.io/uploads/{Y}/{m}/0-{Ymd}.yaml"
+  - "https://clashbest.github.io/uploads/{Y}/{m}/1-{Ymd}.yaml"
+  - "https://clashbest.github.io/uploads/{Y}/{m}/2-{Ymd}.yaml"
+  - "https://clashbest.github.io/uploads/{Y}/{m}/3-{Ymd}.yaml"
+  - "https://clashbest.github.io/uploads/{Y}/{m}/4-{Ymd}.yaml"
+  - "https://free-v2raynode.github.io/uploads/{Y}/{m}/0-{Ymd}.yaml"
+  - "https://free-v2raynode.github.io/uploads/{Y}/{m}/1-{Ymd}.yaml"
+  - "https://free-v2raynode.github.io/uploads/{Y}/{m}/2-{Ymd}.yaml"
+  - "https://free-v2raynode.github.io/uploads/{Y}/{m}/3-{Ymd}.yaml"
+  - "https://free-v2raynode.github.io/uploads/{Y}/{m}/4-{Ymd}.yaml"
+  - "https://raw.githubusercontent.com/firefoxmmx2/v2rayshare_subcription/main/subscription/clash_sub.yaml"
+  - "https://raw.githubusercontent.com/Q3dlaXpoaQ/V2rayN_Clash_Node_Getter/main/APIs/sc0.yaml"
+  - "https://raw.githubusercontent.com/xiaoji235/airport-free/main/clash/naidounode.txt"
+  - "https://raw.githubusercontent.com/mahdibland/SSAggregator/master/sub/sub_merge_yaml.yml"
+  - "https://raw.githubusercontent.com/snakem982/proxypool/main/source/clash-meta.yaml"
+  - "https://raw.githubusercontent.com/chengaopan/AutoMergePublicNodes/master/list.yml"
+  - "https://raw.githubusercontent.com/zhangkaiitugithub/passcro/main/speednodes.yaml"
+  - "https://raw.githubusercontent.com/aiboboxx/v2rayfree/main/README.md"
+  - "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/snippets/nodes.meta.yml"
+  - "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.meta.yml"
+  - "https://raw.githubusercontent.com/anaer/Sub/main/clash.yaml"
+  - "https://raw.githubusercontent.com/free18/v2ray/main/c.yaml"
+  - "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.yml"
+  - "https://raw.githubusercontent.com/Ruk1ng001/freeSub/main/clash.yaml"
+  - "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt"
+  - "https://raw.githubusercontent.com/ripaojiedian/freenode/main/clash"
+  - "https://raw.githubusercontent.com/go4sharing/sub/main/sub.yaml"
+  - "https://raw.githubusercontent.com/actionsfz/v2ray/master/all.yaml"
+  - "https://raw.githubusercontent.com/Pawdroid/Free-servers/main/sub"
+  - "https://raw.githubusercontent.com/aiboboxx/v2rayfree/main/v2"
+  - "https://raw.githubusercontent.com/acymz/AutoVPN/main/data/V2.txt"
+  - "https://raw.githubusercontent.com/ggborr/FREEE-VPN/main/6V2ray"
+  - "https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/wenode.txt"
+  - "https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/v2rayshare.txt"
+  - "https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/nodefree.txt"
+  - "https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/ndnode.txt"
+  - "https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/clashmeta.txt"
+  - "https://raw.githubusercontent.com/xiaoji235/airport-free/main/v2ray/v2rayshare.txt"
+  - "https://raw.githubusercontent.com/xiaoji235/airport-free/main/v2ray.txt"
