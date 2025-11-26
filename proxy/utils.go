@@ -91,28 +91,33 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 				if _, err := strconv.Atoi(port); err == nil {
 					prefix, isKnown := protocolSchemes[fileGuessedScheme]
 
-					if isKnown && fileGuessedScheme != "http" {
+					// 如果文件名暗示了明确的非 HTTP 协议 (如 vmess)，则只添加该协议
+					// 如果是 http/https 或 未知，则进入更激进的猜测逻辑
+					if isKnown && fileGuessedScheme != "http" && fileGuessedScheme != "https" {
 						batchLinks = append(batchLinks, fmt.Sprintf("%s%s:%s", prefix, host, port))
 					} else {
-						// 添加 HTTPS (会转换为 type: http, tls: true)
+						//同时生成 HTTPS 和 HTTP ===
+						// 1. 总是尝试 HTTPS (type: http, tls: true)
+						// 即使文件名是 http，也可能是 https
 						batchLinks = append(batchLinks, fmt.Sprintf("https://%s:%s", host, port))
 
-						// 添加 SOCKS5
-						batchLinks = append(batchLinks, fmt.Sprintf("socks5://%s:%s", host, port))
+						// 2. 总是尝试 HTTP (type: http, tls: false)
+						// 以前只限制 80/8080，现在放开，因为很多代理跑在非标端口
+						batchLinks = append(batchLinks, fmt.Sprintf("http://%s:%s", host, port))
 
-						// 如果端口是 80 或 8080，可能还是得试试纯 HTTP
-						if port == "80" || port == "8080" {
-							batchLinks = append(batchLinks, fmt.Sprintf("http://%s:%s", host, port))
-						}
+						// 3. 总是尝试 SOCKS5
+						batchLinks = append(batchLinks, fmt.Sprintf("socks5://%s:%s", host, port))
 					}
 				}
 			}
 		}
 	}
 
-	// 3. 批量转换剩余链接 (Vmess, Vless, SS, Trojan, Hysteria, etc.)
+	// 3. 批量转换剩余链接
 	if len(batchLinks) > 0 {
-		// 使用换行符拼接，交给 Mihomo 转换器批量处理
+		// 这里去重一下，避免因为逻辑重叠产生重复链接
+		batchLinks = lo.Uniq(batchLinks)
+
 		data := []byte(strings.Join(batchLinks, "\n"))
 		if nodes, err := convert.ConvertsV2Ray(data); err == nil {
 			finalNodes = append(finalNodes, ToProxyNodes(nodes)...)
@@ -196,15 +201,14 @@ func NormalizeNode(m map[string]any) {
 		m["port"] = ToIntPort(p)
 	}
 
-	// 2. 布尔值标准化 (添加更多可能涉及的字段)
-	// 只要在这里被转成了 bool，就不会触发 Mihomo 的 panic
+	// 2. 布尔值标准化 (防止 panic bug)
 	normalizeBool(m, "tls")
 	normalizeBool(m, "udp")
 	normalizeBool(m, "skip-cert-verify")
 	normalizeBool(m, "tfo")
 	normalizeBool(m, "allow-insecure")
-	normalizeBool(m, "xudp")       // 某些旧格式可能包含
-	normalizeBool(m, "reuse-addr") // Tuic/Hysteria 可能包含
+	normalizeBool(m, "xudp")
+	normalizeBool(m, "reuse-addr")
 	normalizeBool(m, "disable-sni")
 
 	// 3. 协议特定修正与默认值注入
@@ -214,22 +218,28 @@ func NormalizeNode(m map[string]any) {
 
 		switch t {
 		case "trojan":
-			// Trojan 协议隐含 TLS，强制设为 true 以便去重 Key 正确生成
 			m["tls"] = true
 		case "https":
-			// 处理部分旧格式将 https 作为 type 的情况
+			// 只有明确写为 type: https 时，才强制转换并开启 TLS
 			m["type"] = "http"
 			m["tls"] = true
+		case "http":
+			// 标准 HTTP 代理，不做强制 TLS 设置
+			// 除非端口是 443 且未指定 TLS，否则保持原样或默认 false
+			if _, hasTls := m["tls"]; !hasTls {
+				// 启发式：如果是 443 端口，大概率是 HTTPS
+				if p := ToIntPort(m["port"]); p == 443 {
+					m["tls"] = true
+				} else {
+					m["tls"] = false
+				}
+			}
 		case "hysteria2", "hy2":
-			// 修正 Hysteria2 字段名
 			if val, exists := m["obfs_password"]; exists {
 				m["obfs-password"] = val
 				delete(m, "obfs_password")
 			}
-			// Hysteria2 通常基于 UDP 且加密（类似 TLS），虽然 Clash 字段不强制 tls: true，
-			// 但如果有 sni，通常建议确保指纹包含 sni
 		case "vmess", "vless":
-			// 确保 security="tls" 时 tls 字段被正确设置
 			if val, ok := m["security"].(string); ok && strings.ToLower(val) == "tls" {
 				m["tls"] = true
 			}
