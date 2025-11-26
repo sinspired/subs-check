@@ -343,6 +343,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 
 	// 尝试 Base64/V2Ray 标准转换
 	if nodes, err := convert.ConvertsV2Ray(data); err == nil && len(nodes) > 0 {
+		slog.Debug("标准v2ray格式解析成功", "订阅", subURL)
 		return ToProxyNodes(nodes), nil
 	}
 
@@ -352,7 +353,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 		return nodes, nil
 	}
 
-	// 尝试逐行 YAML 流式解析 (这是上一步增加的容错逻辑)
+	// 尝试逐行 YAML 流式解析
 	if nodes := ParseYamlFlowList(data); len(nodes) > 0 {
 		return nodes, nil
 	}
@@ -379,7 +380,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 
 	// 最后尝试按行猜测
 	if nodes := parseRawLines(data, subURL); len(nodes) > 0 {
-		slog.Debug("按行猜测")
+		slog.Debug("兜底尝试：按行解析")
 		return nodes, nil
 	}
 
@@ -430,6 +431,8 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 	if _, err := url.Parse(rawURL); err != nil {
 		return nil, err
 	}
+	slog.Debug("处理订阅", "rawURL", rawURL)
+	rawURL = CleanURL(rawURL)
 	conf := config.GlobalConfig
 	maxRetries := max(1, conf.SubUrlsReTry)
 	timeout := max(10, conf.SubUrlsTimeout)
@@ -449,20 +452,21 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 	strategies := []strategy{}
 
 	warpFunc := func(s string) string { return utils.WarpURL(EnsureScheme(s), true) }
+	originFunc := func(s string) string { return EnsureScheme(s) }
 
 	if utils.IsLocalURL(rawURL) {
 		strategies = append(strategies, strategy{false, warpFunc})
 	} else {
 		// 1. 系统代理 (External utils)
 		if utils.IsSysProxyAvailable {
-			strategies = append(strategies, strategy{true, warpFunc})
+			strategies = append(strategies, strategy{true, originFunc})
 		}
 		// 2. Github 代理 (External utils)
 		if utils.IsGhProxyAvailable {
 			strategies = append(strategies, strategy{false, warpFunc})
 		}
 		// 3. 直连兜底
-		strategies = append(strategies, strategy{false, warpFunc})
+		strategies = append(strategies, strategy{false, originFunc})
 	}
 
 	// UA 列表池
@@ -490,7 +494,7 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 					continue
 				}
 				triedInThisLoop[key] = struct{}{}
-
+				slog.Debug("FetchSubsData", "target", targetURL, "代理", strat.useProxy)
 				body, err, fatal := fetchOnce(targetURL, strat.useProxy, timeout, ua)
 				if err == nil {
 					return body, nil
@@ -612,6 +616,7 @@ func fetchOnce(target string, useProxy bool, timeoutSec int, ua string) ([]byte,
 	if resp.StatusCode >= 400 {
 		// 读取并丢弃 Body，有助于复用 TCP 连接（Keep-Alive）
 		io.Copy(io.Discard, resp.Body)
+		slog.Debug("错误", "url", req.URL, "代理", useProxy, "状态码", resp.StatusCode, "UA", req.UserAgent())
 		fatal := resp.StatusCode == 401 || resp.StatusCode == 403 || resp.StatusCode == 404 || resp.StatusCode == 410
 		return nil, fmt.Errorf("%d", resp.StatusCode), fatal
 	}
@@ -785,39 +790,6 @@ func identifyLocalSubType(subURL, listenPort, storePort string) (isLatest, isHis
 	return isLatest, isHistory, tag
 }
 
-// deduplicateAndMerge 去重并合并结果
-func deduplicateAndMerge(succed, history, sync []ProxyNode) ([]map[string]any, int, int) {
-	succedSet := make(map[string]struct{})
-	finalList := make([]map[string]any, 0, len(succed)+len(history)+len(sync))
-
-	// 1. 添加并记录 Success 节点
-	for _, p := range succed {
-		cleanMetadata(p)
-		finalList = append(finalList, p)
-		succedSet[GenerateProxyKey(p)] = struct{}{}
-	}
-	succedCount := len(succed)
-
-	// 2. 添加 History 节点 (去重：不在 Success 中)
-	histCount := 0
-	for _, p := range history {
-		key := GenerateProxyKey(p)
-		if _, exists := succedSet[key]; !exists {
-			cleanMetadata(p)
-			finalList = append(finalList, p)
-			succedSet[key] = struct{}{} // 避免 History 内部重复
-			histCount++
-		}
-	}
-
-	// 3. 添加 Sync 节点
-	for _, p := range sync {
-		cleanMetadata(p)
-		finalList = append(finalList, p)
-	}
-
-	return finalList, succedCount, histCount
-}
 
 func cleanMetadata(p ProxyNode) {
 	delete(p, "sub_was_succeed")
@@ -994,4 +966,26 @@ func NormalizeGitHubRawURL(urlStr string) string {
 	}
 
 	return urlStr
+}
+
+// CleanURL 清洗 URL，移除首尾空白及尾部常见的误复制标点符号
+func CleanURL(raw string) string {
+	// 1. 去除首尾的标准空白符 (空格, 换行, Tab)
+	s := strings.TrimSpace(raw)
+
+	// 2. 定义尾部需要剔除的“垃圾字符”集合
+	// "  : 双引号
+	// '  : 单引号
+	// `  : 反引号 (Markdown常用)
+	// ,  : 逗号
+	// ;  : 分号
+	// .  : 句号 (虽然URL允许结尾有点，但在订阅链接场景下通常是句尾误复制)
+	// )  : 右括号 (Markdown链接常用)
+	// ]  : 右方括号
+	// }  : 右大括号
+	// >  : 大于号 (Email/引用常用)
+	cutset := "\"'`,;.)]}>" + "`"
+
+	// 3. 循环移除尾部所有属于 cutset 的字符，直到遇到非 cutset 字符为止
+	return strings.TrimRight(s, cutset)
 }

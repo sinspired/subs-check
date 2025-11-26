@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,7 +49,7 @@ var (
 
 // ParseProxyLinksAndConvert 统一处理链接列表
 // 能够同时处理 WireGuard, SSR (手动解析) 和 V2Ray/Clash 支持的标准协议 (调用 Mihomo)
-// subURL 用于在猜测协议时提供上下文 (例如文件名包含 hysteria)
+// subURL 用于在猜测协议时提供上下文 (例如文件名包含 socks5)
 func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 	var finalNodes []ProxyNode
 	var batchLinks []string
@@ -56,6 +57,7 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 	// 获取文件名推测的协议（作为上下文参考）
 	fileGuessedScheme := guessSchemeByURL(subURL)
 
+	slog.Debug("统一处理链接列表", "subURL", subURL, "猜测协议", fileGuessedScheme)
 	for _, link := range links {
 		link = strings.TrimSpace(link)
 		if link == "" {
@@ -79,33 +81,41 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 
 		// 2. 标准化链接 或 智能扩展 IP:Port
 		if strings.Contains(link, "://") {
+			slog.Debug("处理标准链接", "raw", subURL, "link", link)
 			// 已有协议头，进行简单修复
 			batchLinks = append(batchLinks, FixupProxyLink(link))
 		} else {
 			// 处理纯 IP:Port 或域名:Port
 			host, port := SplitHostPortLoose(link)
+			// slog.Debug("分离端口", "host", host, "port", port)
 
 			// 简单的合法性校验，防止将普通文本误判为节点
 			if host != "" && port != "" {
 				if _, err := strconv.Atoi(port); err == nil {
 					prefix, isKnown := protocolSchemes[fileGuessedScheme]
 
-					// 如果文件名暗示了明确的非 HTTP 协议 (如 vmess)，则只添加该协议
-					// 如果是 http/https 或 未知，则进入更激进的猜测逻辑
-					if isKnown && fileGuessedScheme != "http" && fileGuessedScheme != "https" {
+					// 只有当文件名暗示了明确的、非通用的代理协议 (如 vmess, ss, hysteria) 时，才使用单一前缀。
+					// 如果是 "" (未知)，则进入 Else 分支进行激进猜测。
+					if isKnown {
+						slog.Debug("通过文件名猜测到协议", "raw", subURL, "type", fileGuessedScheme)
 						batchLinks = append(batchLinks, fmt.Sprintf("%s%s:%s", prefix, host, port))
 					} else {
-						//同时生成 HTTPS 和 HTTP ===
-						// 1. 总是尝试 HTTPS (type: http, tls: true)
-						// 即使文件名是 http，也可能是 https
-						batchLinks = append(batchLinks, fmt.Sprintf("https://%s:%s", host, port))
-
-						// 2. 总是尝试 HTTP (type: http, tls: false)
-						// 以前只限制 80/8080，现在放开，因为很多代理跑在非标端口
-						batchLinks = append(batchLinks, fmt.Sprintf("http://%s:%s", host, port))
-
-						// 3. 总是尝试 SOCKS5
-						batchLinks = append(batchLinks, fmt.Sprintf("socks5://%s:%s", host, port))
+						slog.Debug("未发现协议，同时生成http(s)/socks5协议", "raw", subURL, "数量", len(links))
+						if fileGuessedScheme != "all" {
+							if len(links) >= 100000 {
+								batchLinks = append(batchLinks, fmt.Sprintf("https://%s:%s", host, port))
+							} else {
+								//TODO: 使用配置文件控制
+								// (无协议 或 http/https)
+								// 同时生成 3 种最常见的标准代理协议，交给后续连通性测试去筛选
+								// 1. 尝试 HTTPS (type: http, tls: true)
+								batchLinks = append(batchLinks, fmt.Sprintf("https://%s:%s", host, port))
+								// 2. 尝试 SOCKS5
+								batchLinks = append(batchLinks, fmt.Sprintf("socks5://%s:%s", host, port))
+								// 3. 尝试 HTTP (type: http, tls: false)
+								batchLinks = append(batchLinks, fmt.Sprintf("http://%s:%s", host, port))
+							}
+						}
 					}
 				}
 			}
@@ -115,11 +125,19 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 	// 3. 批量转换剩余链接
 	if len(batchLinks) > 0 {
 		// 这里去重一下，避免因为逻辑重叠产生重复链接
-		batchLinks = lo.Uniq(batchLinks)
+		batchLinks = lo.Uniq(batchLinks) // 去重
+		for _, link := range batchLinks {
+			slog.Debug("link", "value", link)
+		}
 
 		data := []byte(strings.Join(batchLinks, "\n"))
+
 		if nodes, err := convert.ConvertsV2Ray(data); err == nil {
+			slog.Debug("转换v2ray成功", "数量", len(nodes))
 			finalNodes = append(finalNodes, ToProxyNodes(nodes)...)
+		} else {
+			slog.Debug("转换失败", "错误", err)
+			//TODO: 有些格式V2ray不支持,应直接传输
 		}
 	}
 
@@ -349,6 +367,9 @@ func FixupProxyLink(link string) string {
 	if strings.HasPrefix(link, "hy://") {
 		return strings.Replace(link, "hy://", "hysteria://", 1)
 	}
+	if strings.HasPrefix(link, "hy2://") {
+		return strings.Replace(link, "hy2://", "hysteria2://", 1)
+	}
 	return link
 }
 
@@ -405,11 +426,16 @@ func SplitHostPortLoose(hp string) (string, string) {
 	return hp, ""
 }
 
+var (
+	sortedProtocolKeys     []string
+	sortedProtocolKeysOnce sync.Once
+)
+
 // guessSchemeByURL 根据 URL 文件名猜测协议
 func guessSchemeByURL(raw string) string {
 	uParsed, err := url.Parse(raw)
 	if err != nil {
-		return "http"
+		return "" // 解析失败，无法提取文件名，放弃猜测
 	}
 
 	filename := strings.ToLower(filepath.Base(uParsed.Path))
@@ -418,17 +444,38 @@ func guessSchemeByURL(raw string) string {
 		filename = filename[:idx]
 	}
 
-	// 遍历已知协议表进行匹配
-	for key := range protocolSchemes {
+	// 1. 初始化排序后的 Key 列表 (仅执行一次)
+	sortedProtocolKeysOnce.Do(func() {
+		keys := lo.Keys(protocolSchemes)
+		// 只有不在 protocolSchemes 里的才需要加到 extras
+		extras := []string{"http2"}
+		keys = append(keys, extras...)
+		keys = lo.Uniq(keys)
+
+		// 按长度降序排序
+		sort.Slice(keys, func(i, j int) bool {
+			return len(keys[i]) > len(keys[j])
+		})
+		sortedProtocolKeys = keys
+	})
+
+	// 2. 按顺序遍历匹配
+	for _, key := range sortedProtocolKeys {
 		if strings.Contains(filename, key) {
-			return key
+			if _, ok := protocolSchemes[key]; ok {
+				return key
+			}
+			if key == "http2" {
+				return "https"
+			}
 		}
 	}
 
-	if strings.Contains(filename, "https") || strings.Contains(filename, "http2") {
-		return "https"
+	if strings.Contains(filename, "all") {
+		return "all"
 	}
-	return "http"
+	// 3. 如果文件名没有特征（比如 "nodes.txt"），返回空字符串意味着“未知协议”
+	return ""
 }
 
 // TryDecodeBase64 尝试 Base64 解码，失败则返回原数据
@@ -584,6 +631,8 @@ func ConvertSingBoxOutbounds(outbounds []any) []ProxyNode {
 // ConvertGeneralJsonArray 处理通用对象数组 (主要是 Shadowsocks 导出的配置文件)
 func ConvertGeneralJsonArray(list []any) []ProxyNode {
 	var nodes []ProxyNode
+	convertListToNodes(list)
+
 	for _, item := range list {
 		m, ok := item.(map[string]any)
 		if !ok {
@@ -594,6 +643,7 @@ func ConvertGeneralJsonArray(list []any) []ProxyNode {
 		if _, hasPort := m["server_port"]; hasPort {
 			if _, hasMethod := m["method"]; hasMethod {
 				node := ProxyNode{
+					// FIXME: 当前仅支持ss协议?
 					"type":        "ss",
 					"server":      m["server"],
 					"port":        ToIntPort(m["server_port"]),
