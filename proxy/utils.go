@@ -1,4 +1,3 @@
-// utils.go
 package proxies
 
 import (
@@ -942,38 +941,57 @@ func ParseYamlFlowList(data []byte) []ProxyNode {
 	var nodes []ProxyNode
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	// 这里的 buffer 用于 scanner，防止单行过长导致 panic
+	// 默认 64k 对于 flow yaml 通常足够，如果遇到超长行可能会需要调整，但一般代理配置不会单行超 64k
+	scanner.Buffer(make([]byte, 2048*1024), 1024*1024)
 
-		// 快速过滤：必须包含 '{' 和 '}'，且通常以 '-' 开头或直接以 '{' 开头
-		if !strings.Contains(line, "{") || !strings.Contains(line, "}") {
+	for scanner.Scan() {
+		lineBytes := bytes.TrimSpace(scanner.Bytes())
+
+		if len(lineBytes) == 0 {
 			continue
 		}
 
-		// 尝试清理行首，使其成为一个合法的 YAML 列表项 "- { ... }"
-		cleanLine := line
-		if !strings.HasPrefix(cleanLine, "-") {
-			// 如果行是以 { 开头，补上 - 变成列表项
-			if strings.HasPrefix(cleanLine, "{") {
-				cleanLine = "- " + cleanLine
-			} else {
-				// 可能是 "  - {..." 这种，TrimSpace 已经处理了空格
-				// 如果既不是 - 开头也不是 { 开头，可能不是目标格式，跳过
-				continue
-			}
+		// 1. 结构特征检查：必须包含 key-value 分隔符 ":" 以及 flow 格式的特征 "{", "}"
+		if !bytes.Contains(lineBytes, []byte(":")) {
+			continue
+		}
+		// 依赖 '{' 和 '}' 来判断是否为 flow 格式
+		if !bytes.Contains(lineBytes, []byte("{")) || !bytes.Contains(lineBytes, []byte("}")) {
+			continue
 		}
 
-		// 尝试将这一行作为独立的 YAML 解析
-		// 定义一个通用的切片来接收
-		var tempNodes []map[string]any
-		err := yaml.Unmarshal([]byte(cleanLine), &tempNodes)
+		// 2. 核心字段预检 (The CPU Saver)
+		// 绝大多数有效代理节点都必须包含 "server" (ss/trojan/shadowsocks) 或 "uuid" (vmess/vless)
+		// 这一步能过滤掉绝大多数无效行（如注释、metadata、纯配置项），极大降低 yaml.Unmarshal 的调用频率
+		if !bytes.Contains(lineBytes, []byte("server")) && !bytes.Contains(lineBytes, []byte("uuid")) {
+			continue
+		}
 
-		// 解析成功且有内容
-		if err == nil && len(tempNodes) > 0 {
+		// 3. 格式归一化：处理行首可能的 "- "
+		cleanBytes := lineBytes
+		if bytes.HasPrefix(cleanBytes, []byte("-")) {
+			cleanBytes = bytes.TrimSpace(cleanBytes[1:])
+		}
+
+		// 再次确认是对象结构 "{ ... }"
+		if !bytes.HasPrefix(cleanBytes, []byte("{")) {
+			// 如果去掉了 "-" 后不是以 "{" 开头，说明可能是 "- name: xxx" 这种 block 格式
+			// 或者格式错乱。这里只处理标准的 flow json/yaml 对象
+			continue
+		}
+
+		// 4. 构造合法的 YAML 列表项字符串
+		// 只有通过了上述所有检查，才进行 string 转换和拼接，这是必要的开销
+		// 构造形式： "- { ... }"
+		yamlLine := "- " + string(cleanBytes)
+
+		var tempNodes []map[string]any
+		// 执行昂贵的 Unmarshal
+		if err := yaml.Unmarshal([]byte(yamlLine), &tempNodes); err == nil && len(tempNodes) > 0 {
 			for _, m := range tempNodes {
-				// 进行标准清洗
 				NormalizeNode(m)
-				// 简单校验必要字段防止误判
+				// 解析后再次校验关键字段，确保数据的完整性
 				if _, hasServer := m["server"]; hasServer {
 					nodes = append(nodes, ProxyNode(m))
 				}
