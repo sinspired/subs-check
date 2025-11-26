@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -45,7 +46,6 @@ type SubUrls struct {
 // initEnvironment 初始化代理环境变量
 func initEnvironment() {
 	slog.Info("获取系统代理和Github代理状态")
-	// 下面这些函数来自外部包 github.com/sinspired/subs-check/utils，保留 utils. 前缀
 	utils.IsSysProxyAvailable = utils.GetSysProxy()
 	utils.IsGhProxyAvailable = utils.GetGhProxy()
 	if utils.IsSysProxyAvailable {
@@ -83,62 +83,112 @@ func logSubscriptionStats(total, local, remote, history int) {
 }
 
 // GetProxies 主入口：获取、解析、去重及统计代理节点
-func GetProxies() ([]map[string]any, int, int, error) {
-	// 初始化环境与日志
+func GetProxies() ([]map[string]any, int, int, int, error) {
+	// 初始化代理环境变量
 	initEnvironment()
 
-	// 解析订阅清单
+	// 获取远程订阅列表
 	subUrls, localNum, remoteNum, historyNum := resolveSubUrls()
 	logSubscriptionStats(len(subUrls), localNum, remoteNum, historyNum)
 
-	// 数据管道
-	proxyChan := make(chan ProxyNode, 100)
+	proxyChan := make(chan ProxyNode, 5000)
 
-	// 统计与收集容器
-	var (
-		succedProxies  []ProxyNode
-		historyProxies []ProxyNode
-		syncProxies    []ProxyNode
-		validSubs      = make(map[string]struct{})
-		subNodeCounts  = make(map[string]int)
-		wg             sync.WaitGroup
+	// 定义优先级常量
+	const (
+		PrioNormal  = 0
+		PrioHistory = 1
+		PrioSuccess = 2
 	)
 
-	// 启动结果收集协程
+	var (
+		wg sync.WaitGroup
+
+		// 统计计数（原始数量）
+		rawCount = 0
+
+		// === 使用 Map 暂存最佳节点，替代 Slice ===
+		// Key: 节点指纹
+		// Value: 节点数据
+		bestNodes = make(map[string]ProxyNode, 20000)
+
+		// 记录已存储节点的优先级，用于比较
+		nodePrio = make(map[string]int, 20000)
+
+		// 订阅统计
+		subNodeCounts = make(map[string]int)
+		validSubs     = make(map[string]struct{})
+	)
+
+	// GC 阈值，每20万个节点进行一次GC，避免内存无限上涨
+	const gcInterval = 200000
+	pendingGCNum := 0
+
+	// 处理获取节点，消费 proxyChan
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+
 		for proxy := range proxyChan {
+			rawCount++
+			pendingGCNum++
+
+			// 流式 GC 控制
+			if pendingGCNum >= gcInterval {
+				// 在 GC 导致停顿前记录日志
+				slog.Debug("触发流式GC",
+					"当前总数", rawCount,
+				)
+				// 循环内GC
+				runtime.GC()
+				// 归还内存
+				// 否则百万级节点池内存将持续增加
+				debug.FreeOSMemory()
+				pendingGCNum = 0
+			}
+
+			// 1. 统计订阅源
 			if su, ok := proxy["sub_url"].(string); ok && su != "" {
 				validSubs[su] = struct{}{}
 				subNodeCounts[su]++
 			}
-			// 分类存储
-			switch {
-			case proxy["sub_from_history"] == true:
-				historyProxies = append(historyProxies, proxy)
-			case proxy["sub_was_succeed"] == true:
-				succedProxies = append(succedProxies, proxy)
-			default:
-				syncProxies = append(syncProxies, proxy)
+
+			// 2. 计算当前节点的优先级
+			currentPrio := PrioNormal
+			if proxy["sub_was_succeed"] == true {
+				currentPrio = PrioSuccess
+			} else if proxy["sub_from_history"] == true {
+				currentPrio = PrioHistory
+			}
+
+			// 3. 生成指纹
+			key := GenerateProxyKey(proxy)
+
+			// 4. 优先级竞争逻辑 (替代 DeduplicateAndMerge)
+			if existPrio, exists := nodePrio[key]; exists {
+				// 如果已存在，且新节点优先级更高，则覆盖（升级）
+				if currentPrio > existPrio {
+					bestNodes[key] = proxy
+					nodePrio[key] = currentPrio
+				}
+				// 如果优先级相同或更低，直接丢弃（GC 会自动回收该 proxy）
+			} else {
+				// 如果不存在，直接存入
+				bestNodes[key] = proxy
+				nodePrio[key] = currentPrio
 			}
 		}
 	}()
 
-	// 并发抓取控制
-	concurrency := min(config.GlobalConfig.Concurrent, 100)
+	// 获取订阅节点，生成proxyChan
+	concurrency := min(config.GlobalConfig.Concurrent, 50)
 	sem := make(chan struct{}, concurrency)
-
 	listenPort := strings.TrimPrefix(config.GlobalConfig.ListenPort, ":")
 	subStorePort := strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":")
 
 	for _, subURL := range subUrls {
 		wg.Add(1)
-		sem <- struct{}{} // 获取令牌
-
-		// 分析是否为本地特殊文件
+		sem <- struct{}{}
 		isSucced, isHistory, tag := identifyLocalSubType(subURL, listenPort, subStorePort)
-
 		go func(u, t string, succ, hist bool) {
 			defer wg.Done()
 			defer func() { <-sem }()
@@ -148,16 +198,47 @@ func GetProxies() ([]map[string]any, int, int, error) {
 
 	wg.Wait()
 	close(proxyChan)
-	<-done // 等待收集完成
+	<-done
 
-	// 内存清理与去重合并
+	// 最终 GC 清理临时垃圾
 	runtime.GC()
-	finalProxies, succedCount, historyCount := deduplicateAndMerge(succedProxies, historyProxies, syncProxies)
+	debug.FreeOSMemory()
 
-	// 保存统计
+	// 将 Map 转为 Slice，并统计最终的分类数量
+	finalProxies := make([]map[string]any, 0, len(bestNodes))
+	finalSuccCount := 0
+	finalHistCount := 0
+
+	for key, node := range bestNodes {
+		prio := nodePrio[key]
+
+		// 统计逻辑：根据最终留下的那个节点的优先级计数
+		switch prio {
+		case PrioSuccess:
+			finalSuccCount++
+		case PrioHistory:
+			finalHistCount++
+		}
+
+		// 清理元数据
+		cleanMetadata(node)
+
+		// 这里的显式转换是为了满足返回值类型 []map[string]any
+		finalProxies = append(finalProxies, map[string]any(node))
+	}
+
+	// 释放 Map 内存（虽然函数返回后也会释放）
+	bestNodes = nil
+	nodePrio = nil
+
 	saveStats(validSubs, subNodeCounts)
-
-	return finalProxies, succedCount, historyCount, nil
+	// 打印去重统计日志
+	slog.Info("节点处理完成",
+		"原始数量", rawCount,
+		"去重后数量", len(finalProxies),
+		"重复丢弃", rawCount-len(finalProxies),
+	)
+	return finalProxies, rawCount, finalSuccCount, finalHistCount, nil
 }
 
 // processSubscription 单个订阅的处理流程
@@ -195,7 +276,7 @@ func processSubscription(urlStr, tag string, wasSucced, wasHistory bool, out cha
 			}
 		}
 
-		// 规范化与元数据附加
+		// 统一清洗节点字段，注入默认值
 		NormalizeNode(node)
 
 		node["sub_url"] = urlStr
@@ -207,7 +288,7 @@ func processSubscription(urlStr, tag string, wasSucced, wasHistory bool, out cha
 		count++
 	}
 
-	slog.Debug("Parsed subscription", "URL", urlStr, "valid_nodes", count)
+	slog.Debug("解析订阅", "URL", urlStr, "合法节点数量", count)
 }
 
 // parseSubscriptionData 智能分发解析器
@@ -284,8 +365,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 		}
 	}
 
-	// 5. 尝试自定义 Bracket KV 格式 ([Type]Name=...)
-
+	// 尝试自定义 Bracket KV 格式 ([Type]Name=...)
 	if nodes := ParseBracketKVProxies(data); len(nodes) > 0 {
 		slog.Debug("Bracket KV 格式")
 		return nodes, nil
@@ -354,7 +434,7 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 	maxRetries := max(1, conf.SubUrlsReTry)
 	timeout := max(10, conf.SubUrlsTimeout)
 
-	// 处理为标准的raw地址
+	// 处理为标准的GitHub raw地址
 	rawURL = NormalizeGitHubRawURL(rawURL)
 
 	candidates, hasPlaceholder := buildCandidateURLs(rawURL)

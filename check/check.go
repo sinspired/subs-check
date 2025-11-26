@@ -223,13 +223,12 @@ func Check() ([]Result, error) {
 	mediaON = config.GlobalConfig.MediaCheck
 
 	// 获取订阅节点和之前成功的节点数量(已前置)
-	proxies, subWasSuccedLength, historyLength, err := proxyutils.GetProxies()
+	proxies, rawCount, subWasSuccedLength, historyLength, err := proxyutils.GetProxies()
+
 	if err != nil {
 		return nil, fmt.Errorf("获取节点失败: %w", err)
 	}
-	slog.Info(fmt.Sprintf("已获取节点数量: %d", len(proxies)))
-
-	proxies = proxyutils.DeduplicateProxies(proxies) // 收集订阅节点阶段: 已优化内存
+	slog.Info(fmt.Sprintf("已获取节点数量: %d", rawCount))
 	slog.Info(fmt.Sprintf("去重后节点数量: %d", len(proxies)))
 
 	if subWasSuccedLength > 0 {
