@@ -368,11 +368,9 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 
 	strategies := []strategy{}
 
-	isLocalURL := utils.IsLocalURL(rawURL)
-
 	warpFunc := func(s string) string { return utils.WarpURL(EnsureScheme(s), true) }
 
-	if isLocalURL {
+	if utils.IsLocalURL(rawURL) {
 		strategies = append(strategies, strategy{false, warpFunc})
 	} else {
 		// 1. 系统代理 (External utils)
@@ -387,7 +385,16 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 		strategies = append(strategies, strategy{false, warpFunc})
 	}
 
+	// UA 列表池
+	var uaList = []string{
+		convert.RandUserAgent(),
+		"mihomo/1.18.3",
+		"clash.meta",
+		"curl/8.16.0",
+	}
+
 	for i := range maxRetries {
+		ua := uaList[i%len(uaList)]
 		if i > 0 {
 			time.Sleep(time.Duration(max(1, conf.SubUrlsRetryInterval)) * time.Second)
 		}
@@ -404,7 +411,7 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 				}
 				triedInThisLoop[key] = struct{}{}
 
-				body, err, fatal := fetchOnce(targetURL, strat.useProxy, timeout)
+				body, err, fatal := fetchOnce(targetURL, strat.useProxy, timeout, ua)
 				if err == nil {
 					return body, nil
 				}
@@ -420,7 +427,7 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("多次重试失败: %v", lastErr)
+	return nil, fmt.Errorf("%d次重试后失败: %v", maxRetries, lastErr)
 }
 
 var (
@@ -479,7 +486,7 @@ func getClient(proxyAddr string) *http.Client {
 }
 
 // fetchOnce 执行单次 HTTP 请求 (使用连接池)
-func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, bool) {
+func fetchOnce(target string, useProxy bool, timeoutSec int, ua string) ([]byte, error, bool) {
 	// 1. 确定 Client Key
 	proxyKey := "direct"
 	if useProxy {
@@ -491,12 +498,20 @@ func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, boo
 	// 2. 获取复用的 Client
 	client := getClient(proxyKey)
 
-	// 3. 创建请求
-	req, err := http.NewRequest("GET", target, nil)
+	// 3. 创建带超时的连接
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
+
+	defer cancel()
+
+	// 4. 创建请求
+	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 	if err != nil {
 		return nil, err, false
 	}
-	req.Header.Set("User-Agent", "clash.meta")
+	if len(ua) <= 1 {
+		ua = convert.RandUserAgent()
+	}
+	req.Header.Set("User-Agent", ua)
 
 	// 4. 处理本地请求特殊 Header
 	if isLocalRequest(req.URL) {
@@ -507,14 +522,7 @@ func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, boo
 		req.URL.RawQuery = q.Encode()
 	}
 
-	// 5. 使用 Context 控制超时，而不是依赖 Client.Timeout
-	// 这样同一个复用的 Client 可以处理不同超时需求的请求
-	// 本次Context和Client.Timeout超时一致
-	ctx, cancel := context.WithTimeout(req.Context(), time.Duration(timeoutSec)*time.Second)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	// 6. 执行请求
+	// 5. 执行请求
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err, false
@@ -522,6 +530,8 @@ func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, boo
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
+		// 读取并丢弃 Body，有助于复用 TCP 连接（Keep-Alive）
+		io.Copy(io.Discard, resp.Body)
 		fatal := resp.StatusCode == 401 || resp.StatusCode == 403 || resp.StatusCode == 404 || resp.StatusCode == 410
 		return nil, fmt.Errorf("%d", resp.StatusCode), fatal
 	}
