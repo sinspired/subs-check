@@ -4,6 +4,7 @@ package proxies
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -422,14 +423,82 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 	return nil, fmt.Errorf("多次重试失败: %v", lastErr)
 }
 
-// fetchOnce 执行单次 HTTP 请求
+var (
+	// clientMap 用于缓存不同代理策略的 HTTP Client
+	// key: "direct" 或 proxyUrl (e.g. "http://127.0.0.1:7890")
+	clientMap  = make(map[string]*http.Client)
+	clientLock sync.RWMutex
+)
+
+// getClient 根据代理地址获取复用的 Client
+func getClient(proxyAddr string) *http.Client {
+	clientLock.RLock()
+	client, ok := clientMap[proxyAddr]
+	clientLock.RUnlock()
+
+	if ok {
+		return client
+	}
+
+	clientLock.Lock()
+	defer clientLock.Unlock()
+
+	// 双重检查
+	if client, ok = clientMap[proxyAddr]; ok {
+		return client
+	}
+
+	// 创建新的 Transport
+	transport := &http.Transport{
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		MaxIdleConns:        100,              // 全局最大空闲连接
+		MaxIdleConnsPerHost: 20,               // 每个 Host 最大空闲连接
+		IdleConnTimeout:     90 * time.Second, // 空闲超时
+		DisableKeepAlives:   false,            // 开启长连接复用
+	}
+
+	// 设置代理
+	if proxyAddr != "direct" {
+		if u, err := url.Parse(proxyAddr); err == nil {
+			transport.Proxy = http.ProxyURL(u)
+		}
+	} else {
+		transport.Proxy = nil
+	}
+
+	// 创建 Client
+	// timeout := max(10, config.GlobalConfig.SubUrlsTimeout)
+	// 设置一个较大的超时，以在调用时控制超时
+	newClient := &http.Client{
+		Transport: transport,
+		Timeout:   60 * time.Second,
+	}
+
+	clientMap[proxyAddr] = newClient
+	return newClient
+}
+
+// fetchOnce 执行单次 HTTP 请求 (使用连接池)
 func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, bool) {
+	// 1. 确定 Client Key
+	proxyKey := "direct"
+	if useProxy {
+		if p := config.GlobalConfig.SystemProxy; p != "" {
+			proxyKey = p // 使用代理地址作为 Key
+		}
+	}
+
+	// 2. 获取复用的 Client
+	client := getClient(proxyKey)
+
+	// 3. 创建请求
 	req, err := http.NewRequest("GET", target, nil)
 	if err != nil {
 		return nil, err, false
 	}
 	req.Header.Set("User-Agent", "clash.meta")
 
+	// 4. 处理本地请求特殊 Header
 	if isLocalRequest(req.URL) {
 		req.Header.Set("X-From-Subs-Check", "true")
 		req.Header.Set("X-API-Key", config.GlobalConfig.APIKey)
@@ -438,28 +507,14 @@ func fetchOnce(target string, useProxy bool, timeoutSec int) ([]byte, error, boo
 		req.URL.RawQuery = q.Encode()
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		Proxy:           nil,
-	}
+	// 5. 使用 Context 控制超时，而不是依赖 Client.Timeout
+	// 这样同一个复用的 Client 可以处理不同超时需求的请求
+	// 本次Context和Client.Timeout超时一致
+	ctx, cancel := context.WithTimeout(req.Context(), time.Duration(timeoutSec)*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
 
-	if useProxy {
-		if p := config.GlobalConfig.SystemProxy; p != "" {
-			if pu, err := url.Parse(p); err == nil {
-				transport.Proxy = http.ProxyURL(pu)
-			} else {
-				transport.Proxy = http.ProxyFromEnvironment
-			}
-		} else {
-			transport.Proxy = http.ProxyFromEnvironment
-		}
-	}
-
-	client := &http.Client{
-		Timeout:   time.Duration(timeoutSec) * time.Second,
-		Transport: transport,
-	}
-
+	// 6. 执行请求
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err, false
