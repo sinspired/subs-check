@@ -196,12 +196,16 @@ func NormalizeNode(m map[string]any) {
 		m["port"] = ToIntPort(p)
 	}
 
-	// 2. 布尔值标准化
+	// 2. 布尔值标准化 (添加更多可能涉及的字段)
+	// 只要在这里被转成了 bool，就不会触发 Mihomo 的 panic
 	normalizeBool(m, "tls")
 	normalizeBool(m, "udp")
 	normalizeBool(m, "skip-cert-verify")
 	normalizeBool(m, "tfo")
 	normalizeBool(m, "allow-insecure")
+	normalizeBool(m, "xudp")       // 某些旧格式可能包含
+	normalizeBool(m, "reuse-addr") // Tuic/Hysteria 可能包含
+	normalizeBool(m, "disable-sni")
 
 	// 3. 协议特定修正与默认值注入
 	if t, ok := m["type"].(string); ok {
@@ -274,17 +278,59 @@ func normalizeWsFields(m map[string]any) {
 	}
 }
 
+// normalizeBool 强制将 map 中的特定字段转换为 bool 类型
+// 规避 Mihomo decoder 在处理 uint 转 bool 时的 panic bug
 func normalizeBool(m map[string]any, key string) {
-	if v, ok := m[key]; ok {
-		if s, ok := v.(string); ok {
-			lower := strings.ToLower(s)
-			switch lower {
-			case "true", "1":
-				m[key] = true
-			case "false", "0":
-				m[key] = false
-			}
+	val, ok := m[key]
+	if !ok {
+		return
+	}
+
+	switch v := val.(type) {
+	case bool:
+		// 已经是 bool，无需处理
+		return
+	case string:
+		lower := strings.ToLower(v)
+		switch lower {
+		case "true", "1":
+			m[key] = true
+		case "false", "0":
+			m[key] = false
+		default:
+			// 无法识别的字符串
+			// 这里保守起见，保持原样或设为 false，防止 decoder 报错
+			delete(m, key)
 		}
+	case int:
+		m[key] = v != 0
+	case int8:
+		m[key] = v != 0
+	case int16:
+		m[key] = v != 0
+	case int32:
+		m[key] = v != 0
+	case int64:
+		m[key] = v != 0
+	case uint:
+		// 将 uint 转换为 bool，避免进入 Mihomo 的错误分支
+		m[key] = v != 0
+	case uint8:
+		m[key] = v != 0
+	case uint16:
+		m[key] = v != 0
+	case uint32:
+		m[key] = v != 0
+	case uint64:
+		m[key] = v != 0
+	case float32:
+		m[key] = v != 0
+	case float64:
+		// JSON 解析数字通常是 float64
+		m[key] = v != 0
+	default:
+		// 其他无法转换的类型，直接删除该字段，避免传给 Mihomo 导致未知错误
+		delete(m, key)
 	}
 }
 
