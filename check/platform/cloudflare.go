@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 	"sync"
@@ -81,13 +81,11 @@ func GetCFTrace(httpClient *http.Client) (string, string) {
 
 // shuffle 返回一个新切片，元素是原切片的随机乱序版本
 func shuffle(in []string) []string {
-	out := append([]string(nil), in...) // 拷贝，避免修改原数据
-
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := len(out) - 1; i > 0; i-- {
-		j := r.Intn(i + 1)
+	out := append([]string(nil), in...)
+	rand.Shuffle(len(out), func(i, j int) {
 		out[i], out[j] = out[j], out[i]
-	}
+	})
+
 	return out
 }
 
