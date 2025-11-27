@@ -1666,7 +1666,7 @@
       if (doc.errors && doc.errors.length > 0) {
         return showToast("YAML 语法错误：" + doc.errors[0].message, "error", 5000);
       }
-      const formatted = doc.toString();
+      const formatted = doc.toString({ lineWidth: 0 }); 
       setEditorContent(formatted);
       const r = await sfetch(API.config, {
         method: 'POST',
