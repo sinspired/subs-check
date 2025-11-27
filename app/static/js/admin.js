@@ -302,6 +302,35 @@
   }
 
   /**
+     * 从日志中寻找当前正在进行的任务的开始时间
+     * @param {string[]} logs 日志数组
+     * @returns {number|null} 时间戳 (ms) 或 null
+     */
+  function findActiveTaskStartTime(logs) {
+    if (!logs || !logs.length) return null;
+
+    // 倒序查找最近的一次启动标志
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const line = logs[i];
+      // 如果先遇到了“检测完成”，说明没有正在运行的任务，或者任务已结束
+      if (line.includes('检测完成') || line.includes('启动检测任务')) {
+        return null;
+      }
+
+      if (line.includes('开始检测')) {
+        const timeMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+        if (timeMatch) {
+          // 兼容性处理：将 - 替换为 / 以确保 Safari 等浏览器能正确解析
+          const timeStr = timeMatch[1].replace(/-/g, '/');
+          const ts = new Date(timeStr).getTime();
+          if (!isNaN(ts)) return ts;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
      * 渲染获取订阅链接数量
      * 格式示例：本地:66 | 远程:24 | 历史:2 | 总计:90 [已去重]
      */
@@ -530,6 +559,15 @@
       const d = r.payload || {};
       const checking = !!d.checking;
 
+      let realStartTime = null;
+      if (checking && lastLogLines && lastLogLines.length > 0) {
+        realStartTime = findActiveTaskStartTime(lastLogLines);
+      }
+      // 如果日志里没找到（比如日志被截断），但内存里有记录（checkStartTime），则用内存的
+      if (!realStartTime && checkStartTime) {
+        realStartTime = checkStartTime;
+      }
+
       // --- 动态调整频率 ---
       if (checking) {
         currentStatusInterval = STATUS_INTERVAL_FAST;
@@ -571,9 +609,12 @@
           restoreHistoryTitle();
 
           // updateProgress 会接管 StatusEl 的倒计时显示
-          updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo);
+          updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo, realStartTime);
 
           hideLastCheckResult(); // 确保 History 隐藏
+
+          // 确保内存变量同步，防止下次循环丢失
+          if (realStartTime && !checkStartTime) checkStartTime = realStartTime;
         }
 
         if (!checkStartTime) checkStartTime = Date.now();
@@ -713,17 +754,17 @@
    * @param {*} lastChecked
    * @param {*} lastCheckData
    */
-  function updateProgress(total, processed, available, checking, lastChecked, lastCheckData) {
+  function updateProgress(total, processed, available, checking, lastChecked, lastCheckData, serverStartTime = null) {
     // 初始化状态对象
     if (!updateProgress.etaState) {
       updateProgress.etaState = {
-        startTime: 0,          // 任务总开始时间
-        lastUpdateUI: 0,       // 上次更新 UI 时间
-        lastRecordHistory: 0,  // 上次记录历史数据的时间
-        history: [],           // 滑动窗口历史记录
+        startTime: 0,
+        lastUpdateUI: 0,
+        lastRecordHistory: 0,
+        history: [],
         cachedEtaText: '',
         isRunning: false,
-        historicalRate: 0      // 新增：历史基准速率 (个/秒)
+        historicalRate: 0
       };
     }
 
@@ -734,20 +775,27 @@
     processed = Number(processed) || 0;
 
     // --- 1. 状态管理与重置 ---
-    if (checking && (!state.isRunning || processed === 0)) {
-      state.isRunning = true;
-      state.startTime = now;
-      state.lastUpdateUI = 0;
-      state.history = [];
-      state.cachedEtaText = '计算中...';
+    if (checking) {
+      // 如果还没标记运行，或者传入了明确的服务器开始时间且与当前记录不符（纠正时间）
+      if (!state.isRunning || processed === 0 || (serverStartTime && Math.abs(state.startTime - serverStartTime) > 1000)) {
+        state.isRunning = true;
 
-      // 记录初始点 (时间0，数量0)
-      state.history.push({ t: now, c: 0 });
+        // 优先使用从日志解析出的真实开始时间，否则使用当前时间
+        state.startTime = serverStartTime || now;
 
-      // [核心]：计算历史基准速率
-      state.historicalRate = 0;
-      if (lastCheckData && lastCheckData.total > 0 && lastCheckData.duration > 0) {
-        state.historicalRate = lastCheckData.total / lastCheckData.duration;
+        // 重置 UI 更新计时器，确保刷新后立即计算一次，不要等 2秒
+        state.lastUpdateUI = 0;
+
+        state.history = [];
+        state.cachedEtaText = '计算中...';
+
+        // 记录初始点: 如果是从中途恢复的，起始点就是 {t: start, c: 0}
+        state.history.push({ t: state.startTime, c: 0 });
+
+        state.historicalRate = 0;
+        if (lastCheckData && lastCheckData.total > 0 && lastCheckData.duration > 0) {
+          state.historicalRate = lastCheckData.total / lastCheckData.duration;
+        }
       }
     } else if (!checking) {
       state.isRunning = false;
@@ -786,25 +834,29 @@
     if (checking && total > 0 && processed < total) {
       const totalTimeElapsed = now - state.startTime;
 
+      // 如果是从日志恢复的时间，totalTimeElapsed 可能已经很大（例如 50000ms）。
+      // 此时如果不满 3000ms 的判断会自动跳过，直接进入下方的计算逻辑。
+      // 这是符合预期的：中途进来不需要预热。
       // 前 3 秒强制预热，给用户一点反应时间，也避免除0
       if (totalTimeElapsed < 3000) {
         etaText = '计算中...';
         state.cachedEtaText = etaText;
       }
       // 计算期：每 1 秒刷新一次 UI
+      // 这里的 2000 是刷新间隔。由于上面重置了 lastUpdateUI = 0，刷新页面后第一次必定进入此分支
       else if (now - state.lastUpdateUI > 2000) {
 
         // --- A. 计算实时速率 (Real-time Rate) ---
         let realTimeRate = 0;
 
-        if (pct < 15) {
-          // 阶段一 (<15%)：使用全局平均 (Processed / TotalTime)
-          // 目的：把启动时的慢速时间全部算入分母，避免速率虚高
+        // 如果历史队列为空（比如刚刷新页面），或者进度很低
+        // 使用 "全局平均速率" = 当前已处理量 / 总耗时
+        // 这样即使刷新页面丢失了最近30秒的瞬时速度，也能立刻得到一个准确的平均速度
+        if (state.history.length <= 1 || pct < 15) {
           realTimeRate = processed / (totalTimeElapsed / 1000);
         } else {
-          // 阶段二 (>=15%)：使用滑动窗口 (Last 30s)
-          // 目的：反映当前真实网速
-          const startPoint = state.history.length > 0 ? state.history[0] : { t: state.startTime, c: 0 };
+          // 阶段二：使用滑动窗口 (Last 30s)
+          const startPoint = state.history[0];
           const winTime = (now - startPoint.t) / 1000;
           const winCount = processed - startPoint.c;
           if (winTime > 0) realTimeRate = winCount / winTime;
