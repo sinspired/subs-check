@@ -38,8 +38,9 @@ var (
 	Available  atomic.Uint32 // 已可用数量（测速阶段完成,可用即+1）
 	ProxyCount atomic.Uint32 // 总数（动态=总节点；分阶段=当前阶段规模）
 
-	TotalBytes atomic.Uint64
-	ForceClose atomic.Bool
+	TotalBytes     atomic.Uint64
+	ForceClose     atomic.Bool
+	Successlimited atomic.Bool
 
 	Bucket *ratelimit.Bucket
 )
@@ -209,6 +210,7 @@ func NewProxyChecker(proxyCount int) *ProxyChecker {
 func Check() ([]Result, error) {
 	proxyutils.ResetRenameCounter()
 	ForceClose.Store(false)
+	Successlimited.Store(false)
 
 	ProxyCount.Store(0)
 	Available.Store(0)
@@ -601,13 +603,17 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 					stopOnce.Do(func() {
 						if mediaON {
 							if speedON {
+								Successlimited.Store(true)
 								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待测速和媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
 							} else {
+								Successlimited.Store(true)
 								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
 							}
 						} else if speedON {
+							Successlimited.Store(true)
 							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待测速和节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
 						} else {
+							Successlimited.Store(true)
 							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
 						}
 
@@ -662,9 +668,11 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 					if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) >= config.GlobalConfig.SuccessLimit {
 						stopOnce.Do(func() {
 							if mediaON {
+								Successlimited.Store(true)
 								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
 								slog.Warn("测活模式将丢弃多余结果")
 							} else {
+								Successlimited.Store(true)
 								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
 								slog.Warn("测活模式将丢弃多余结果")
 							}

@@ -558,8 +558,9 @@
 
       const d = r.payload || {};
       const checking = !!d.checking;
-      // 获取后端返回的 forceClose 状态
-      const forceClose = !!d.forceClose;
+
+      const forceClose = !!d.forceClose; // 获取后端返回的 forceClose 状态
+      const successlimited = !!d.successlimited; // 获取数量限制标志
 
       let realStartTime = null;
       if (checking && lastLogLines && lastLogLines.length > 0) {
@@ -583,7 +584,7 @@
 
       if (checking) {
         const processed = d.progress || 0;
-        if (forceClose) {
+        if (forceClose || successlimited) {
           updateToggleUI('stopping');
         } else if (processed === 0) {
           updateToggleUI('preparing');
@@ -592,7 +593,7 @@
         }
 
         // ==================== 阶段 1: 准备阶段 (Progress = 0) ====================
-        if (processed === 0) {
+        if (processed === 0 && !forceClose && !successlimited) {
           updateToggleUI('preparing');
           showProgressUI(false); // 隐藏进度条，保留 History 面板
 
@@ -617,7 +618,7 @@
           restoreHistoryTitle();
 
           // updateProgress 会接管 StatusEl 的倒计时显示
-          updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo, realStartTime, forceClose);
+          updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo, realStartTime, forceClose, successlimited);
 
           hideLastCheckResult(); // 确保 History 隐藏
 
@@ -635,7 +636,7 @@
         // 恢复标题
         restoreHistoryTitle();
 
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked, lastCheckInfo, null, false);
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked, lastCheckInfo, null, false, false);
 
         // 如果是刚启动尚未有数据，清空进度条
         if (els.progressBar && (d.progress === 0 || d.proxyCount === 0)) {
@@ -750,20 +751,20 @@
       return Math.floor(seconds) + '秒';
     }
   }
-   
-/**
- *更新进度条
- *
- * @param {*} total 
- * @param {*} processed 
- * @param {*} available 
- * @param {*} checking 
- * @param {*} lastChecked 
- * @param {*} lastCheckData 
- * @param {*} [serverStartTime=null] 
- * @param {boolean} [forceClose=false] 
- */
-function updateProgress(total, processed, available, checking, lastChecked, lastCheckData, serverStartTime = null, forceClose = false) {
+
+  /**
+   *更新进度条
+   *
+   * @param {*} total 
+   * @param {*} processed 
+   * @param {*} available 
+   * @param {*} checking 
+   * @param {*} lastChecked 
+   * @param {*} lastCheckData 
+   * @param {*} [serverStartTime=null] 
+   * @param {boolean} [forceClose=false] 
+   */
+  function updateProgress(total, processed, available, checking, lastChecked, lastCheckData, serverStartTime = null, forceClose = false, successlimited = false) {
     // 初始化状态对象
     if (!updateProgress.etaState) {
       updateProgress.etaState = {
@@ -840,11 +841,14 @@ function updateProgress(total, processed, available, checking, lastChecked, last
     // --- 4. 智能 ETA 算法 ---
     let etaText = state.cachedEtaText;
 
-       // 如果 forceClose 为真，覆盖 ETA 显示
+    // 如果 forceClose 为真，覆盖 ETA 显示
     if (forceClose) {
       etaText = '正在中止...';
       state.cachedEtaText = etaText;
-    } 
+    } else if (successlimited) {
+      etaText = '数量达标，正在结束...';
+      state.cachedEtaText = etaText;
+    }
     else if (checking && total > 0 && processed < total) {
       const totalTimeElapsed = now - state.startTime;
 
@@ -931,9 +935,13 @@ function updateProgress(total, processed, available, checking, lastChecked, last
 
         // 增加 forceClose 的显示状态
         if (forceClose) {
-           els.statusEl.innerHTML = `${checking_SPINNER}<span>正在中止任务...</span>`;
-           els.statusEl.className = 'muted status-label status-prepare'; // 使用 prepare 的黄色或定义新的样式
-        } 
+          els.statusEl.innerHTML = `${checking_SPINNER}<span>正在中止任务...</span>`;
+          els.statusEl.className = 'muted status-label status-prepare'; // 使用 prepare 的黄色或定义新的样式
+        } else if (successlimited) {
+          // 显示数量达标的提示
+          els.statusEl.innerHTML = `${checking_SPINNER}<span>数量达标，正在结束任务...</span>`;
+          els.statusEl.className = 'muted status-label status-prepare';
+        }
         else if (processed === 0) {
           // 刚启动，正在下载订阅文件
           els.statusEl.textContent = "正在获取订阅...";

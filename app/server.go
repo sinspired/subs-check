@@ -289,6 +289,7 @@ func (app *App) getStatus(c *gin.Context) {
 		"available":  check.Available.Load(),
 		"progress":   check.Progress.Load(),
 		"forceClose": check.ForceClose.Load(),
+		"successlimited": check.Successlimited.Load(),
 		"lastCheck":  lastCheck,
 	})
 }
