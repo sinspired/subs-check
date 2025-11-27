@@ -290,7 +290,7 @@ func startSubStore(ctx context.Context) error {
 	}
 
 	subStorePort := strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":")
-	slog.Info("Sub-store已启动", "port", subStorePort, "pid", cmd.Process.Pid, "log", paths.logPath)
+	slog.Info("Sub-Store已启动", "port", subStorePort, "pid", cmd.Process.Pid, "log", paths.logPath)
 
 	// ctx 取消时尝试杀掉子进程
 	go func() {
