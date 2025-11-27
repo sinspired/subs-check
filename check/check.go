@@ -703,7 +703,6 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 				}
 
 				job.Close()
-				job = nil
 			}
 		})
 	}
@@ -987,7 +986,7 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 		// rate 保留4位小数，便于人眼阅读与程序解析
 		var sb strings.Builder
 		for _, p := range pairs {
-			sb.WriteString(fmt.Sprintf("- %q: %d/%d (%.3f%%)\n", p.URL, p.Success, p.Total, p.Rate*100))
+			fmt.Fprintf(&sb, "- %q: %d/%d (%.3f%%)\n", p.URL, p.Success, p.Total, p.Rate*100)
 		}
 		if err := method.SaveToStats([]byte(sb.String()), "subs-filtered-stats.yaml"); err != nil {
 			slog.Warn("保存过滤后的订阅统计失败", "err", err)
@@ -1005,44 +1004,44 @@ type ProxyClient struct {
 
 // CreateClient 创建独立的代理客户端
 func CreateClient(mapping map[string]any) *ProxyClient {
-	// 1. 先初始化结构体指针
 	pc := &ProxyClient{}
 
 	var err error
 	resolver.DisableIPv6 = false
 
-	// 2. 解析代理并直接赋值给 pc.mProxy
+	// 解析代理
 	pc.mProxy, err = adapter.ParseProxy(mapping)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("底层mihomo创建代理Client失败: %v", err))
 		return nil
 	}
 
-	// 3. 初始化 Context 并赋值给 pc
+	// 初始化全局控制 Context
 	pc.ctx, pc.cancel = context.WithCancel(context.Background())
+	// 捕获 ctx 用于闭包，防止 pc 指针后续变化（防御性，避免某次测试出现的nil指针错误）
+	clientCtx := pc.ctx
 
-	// 4. 初始化 Transport
 	statsTransport := &StatsTransport{}
-
 	var baseTransport *http.Transport
 	networkLimitDefault := true
 
 	baseTransport = &http.Transport{
-		// 这里的 DialContext闭包 捕获了外部的 pc 变量
 		DialContext: func(reqCtx context.Context, network, addr string) (net.Conn, error) {
-			// 防止 Goroutine 泄漏的 Context 控制逻辑
+			// 基于请求的 ctx 创建合并 ctx
 			mergedCtx, mergedCancel := context.WithCancel(reqCtx)
-			defer mergedCancel() // 拨号完成后自动清理
 
-			// 启动一个 goroutine，监听全局 pc.ctx
-			go func() {
-				select {
-				case <-pc.ctx.Done(): // ProxyClient.Close() 时触发
-					mergedCancel()
-				case <-reqCtx.Done(): // 请求超时/取消
-					// defer 会处理 mergedCancel，这里只需退出
-				}
-			}()
+			// 使用 context.AfterFunc 监听全局 clientCtx
+			// 当 clientCtx (ProxyClient) 被关闭时，立即调用 mergedCancel
+			stop := context.AfterFunc(clientCtx, func() {
+				mergedCancel()
+			})
+
+			// 资源清理
+			// 无论拨号成功还是失败，函数返回时：
+			// 1. stop(): 注销监听器，避免 mergedCtx 长期持有 clientCtx 的引用
+			// 2. mergedCancel(): 释放 mergedCtx 资源
+			defer stop()
+			defer mergedCancel()
 
 			host, portStr, err := net.SplitHostPort(addr)
 			if err != nil {
@@ -1053,6 +1052,7 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 				u16Port = uint16(port)
 			}
 
+			// 使用合并后的 ctx 进行拨号
 			rawConn, err := pc.mProxy.DialContext(mergedCtx, &constant.Metadata{
 				Host:    host,
 				DstPort: u16Port,
@@ -1074,7 +1074,7 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		MaxIdleConnsPerHost: 5,
 	}
 
-	// 5. 判断是否启用 HTTP/2
+	// HTTP/2 判断
 	if baseTransport.ForceAttemptHTTP2 || len(baseTransport.TLSNextProto) > 0 {
 		networkLimitDefault = false
 	}
@@ -1082,44 +1082,52 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 	statsTransport.Base = baseTransport
 	pc.Transport = statsTransport
 
-	// 6. 初始化 http.Client 并赋值给 pc.Client
 	pc.Client = &http.Client{
 		Timeout:   time.Duration(config.GlobalConfig.Timeout) * time.Millisecond,
 		Transport: statsTransport,
 	}
 
-	// 7. 返回已经填充好的指针
 	return pc
 }
 
 // Close 关闭客户端，释放所有资源
 func (pc *ProxyClient) Close() {
-	// 1. 取消 Context
+	// 防御性检查：防止对 nil 指针调用 Close
+	if pc == nil {
+		return
+	}
+
+	// 发送取消信号
+	// 这会立即触发 CreateClient 中 context.AfterFunc 注册的回调，
+	// 从而中断所有正在进行的 Dial 过程。
 	if pc.cancel != nil {
 		pc.cancel()
 	}
 
-	// 2. 关闭 HTTP 连接
-	if pc.Client != nil {
-		pc.Client.CloseIdleConnections()
-	}
-
-	// 3. 统计数据回收
-	if pc.Transport != nil {
-		TotalBytes.Add(pc.Transport.BytesRead.Load())
-		if pc.Transport.Base != nil {
-			pc.Transport.Base.CloseIdleConnections()
-			pc.Transport.Base.DisableKeepAlives = true
-		}
-	}
-	// 4. 关闭mihomo代理
+	// 关闭mihomo代理实例
 	if pc.mProxy != nil {
 		pc.mProxy.Close()
 	}
 
-	// 置空
-	pc.mProxy = nil
-	pc.Transport = nil
+	// 关闭 HTTP 连接池
+	// 这里无法关闭mihomo建立的连接
+	if pc.Client != nil {
+		pc.Client.CloseIdleConnections()
+	}
+
+	// 统计数据
+	if pc.Transport != nil {
+		bytesRead := pc.Transport.BytesRead.Load()
+
+		if bytesRead > 0 {
+			TotalBytes.Add(bytesRead)
+		}
+
+		if pc.Transport.Base != nil {
+			// 关闭mihomo连接，mihomo的bug？有时间去看一下mihomo代码
+			pc.Transport.Base.CloseIdleConnections()
+		}
+	}
 }
 
 // countingReadCloser 封装了 io.ReadCloser，用于统计读取的字节数。
