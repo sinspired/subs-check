@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -136,8 +135,6 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 			if pendingGCNum >= gcInterval {
 				// 在 GC 导致停顿前记录日志
 				slog.Debug("触发流式内存清理", "当前已处理总数", rawCount)
-				// 循环内GC
-				runtime.GC()
 				// 归还内存
 				// 否则百万级节点池内存将持续增加
 				debug.FreeOSMemory()
@@ -215,8 +212,7 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 	close(proxyChan)
 	<-done
 
-	// 最终 GC 清理临时垃圾
-	runtime.GC()
+	// 归还内存
 	debug.FreeOSMemory()
 
 	// 将 Map 转为 Slice，并统计最终的分类数量

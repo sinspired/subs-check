@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"regexp"
-	"runtime"
 	"runtime/debug"
 	"slices"
 	"strconv"
@@ -78,7 +77,7 @@ type ProxyChecker struct {
 	resultChan  chan Result
 	proxyCount  int
 	threadCount int
-	available   atomic.Int32 
+	available   atomic.Int32
 
 	aliveConcurrent int
 	speedConcurrent int
@@ -429,7 +428,8 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	for i := range proxies {
 		proxies[i] = nil
 	}
-	runtime.GC() // 提示 GC 回收
+
+	// 在保存上传之前直接归还内存
 	debug.FreeOSMemory()
 
 	return pc.results, nil
@@ -550,7 +550,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 					}
 				} else {
 					// 无测速时：通过 alive 即可视为“可用”，确保 Available 与最终可用数量一致
-					if job.speedMarked.CompareAndSwap(false, true){
+					if job.speedMarked.CompareAndSwap(false, true) {
 						pc.incrementAvailable()
 					}
 					select {
@@ -591,7 +591,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 				getBytes := func() uint64 { return job.Client.Transport.BytesRead.Load() }
 				speed, _, err := platform.CheckSpeed(job.Client.Client, Bucket, getBytes)
 				success := err == nil && speed >= config.GlobalConfig.MinSpeed
-				if job.speedMarked.CompareAndSwap(false, true){
+				if job.speedMarked.CompareAndSwap(false, true) {
 					pc.pt.CountSpeed(success)
 					// 仅在测速成功时计入可用数量
 					if success {
@@ -698,7 +698,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 				// 将结果发送到 collector
 				pc.resultChan <- job.Result
 
-				if job.mediaMarked.CompareAndSwap(false, true){
+				if job.mediaMarked.CompareAndSwap(false, true) {
 					pc.pt.CountMedia()
 				}
 
@@ -1199,8 +1199,8 @@ func (c *countingConn) Write(b []byte) (int, error) {
 
 // 工具函数
 func (pc *ProxyChecker) incrementAvailable() {
-	pc.available.Add(1) 
-	Available.Add(1)   
+	pc.available.Add(1)
+	Available.Add(1)
 }
 
 // checkCtxDone 提供一个非阻塞的检查，判断上下文是否已结束或是否收到强制关闭信号。
