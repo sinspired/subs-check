@@ -1,4 +1,3 @@
-// get.go
 package proxies
 
 import (
@@ -135,9 +134,7 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 			// 流式 GC 控制
 			if pendingGCNum >= gcInterval {
 				// 在 GC 导致停顿前记录日志
-				slog.Debug("触发流式GC",
-					"当前总数", rawCount,
-				)
+				slog.Debug("触发流式内存清理", "当前已处理总数", rawCount)
 				// 循环内GC
 				runtime.GC()
 				// 归还内存
@@ -233,10 +230,10 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 
 	saveStats(validSubs, subNodeCounts)
 	// 打印去重统计日志
-	slog.Info("节点处理完成",
-		"原始数量", rawCount,
-		"去重后数量", len(finalProxies),
-		"重复丢弃", rawCount-len(finalProxies),
+	slog.Info("节点池解析",
+		"原始", rawCount,
+		"去重", len(finalProxies),
+		"丢弃", rawCount-len(finalProxies),
 	)
 	return finalProxies, rawCount, finalSuccCount, finalHistCount, nil
 }
@@ -268,7 +265,9 @@ func processSubscription(urlStr, tag string, wasSucced, wasHistory bool, out cha
 	count := 0
 	filterTypes := config.GlobalConfig.NodeType
 
+	
 	for _, node := range nodes {
+		slog.Debug("解析代理节点成功", "node", node)
 		// 类型过滤
 		if len(filterTypes) > 0 {
 			if t, ok := node["type"].(string); ok && !lo.Contains(filterTypes, t) {
@@ -288,15 +287,14 @@ func processSubscription(urlStr, tag string, wasSucced, wasHistory bool, out cha
 		count++
 	}
 
-	slog.Debug("解析订阅", "URL", urlStr, "合法节点数量", count)
+	slog.Debug("订阅解析完成", "URL", urlStr, "有效节点", count)
 }
 
 // parseSubscriptionData 智能分发解析器
 func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 	// 优先尝试带注释的 Sing-Box 配置
-	// 因为它包含 # 注释，直接用标准 Unmarshal 会失败，所以最先尝试清洗解析
 	if nodes := ParseSingBoxWithMetadata(data); len(nodes) > 0 {
-		slog.Debug("识别到 Sing-Box 配置 (含元数据)")
+		slog.Debug("解析成功", "订阅", subURL, "格式", "Sing-Box(Metadata)")
 		return nodes, nil
 	}
 
@@ -307,17 +305,17 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 		case map[string]any:
 			// Clash 格式
 			if proxies, ok := val["proxies"].([]any); ok {
-				slog.Debug("提取clash格式")
+				slog.Debug("解析成功", "订阅", subURL, "格式", "Mihomo/Clash")
 				return convertListToNodes(proxies), nil
 			}
 			// Sing-Box 纯 JSON 格式
 			if outbounds, ok := val["outbounds"].([]any); ok {
-				slog.Debug("提取singbox格式")
+				slog.Debug("解析成功", "订阅", subURL, "格式", "Sing-Box(JSON)")
 				return ConvertSingBoxOutbounds(outbounds), nil
 			}
 			// 非标准 JSON (协议名为 Key, e.g. {"vless": [...], "hysteria": [...]})
 			if nodes := ConvertProtocolMap(val); len(nodes) > 0 {
-				slog.Debug("解析到非标准 JSON格式的订阅")
+				slog.Debug("解析成功", "订阅", subURL, "格式", "Non-Standard JSON", "数量", len(nodes))
 				return nodes, nil
 			}
 		case []any:
@@ -325,7 +323,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 				return nil, nil
 			}
 			if _, ok := val[0].(string); ok {
-				slog.Debug("解析到字符串数组 (链接列表)")
+				slog.Debug("解析成功", "订阅", subURL, "格式", "String List")
 				strList := make([]string, 0, len(val))
 				for _, v := range val {
 					if s, ok := v.(string); ok {
@@ -335,7 +333,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 				return ParseProxyLinksAndConvert(strList, subURL), nil
 			}
 			if _, ok := val[0].(map[string]any); ok {
-				slog.Debug("解析到通用JSON对象数组 (Shadowsocks/SIP008等)")
+				slog.Debug("解析成功", "订阅", subURL, "格式", "General JSON List")
 				return ConvertGeneralJsonArray(val), nil
 			}
 		}
@@ -343,44 +341,45 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 
 	// 尝试 Base64/V2Ray 标准转换
 	if nodes, err := convert.ConvertsV2Ray(data); err == nil && len(nodes) > 0 {
-		slog.Debug("标准v2ray格式解析成功", "订阅", subURL)
+		slog.Debug("解析成功", "订阅", subURL, "格式", "Base64/V2Ray", "数量", len(nodes))
 		return ToProxyNodes(nodes), nil
 	}
 
 	// 针对 "局部合法、全局非法" 的多段 proxies 文件
 	if nodes := ExtractAndParseProxies(data); len(nodes) > 0 {
-		slog.Debug("通过多段解析，获取到代理节点", "count", len(nodes))
+		slog.Debug("解析成功", "订阅", subURL, "格式", "Multipart Proxies", "数量", len(nodes))
 		return nodes, nil
 	}
 
 	// 尝试逐行 YAML 流式解析
 	if nodes := ParseYamlFlowList(data); len(nodes) > 0 {
+		slog.Debug("解析成功", "订阅", subURL, "格式", "YAML Flow List", "数量", len(nodes))
 		return nodes, nil
 	}
 
 	// 尝试 Surge/Surfboard 格式
 	if bytes.Contains(data, []byte("=")) && (bytes.Contains(data, []byte("[VMess]")) || bytes.Contains(data, []byte(", 20"))) {
 		if nodes := ParseSurfboardProxies(data); len(nodes) > 0 {
-			slog.Debug("Surfboard/Surge 格式", "count", len(nodes))
+			slog.Debug("解析成功", "订阅", subURL, "格式", "Surfboard/Surge", "数量", len(nodes))
 			return nodes, nil
 		}
 	}
 
-	// 尝试自定义 Bracket KV 格式 ([Type]Name=...)
-	if nodes := ParseBracketKVProxies(data); len(nodes) > 0 {
-		slog.Debug("Bracket KV 格式")
+	// 尝试 V2Ray Core JSON
+	if nodes := ParseV2RayJsonLines(data); len(nodes) > 0 {
+		slog.Debug("解析成功", "订阅", subURL, "格式", "V2Ray JSON Lines", "数量", len(nodes))
 		return nodes, nil
 	}
 
-	// 尝试 V2Ray Core JSON
-	if nodes := ParseV2RayJsonLines(data); len(nodes) > 0 {
-		slog.Debug("识别到 V2Ray JSON Lines 格式", "count", len(nodes))
+	// 尝试自定义 Bracket KV 格式 ([Type]Name=...)
+	if nodes := ParseBracketKVProxies(data); len(nodes) > 0 {
+		slog.Debug("解析成功", "订阅", subURL, "格式", "Bracket KV", "数量", len(nodes))
 		return nodes, nil
 	}
 
 	// 最后尝试按行猜测
 	if nodes := parseRawLines(data, subURL); len(nodes) > 0 {
-		slog.Debug("兜底尝试：按行解析")
+		slog.Debug("解析成功", "订阅", subURL, "格式", "Raw Lines (Guess)", "数量", len(nodes))
 		return nodes, nil
 	}
 
@@ -407,11 +406,12 @@ func parseRawLines(data []byte, subURL string) []ProxyNode {
 // fallbackExtractV2Ray 正则提取兜底
 func fallbackExtractV2Ray(data []byte, subURL string) []ProxyNode {
 	decodedData := TryDecodeBase64(data)
+	slog.Debug("base64解码", "decode", string(decodedData))
 	links := ExtractV2RayLinks(decodedData)
 	if len(links) == 0 {
 		return nil
 	}
-	slog.Debug("开始处理提取到的链接", "count", len(links))
+	slog.Debug("正则提取链接", "数量", len(links), "URL", subURL)
 
 	return ParseProxyLinksAndConvert(links, subURL)
 }
@@ -428,11 +428,15 @@ func convertListToNodes(list []any) []ProxyNode {
 
 // FetchSubsData 获取数据 (包含重试、占位符处理、代理策略)
 func FetchSubsData(rawURL string) ([]byte, error) {
+	// 清洗 URL
+	rawURL = CleanURL(rawURL)
+
 	if _, err := url.Parse(rawURL); err != nil {
 		return nil, err
 	}
-	slog.Debug("处理订阅", "rawURL", rawURL)
-	rawURL = CleanURL(rawURL)
+
+	slog.Debug("正在下载订阅", "URL", rawURL)
+
 	conf := config.GlobalConfig
 	maxRetries := max(1, conf.SubUrlsReTry)
 	timeout := max(10, conf.SubUrlsTimeout)
@@ -494,7 +498,10 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 					continue
 				}
 				triedInThisLoop[key] = struct{}{}
-				slog.Debug("FetchSubsData", "target", targetURL, "代理", strat.useProxy)
+
+				// 保持 Debug，过于频繁的尝试详情不需要 Info
+				slog.Debug("尝试下载", "Target", targetURL, "Proxy", strat.useProxy)
+
 				body, err, fatal := fetchOnce(targetURL, strat.useProxy, timeout, ua)
 				if err == nil {
 					return body, nil
@@ -789,7 +796,6 @@ func identifyLocalSubType(subURL, listenPort, storePort string) (isLatest, isHis
 
 	return isLatest, isHistory, tag
 }
-
 
 func cleanMetadata(p ProxyNode) {
 	delete(p, "sub_was_succeed")

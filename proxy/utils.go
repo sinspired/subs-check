@@ -124,6 +124,7 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 
 	// 3. 批量转换剩余链接
 	if len(batchLinks) > 0 {
+		slog.Debug("链接块")
 		// 这里去重一下，避免因为逻辑重叠产生重复链接
 		batchLinks = lo.Uniq(batchLinks) // 去重
 		for _, link := range batchLinks {
@@ -532,6 +533,7 @@ func ExtractV2RayLinks(data []byte) []string {
 		t = strings.Trim(t, "\"'`")
 		t = strings.TrimRight(t, ",，;；")
 		if t != "" {
+			slog.Debug("正则捕获", "raw", s, "cleaned", t)
 			out = append(out, t)
 		}
 	}
@@ -629,9 +631,11 @@ func ConvertSingBoxOutbounds(outbounds []any) []ProxyNode {
 }
 
 // ConvertGeneralJsonArray 处理通用对象数组 (主要是 Shadowsocks 导出的配置文件)
+// 兼容标准 Clash 节点对象 和 旧式 Shadowsocks (SIP008) 导出格式
+// 输入: [{"server": "...","server_port": 1234, ...}, {"type": "vmess", ...}]
 func ConvertGeneralJsonArray(list []any) []ProxyNode {
 	var nodes []ProxyNode
-	convertListToNodes(list)
+	// convertListToNodes(list) // 删除：返回值未接收，且后续逻辑需要手动映射字段
 
 	for _, item := range list {
 		m, ok := item.(map[string]any)
@@ -639,20 +643,41 @@ func ConvertGeneralJsonArray(list []any) []ProxyNode {
 			continue
 		}
 
-		// 识别特征: server_port, method, password
+		// 1. 如果已经包含 "type" 字段，视为标准/已转换的节点，直接保留
+		if _, hasType := m["type"]; hasType {
+			// 复制一份 map 避免修改原始数据（可选）
+			node := ProxyNode(m)
+			// 如果有 remarks 且没有 name，进行映射
+			if name, ok := m["remarks"].(string); ok && name != "" && node["name"] == nil {
+				node["name"] = name
+			}
+			NormalizeNode(node)
+			nodes = append(nodes, node)
+			continue
+		}
+
+		// 2. 识别旧式 Shadowsocks 格式 (无 type, 有 server_port 和 method)
+		// 格式特征: server_port, method, password
 		if _, hasPort := m["server_port"]; hasPort {
 			if _, hasMethod := m["method"]; hasMethod {
+				// 这是一个 Shadowsocks 节点
 				node := ProxyNode{
-					// FIXME: 当前仅支持ss协议?
-					"type":        "ss",
-					"server":      m["server"],
-					"port":        ToIntPort(m["server_port"]),
-					"cipher":      m["method"],
-					"password":    m["password"],
-					"plugin":      m["plugin"],
-					"plugin-opts": m["plugin_opts"],
+					"type":     "ss",
+					"server":   m["server"],
+					"port":     ToIntPort(m["server_port"]),
+					"cipher":   m["method"], // method -> cipher
+					"password": m["password"],
 				}
 
+				// 处理插件 (Simple-obfs / V2ray-plugin)
+				if plugin, ok := m["plugin"]; ok {
+					node["plugin"] = plugin
+				}
+				if pluginOpts, ok := m["plugin_opts"]; ok {
+					node["plugin-opts"] = pluginOpts
+				}
+
+				// 命名处理：remarks -> name
 				if name, ok := m["remarks"].(string); ok && name != "" {
 					node["name"] = name
 				} else {
@@ -731,7 +756,7 @@ func ParseSSRURI(link string) map[string]any {
 
 	n := len(fields)
 	node := map[string]any{
-		"type":     "ss", // 兼容性处理
+		"type":     "ssr", // 兼容性处理
 		"server":   strings.Join(fields[:n-5], ":"),
 		"port":     ToIntPort(fields[n-5]),
 		"cipher":   fields[n-3],
@@ -764,41 +789,75 @@ func ParseSSRURI(link string) map[string]any {
 }
 
 // ParseBracketKVProxies 解析自定义格式: [Type] Name = key=val, ...
+// 兼容 Surge / Surfboard / Quantumult X 的 [Proxy] 格式
 func ParseBracketKVProxies(data []byte) []ProxyNode {
 	var nodes []ProxyNode
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") || !strings.Contains(line, "=") {
+		
+		// 1. 基础过滤：跳过空行、注释、JSON行
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+			continue
+		}
+		// 如果行是以 { 开头，说明是 JSON，跳过（防止误判 V2Ray JSON）
+		if strings.HasPrefix(line, "{") {
+			continue
+		}
+		// 必须包含 = 才是 KV 格式
+		if !strings.Contains(line, "=") {
 			continue
 		}
 
 		parts := strings.SplitN(line, "=", 2)
 		left, right := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
 
-		// 解析名称
+		// 2. 解析名称
 		name := left
+		// 处理 [Proxy] 块中的 Tag 情况，如 "NodeName" = ...
+		name = strings.Trim(name, "\"") 
 		if idx := strings.Index(left, "]"); idx > 0 {
+			// 处理 [VMess] NodeName = ... 这种旧格式
 			name = strings.TrimSpace(left[idx+1:])
 		}
+        
+        // 如果名字为空，尝试使用 server 做默认名，或者跳过
+        if name == "" {
+            // 这种情况比较少见，先占位，后面 server 提取后再补救
+            name = "Unknown" 
+        }
 
 		args := strings.Split(right, ",")
 		if len(args) < 3 {
 			continue
 		}
 
+		// 对分割后的字段进行 TrimSpace，防止 " 443" 解析失败
+		typeStr := strings.ToLower(strings.TrimSpace(args[0]))
+		serverStr := strings.TrimSpace(args[1])
+		portStr := strings.TrimSpace(args[2]) // 修复 port: 0 的核心
+
 		node := map[string]any{
 			"name":   name,
-			"type":   strings.ToLower(args[0]),
-			"server": strings.TrimSpace(args[1]),
-			"port":   ToIntPort(args[2]),
+			"type":   typeStr,
+			"server": serverStr,
+			"port":   ToIntPort(portStr),
 		}
+
+		// 兼容 Shadowsocks 写法
 		if node["type"] == "shadowsocks" {
 			node["type"] = "ss"
 		}
+        
+        // 如果 name 是 Unknown，尝试用 server 补全
+        if name == "Unknown" && serverStr != "" {
+            node["name"] = serverStr
+        }
 
 		// 解析 KV 参数
 		for _, kv := range args[3:] {
+            // 【关键】对参数也进行 TrimSpace
+            kv = strings.TrimSpace(kv)
 			if k, v, ok := strings.Cut(kv, "="); ok {
 				key := strings.ToLower(strings.TrimSpace(k))
 				val := strings.TrimSpace(v)
@@ -808,7 +867,7 @@ func ParseBracketKVProxies(data []byte) []ProxyNode {
 					node["uuid"] = val
 				case "password", "passwd":
 					node["password"] = val
-				case "method", "cipher":
+				case "method", "cipher", "encrypt-method":
 					node["cipher"] = val
 				case "sni", "servername":
 					node["servername"] = val
@@ -816,14 +875,16 @@ func ParseBracketKVProxies(data []byte) []ProxyNode {
 					m := map[string]any{key: val}
 					normalizeBool(m, key)
 					node[key] = m[key]
+                case "obfs-host":
+                    node["servername"] = val // 兼容 obfs-host
 				case "ws":
 					if val == "true" {
 						node["network"] = "ws"
 					}
 				case "ws-path":
-					node["ws-path"] = val // 后续NormalizeNode处理
+					node["ws-path"] = val
 				case "ws-headers":
-					node["ws-headers"] = val // 后续NormalizeNode处理
+					node["ws-headers"] = val
 				}
 			}
 		}
@@ -905,24 +966,37 @@ func ParseV2RayJsonLines(data []byte) []ProxyNode {
 	var nodes []ProxyNode
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 
+	// 增加缓冲区以处理长行 JSON
+	scanner.Buffer(make([]byte, 1024*1024), 2*1024*1024)
+
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, "{") || !strings.Contains(line, "outbound") {
+
+		// if !strings.HasPrefix(line, "{") || !strings.Contains(line, "outbound") {
+		// 只要是以 { 开头，且包含 "protocol" 字段，就尝试解析
+		if !strings.HasPrefix(line, "{") || !strings.Contains(line, "\"protocol\"") {
 			continue
 		}
 
 		var out map[string]any
+		// 使用 YAML 解析器兼容 JSON
 		if yaml.Unmarshal([]byte(line), &out) != nil {
 			continue
 		}
 
-		// 提取 protocol
+		// 再次确认 protocol 字段存在
 		protocol, _ := out["protocol"].(string)
+		if protocol == "" {
+			continue
+		}
 
-		// 提取 settings.vnext
+		// 提取 settings.vnext (VLESS/VMess 通常结构)
 		settings, _ := out["settings"].(map[string]any)
 		vnext, _ := settings["vnext"].([]any)
+
+		// 如果没有 vnext，可能是 shadowsocks 或其他协议，结构不同，暂不处理或根据需要扩展
 		if len(vnext) == 0 {
+			// TODO: 可以增加对 shadowsocks (servers) 的支持
 			continue
 		}
 
@@ -938,15 +1012,18 @@ func ParseV2RayJsonLines(data []byte) []ProxyNode {
 		uuid := fmt.Sprint(userConf["id"])
 
 		// 构建基础节点
+		// 优先使用 tag 作为名称，如果没有则使用 address
+		name := lo.CoalesceOrEmpty(fmt.Sprint(out["tag"]), fmt.Sprint(out["ps"]), "v2ray-json")
+
 		node := ProxyNode{
-			"name":   lo.CoalesceOrEmpty(fmt.Sprint(out["tag"]), "v2ray-json"),
+			"name":   name,
 			"server": address,
 			"port":   port,
 			"uuid":   uuid,
 		}
 
 		// 协议映射
-		switch protocol {
+		switch strings.ToLower(protocol) {
 		case "vmess":
 			node["type"] = "vmess"
 			node["alterId"] = ToIntPort(userConf["alterId"])
@@ -957,23 +1034,89 @@ func ParseV2RayJsonLines(data []byte) []ProxyNode {
 				node["flow"] = flow
 			}
 		default:
-			continue // 暂不支持其他协议
+			// 暂不支持其他协议或非标准协议名
+			continue
 		}
 
 		// 提取 StreamSettings
 		if stream, ok := out["streamSettings"].(map[string]any); ok {
 			node["network"] = stream["network"]
-			if sec := fmt.Sprint(stream["security"]); sec == "tls" {
+
+			// 安全设置
+			security := fmt.Sprint(stream["security"])
+			switch security {
+			case "tls":
 				node["tls"] = true
 				if tlsSet, ok := stream["tlsSettings"].(map[string]any); ok {
 					node["servername"] = tlsSet["serverName"]
+					// 处理 ALPN
+					if _, ok := tlsSet["alpn"].([]any); ok {
+						// 需要将 []any 转为 string 用于指纹，或 Clash 需要 []string
+						// 这里暂时忽略，Mihomo 通常能自动协商，或者手动提取
+					}
+					// 处理指纹
+					if fp, ok := tlsSet["fingerprint"].(string); ok {
+						node["client-fingerprint"] = fp
+					}
+				}
+			case "reality":
+				// 处理 Reality
+				node["tls"] = true // reality 基于 tls
+				if realitySet, ok := stream["realitySettings"].(map[string]any); ok {
+					node["servername"] = realitySet["serverName"]
+					node["reality-opts"] = map[string]any{
+						"public-key": realitySet["publicKey"],
+						"short-id":   realitySet["shortId"],
+					}
+					if fp, ok := realitySet["fingerprint"].(string); ok {
+						node["client-fingerprint"] = fp
+					}
 				}
 			}
+
 			// WS Settings
 			if wsSet, ok := stream["wsSettings"].(map[string]any); ok {
-				node["ws-opts"] = map[string]any{
-					"path":    wsSet["path"],
-					"headers": wsSet["headers"],
+				wsOpts := map[string]any{
+					"path": wsSet["path"],
+				}
+				if headers, ok := wsSet["headers"].(map[string]any); ok {
+					wsOpts["headers"] = headers
+				}
+				node["ws-opts"] = wsOpts
+			}
+
+			// GRPC Settings
+			if grpcSet, ok := stream["grpcSettings"].(map[string]any); ok {
+				node["grpc-opts"] = map[string]any{
+					"grpc-service-name": grpcSet["serviceName"],
+				}
+			}
+
+			// TCP Settings (HTTP Obfuscation)
+			if tcpSet, ok := stream["tcpSettings"].(map[string]any); ok {
+				if header, ok := tcpSet["header"].(map[string]any); ok {
+					if fmt.Sprint(header["type"]) == "http" {
+						// 构造 Mihomo 的 tcp-opts 结构
+						tcpOpts := map[string]any{
+							"header": map[string]any{
+								"mode": "http",
+							},
+						}
+
+						// 提取 Request 参数
+						if req, ok := header["request"].(map[string]any); ok {
+							// 提取 Headers (Host)
+							if headers, ok := req["headers"].(map[string]any); ok {
+								// V2Ray JSON 中 Host 通常是数组 ["xxx.com"]，Mihomo 兼容数组或字符串
+								tcpOpts["header"].(map[string]any)["headers"] = headers
+							}
+							// 提取 Path (通常不需要，但为了完整性)
+							if paths, ok := req["path"].([]any); ok && len(paths) > 0 {
+								// 这里简化处理，Mihomo 这里的 path 好像主要用于 HTTP 验证，通常留空或默认
+							}
+						}
+						node["tcp-opts"] = tcpOpts
+					}
 				}
 			}
 		}
