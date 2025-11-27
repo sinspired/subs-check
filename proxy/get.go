@@ -90,13 +90,14 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 	subUrls, localNum, remoteNum, historyNum := resolveSubUrls()
 	logSubscriptionStats(len(subUrls), localNum, remoteNum, historyNum)
 
-	proxyChan := make(chan ProxyNode, 5000)
+	// 增大缓冲，减少消费者阻塞
+	proxyChan := make(chan ProxyNode, 100000)
 
 	// 定义优先级常量
 	const (
-		PrioNormal  = 0
-		PrioHistory = 1
-		PrioSuccess = 2
+		KeepLevelNone    = 0 // 普通节点：无特殊保留策略
+		KeepLevelHistory = 1 // 历史节点：多次成功或历史积累，价值优于普通
+		KeepLevelSuccess = 2 // 成功节点：上次检测存活，价值最高，必须保留
 	)
 
 	var (
@@ -105,13 +106,13 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 		// 统计计数（原始数量）
 		rawCount = 0
 
-		// === 使用 Map 暂存最佳节点，替代 Slice ===
-		// Key: 节点指纹
-		// Value: 节点数据
-		bestNodes = make(map[string]ProxyNode, 20000)
+		// 存储去重后的节点。
+		// Key 为节点指纹，Value 为节点数据。
+		// 当指纹冲突时，保留优先级较高的版本 (Success > History > Normal)。
+		uniqueNodes = make(map[string]ProxyNode, 200000)
 
 		// 记录已存储节点的优先级，用于比较
-		nodePrio = make(map[string]int, 20000)
+		nodeKeepLevels = make(map[string]int, 200000)
 
 		// 订阅统计
 		subNodeCounts = make(map[string]int)
@@ -150,28 +151,28 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 			}
 
 			// 2. 计算当前节点的优先级
-			currentPrio := PrioNormal
+			currentKeepLevel := KeepLevelNone
 			if proxy["sub_was_succeed"] == true {
-				currentPrio = PrioSuccess
+				currentKeepLevel = KeepLevelSuccess
 			} else if proxy["sub_from_history"] == true {
-				currentPrio = PrioHistory
+				currentKeepLevel = KeepLevelHistory
 			}
 
 			// 3. 生成指纹
 			key := GenerateProxyKey(proxy)
 
 			// 4. 优先级竞争逻辑 (替代 DeduplicateAndMerge)
-			if existPrio, exists := nodePrio[key]; exists {
+			if existLevel, exists := nodeKeepLevels[key]; exists {
 				// 如果已存在，且新节点优先级更高，则覆盖（升级）
-				if currentPrio > existPrio {
-					bestNodes[key] = proxy
-					nodePrio[key] = currentPrio
+				if currentKeepLevel > existLevel {
+					uniqueNodes[key] = proxy
+					nodeKeepLevels[key] = currentKeepLevel
 				}
 				// 如果优先级相同或更低，直接丢弃（GC 会自动回收该 proxy）
 			} else {
 				// 如果不存在，直接存入
-				bestNodes[key] = proxy
-				nodePrio[key] = currentPrio
+				uniqueNodes[key] = proxy
+				nodeKeepLevels[key] = currentKeepLevel
 			}
 		}
 	}()
@@ -219,18 +220,18 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 	debug.FreeOSMemory()
 
 	// 将 Map 转为 Slice，并统计最终的分类数量
-	finalProxies := make([]map[string]any, 0, len(bestNodes))
+	finalProxies := make([]map[string]any, 0, len(uniqueNodes))
 	finalSuccCount := 0
 	finalHistCount := 0
 
-	for key, node := range bestNodes {
-		prio := nodePrio[key]
+	for key, node := range uniqueNodes {
+		keepLevel := nodeKeepLevels[key]
 
 		// 统计逻辑：根据最终留下的那个节点的优先级计数
-		switch prio {
-		case PrioSuccess:
+		switch keepLevel {
+		case KeepLevelSuccess:
 			finalSuccCount++
-		case PrioHistory:
+		case KeepLevelHistory:
 			finalHistCount++
 		}
 
@@ -242,8 +243,8 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 	}
 
 	// 释放 Map 内存（虽然函数返回后也会释放）
-	bestNodes = nil
-	nodePrio = nil
+	uniqueNodes = nil
+	nodeKeepLevels = nil
 
 	saveStats(validSubs, subNodeCounts)
 	// 打印去重统计日志
@@ -540,26 +541,16 @@ func FetchSubsData(rawURL string) ([]byte, error) {
 var (
 	// clientMap 用于缓存不同代理策略的 HTTP Client
 	// key: "direct" 或 proxyUrl (e.g. "http://127.0.0.1:7890")
-	clientMap  = make(map[string]*http.Client)
-	clientLock sync.RWMutex
+	// clientMapCache 使用 sync.Map 存储复用的 http.Client
+	// Key: proxyAddr (string), Value: *http.Client
+
+	clientMapCache sync.Map
 )
 
 // getClient 根据代理地址获取复用的 Client
 func getClient(proxyAddr string) *http.Client {
-	clientLock.RLock()
-	client, ok := clientMap[proxyAddr]
-	clientLock.RUnlock()
-
-	if ok {
-		return client
-	}
-
-	clientLock.Lock()
-	defer clientLock.Unlock()
-
-	// 双重检查
-	if client, ok = clientMap[proxyAddr]; ok {
-		return client
+	if v, ok := clientMapCache.Load(proxyAddr); ok {
+		return v.(*http.Client)
 	}
 
 	// 创建新的 Transport
@@ -588,8 +579,9 @@ func getClient(proxyAddr string) *http.Client {
 		Timeout:   60 * time.Second,
 	}
 
-	clientMap[proxyAddr] = newClient
-	return newClient
+	// LoadOrStore 保证并发安全：如果其他协程已经创建了，就用它的，否则用我的
+	actual, _ := clientMapCache.LoadOrStore(proxyAddr, newClient)
+	return actual.(*http.Client)
 }
 
 // fetchOnce 执行单次 HTTP 请求 (使用连接池)
@@ -644,8 +636,24 @@ func fetchOnce(target string, useProxy bool, timeoutSec int, ua string) ([]byte,
 		return nil, fmt.Errorf("%d", resp.StatusCode), fatal
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	return body, err, false
+	// 限制最大读取 50MB
+	const MaxLimit = 50 * 1024 * 1024
+
+	// 如果 Content-Length 存在且超过限制，直接报错，避免无谓的读取
+	if resp.ContentLength > MaxLimit {
+		return nil, fmt.Errorf("订阅文件过大: %d MB", resp.ContentLength/1024/1024), true
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxLimit))
+	if err != nil {
+		return nil, err, false
+	}
+
+	if len(body) >= MaxLimit {
+		return nil, fmt.Errorf("订阅文件超过 50MB 限制"), true
+	}
+
+	return body, nil, false
 }
 
 // resolveSubUrls 合并本地与远程订阅清单并去重
