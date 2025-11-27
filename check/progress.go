@@ -165,6 +165,7 @@ func (pt *ProgressTracker) refresh() {
 }
 
 // refreshDynamic 根据各阶段完成率的加权和来计算进度。
+// refreshDynamic 根据各阶段完成率的加权和来计算进度。
 func (pt *ProgressTracker) refreshDynamic() {
 	// 只读一次快照式获取所有需要的原子值
 	total := int(pt.totalJobs.Load())
@@ -180,10 +181,10 @@ func (pt *ProgressTracker) refreshDynamic() {
 	aliveSucc := int(pt.aliveSuccess.Load())
 	speedSucc := int(pt.speedSuccess.Load())
 
-	// aliveRatio 基于总量
+	// aliveRatio 基于总量，作为“主进度”因子
 	aliveRatio := float64(aliveDone) / float64(total)
 
-	// 阶段偏置（局部变量，更快也更直观）
+	// 阶段偏置（局部变量）- 保持原有逻辑，防止单阶段过早显示100%
 	var speedBias, mediaBias float64
 	stage := int(pt.currentStage.Load())
 	switch stage {
@@ -195,7 +196,7 @@ func (pt *ProgressTracker) refreshDynamic() {
 		speedBias, mediaBias = 1.0, 1.0
 	}
 
-	// speedRatio：以 aliveSucc 为基准（若 aliveSucc==0 则为 0）
+	// speedRatio：以 aliveSucc 为基准
 	speedRatio := 0.0
 	if aliveSucc > 0 {
 		speedRatio = float64(speedDone) / (float64(aliveSucc) * speedBias)
@@ -211,14 +212,19 @@ func (pt *ProgressTracker) refreshDynamic() {
 		mediaRatio = float64(mediaDone) / (float64(base) * mediaBias)
 	}
 
-	// 使用全局权重计算 p（0..100）
-	p := aliveRatio*progressWeight.alive + speedRatio*progressWeight.speed + mediaRatio*progressWeight.media
+	// 后续阶段的实际贡献 = 该阶段完成率 * 该阶段权重 * 主进度(aliveRatio)
+	// 这样即使后续阶段瞬间完成，如果主进度才走了 10%，后续阶段最多也只能贡献 10% 的权重分
+	pAlive := aliveRatio * progressWeight.alive
+	pSpeed := speedRatio * progressWeight.speed * aliveRatio // 乘上 aliveRatio
+	pMedia := mediaRatio * progressWeight.media * aliveRatio // 乘上 aliveRatio
+
+	p := pAlive + pSpeed + pMedia
 
 	// finalized 优先：一旦 finalize，直接显示 100%
 	if pt.finalized.Load() {
 		p = 100.0
 	} else {
-		// clamp 到 [0,100]，用单处判断减少分支
+		// clamp 到 [0,100]
 		if p <= 0 {
 			p = 0
 		} else if p >= 100 {
