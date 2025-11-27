@@ -920,11 +920,13 @@
           els.statusEl.textContent = "正在获取订阅...";
           els.statusEl.className = 'muted status-label status-prepare';
 
-        } else if (!etaText || etaText === '计算中...') {
+        } else if (etaText === '计算中...') {
           // 已开始处理，但 ETA 未算出
           els.statusEl.innerHTML = `${checking_SPINNER}<span>已启动, 计算剩余时间...</span>`;
           els.statusEl.className = 'muted status-label status-calculating';
-
+        } else if (!etaText) {
+          els.statusEl.innerHTML = `<span>正在处理检测结果...</span>`;
+          els.statusEl.className = 'muted status-label status-prepare';
         } else {
           // 正常显示倒计时
           els.statusEl.innerHTML = `${checking_SPINNER}<span>运行中, 预计剩余: ${etaText}</span>`;
@@ -1136,7 +1138,11 @@
 
     // ==================== Step 2.1: 通用 Key=Value 处理 ====================
     // 使用 [^&"\s\\]，排除反斜杠
-    const combinedRegex = /([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)(&quot;(?:\\&quot;|[^&]|&(?!quot;))*&quot;)|([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)(?!&quot;)([^\s]+)|(\\?&quot;(https?:\/\/[^&"\s\\]+)\\?&quot;)/g;
+    // const combinedRegex = /([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)(&quot;(?:\\&quot;|[^&]|&(?!quot;))*&quot;)|([a-zA-Z0-9\u4e00-\u9fa5\-\._:]+)(=)(?!&quot;)([^\s]+)|(\\?&quot;(https?:\/\/[^&"\s\\]+)\\?&quot;)/g;
+
+    // 使用 [^&"\s\\]，排除反斜杠，支持:总计[去重]=123 \[\]]+
+    const combinedRegex = /([a-zA-Z0-9\u4e00-\u9fa5\-\._:\[\]]+)(=)(&quot;(?:\\&quot;|[^&]|&(?!quot;))*&quot;)|([a-zA-Z0-9\u4e00-\u9fa5\-\._:\[\]]+)(=)(?!&quot;)([^\s]+)|(\\?&quot;(https?:\/\/[^&"\s\\]+)\\?&quot;)/g;
+
 
     out = out.replace(combinedRegex, (match, k1, eq1, v1, k2, eq2, v2, v3, urlInner) => {
 
