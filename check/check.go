@@ -78,7 +78,7 @@ type ProxyChecker struct {
 	resultChan  chan Result
 	proxyCount  int
 	threadCount int
-	available   int32
+	available   atomic.Int32 
 
 	aliveConcurrent int
 	speedConcurrent int
@@ -101,9 +101,9 @@ type ProxyJob struct {
 
 	doneOnce sync.Once
 
-	aliveMarked int32
-	speedMarked int32
-	mediaMarked int32
+	aliveMarked atomic.Bool
+	speedMarked atomic.Bool
+	mediaMarked atomic.Bool
 
 	Speed int
 
@@ -412,7 +412,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 		<-finishedCh
 	}
 
-	if config.GlobalConfig.SuccessLimit > 0 && pc.available >= config.GlobalConfig.SuccessLimit {
+	if config.GlobalConfig.SuccessLimit > 0 && pc.available.Load() >= config.GlobalConfig.SuccessLimit {
 		slog.Info(fmt.Sprintf("达到成功节点数量限制 %d, 收集结果完成。", config.GlobalConfig.SuccessLimit))
 	}
 
@@ -515,7 +515,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 
 				if !isAlive {
 					// 记录非存活
-					if atomic.CompareAndSwapInt32(&job.aliveMarked, 0, 1) {
+					if job.aliveMarked.CompareAndSwap(false, true) {
 						pc.pt.CountAlive(false)
 					}
 					job.Close()
@@ -528,7 +528,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 					if config.GlobalConfig.DropBadCfNodes && !job.IsCfAccessible {
 						job.Close()
 						// 记录丢弃
-						if atomic.CompareAndSwapInt32(&job.aliveMarked, 0, 1) {
+						if job.aliveMarked.CompareAndSwap(false, true) {
 							pc.pt.CountAlive(false)
 						}
 						continue
@@ -536,7 +536,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 				}
 
 				// 记录存活
-				if atomic.CompareAndSwapInt32(&job.aliveMarked, 0, 1) {
+				if job.aliveMarked.CompareAndSwap(false, true) {
 					pc.pt.CountAlive(true)
 				}
 
@@ -550,7 +550,7 @@ func (pc *ProxyChecker) runAliveStage(ctx context.Context) {
 					}
 				} else {
 					// 无测速时：通过 alive 即可视为“可用”，确保 Available 与最终可用数量一致
-					if atomic.CompareAndSwapInt32(&job.speedMarked, 0, 1) {
+					if job.speedMarked.CompareAndSwap(false, true){
 						pc.incrementAvailable()
 					}
 					select {
@@ -591,7 +591,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 				getBytes := func() uint64 { return job.Client.Transport.BytesRead.Load() }
 				speed, _, err := platform.CheckSpeed(job.Client.Client, Bucket, getBytes)
 				success := err == nil && speed >= config.GlobalConfig.MinSpeed
-				if atomic.CompareAndSwapInt32(&job.speedMarked, 0, 1) {
+				if job.speedMarked.CompareAndSwap(false, true){
 					pc.pt.CountSpeed(success)
 					// 仅在测速成功时计入可用数量
 					if success {
@@ -604,7 +604,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 				}
 				job.Speed = speed
 
-				if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) >= config.GlobalConfig.SuccessLimit {
+				if config.GlobalConfig.SuccessLimit > 0 && pc.available.Load() >= config.GlobalConfig.SuccessLimit {
 					stopOnce.Do(func() {
 						if mediaON {
 							if speedON {
@@ -670,7 +670,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 					}
 
 					// 设置成功数量限制
-					if config.GlobalConfig.SuccessLimit > 0 && atomic.LoadInt32(&pc.available) >= config.GlobalConfig.SuccessLimit {
+					if config.GlobalConfig.SuccessLimit > 0 && pc.available.Load() >= config.GlobalConfig.SuccessLimit {
 						stopOnce.Do(func() {
 							if mediaON {
 								Successlimited.Store(true)
@@ -698,7 +698,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 				// 将结果发送到 collector
 				pc.resultChan <- job.Result
 
-				if atomic.CompareAndSwapInt32(&job.mediaMarked, 0, 1) {
+				if job.mediaMarked.CompareAndSwap(false, true){
 					pc.pt.CountMedia()
 				}
 
@@ -1199,8 +1199,8 @@ func (c *countingConn) Write(b []byte) (int, error) {
 
 // 工具函数
 func (pc *ProxyChecker) incrementAvailable() {
-	atomic.AddInt32(&pc.available, 1)
-	Available.Add(1)
+	pc.available.Add(1) 
+	Available.Add(1)   
 }
 
 // checkCtxDone 提供一个非阻塞的检查，判断上下文是否已结束或是否收到强制关闭信号。

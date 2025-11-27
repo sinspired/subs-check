@@ -340,7 +340,7 @@ func (pc *ProxyChecker) showProgress(done <-chan struct{}) {
 func (pc *ProxyChecker) renderProgressString() string {
 	currentChecked := int(Progress.Load())
 	total := int(ProxyCount.Load())
-	available := atomic.LoadInt32(&pc.available)
+	available := pc.available.Load()
 
 	var percent float64
 	if total == 0 {
