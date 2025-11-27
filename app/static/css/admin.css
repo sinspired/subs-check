@@ -922,6 +922,10 @@ main {
   color: var(--calculating);
 }
 
+.status-process {
+  color: var(--success)
+}
+
 .status-logged {
   color: var(--success);
 }

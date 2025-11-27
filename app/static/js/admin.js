@@ -561,6 +561,7 @@
 
       const forceClose = !!d.forceClose; // 获取后端返回的 forceClose 状态
       const successlimited = !!d.successlimited; // 获取数量限制标志
+      const processResults = !!d.processResults; // 正在处理结果阶段
 
       let realStartTime = null;
       if (checking && lastLogLines && lastLogLines.length > 0) {
@@ -584,7 +585,7 @@
 
       if (checking) {
         const processed = d.progress || 0;
-        if (forceClose || successlimited) {
+        if (forceClose || successlimited || processResults) {
           updateToggleUI('stopping');
         } else if (processed === 0) {
           updateToggleUI('preparing');
@@ -593,7 +594,7 @@
         }
 
         // ==================== 阶段 1: 准备阶段 (Progress = 0) ====================
-        if (processed === 0 && !forceClose && !successlimited) {
+        if (processed === 0 && !forceClose && !successlimited && !processResults) {
           updateToggleUI('preparing');
           showProgressUI(false); // 隐藏进度条，保留 History 面板
 
@@ -618,7 +619,18 @@
           restoreHistoryTitle();
 
           // updateProgress 会接管 StatusEl 的倒计时显示
-          updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo, realStartTime, forceClose, successlimited);
+          updateProgress(
+            d.proxyCount || 0,
+            d.progress || 0,
+            d.available || 0,
+            true,
+            lastChecked,
+            lastCheckInfo,
+            realStartTime,
+            forceClose,
+            successlimited,
+            processResults
+          );
 
           hideLastCheckResult(); // 确保 History 隐藏
 
@@ -636,7 +648,7 @@
         // 恢复标题
         restoreHistoryTitle();
 
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked, lastCheckInfo, null, false, false);
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked, lastCheckInfo, null, false, false, false);
 
         // 如果是刚启动尚未有数据，清空进度条
         if (els.progressBar && (d.progress === 0 || d.proxyCount === 0)) {
@@ -764,7 +776,7 @@
    * @param {*} [serverStartTime=null] 
    * @param {boolean} [forceClose=false] 
    */
-  function updateProgress(total, processed, available, checking, lastChecked, lastCheckData, serverStartTime = null, forceClose = false, successlimited = false) {
+  function updateProgress(total, processed, available, checking, lastChecked, lastCheckData, serverStartTime = null, forceClose = false, successlimited = false, processResults = false) {
     // 初始化状态对象
     if (!updateProgress.etaState) {
       updateProgress.etaState = {
@@ -841,14 +853,20 @@
     // --- 4. 智能 ETA 算法 ---
     let etaText = state.cachedEtaText;
 
-    // 如果 forceClose 为真，覆盖 ETA 显示
-    if (forceClose) {
+    // 只要进入 processResults，无论是否有计算值，强制显示处理结果
+    if (processResults) {
+      etaText = '正在保存检测结果...';
+      state.cachedEtaText = etaText;
+    }
+    else if (forceClose) {
       etaText = '正在中止...';
       state.cachedEtaText = etaText;
-    } else if (successlimited) {
+    }
+    else if (successlimited) {
       etaText = '数量达标，正在结束...';
       state.cachedEtaText = etaText;
     }
+    // 只有在非特殊状态下，才进行时间计算
     else if (checking && total > 0 && processed < total) {
       const totalTimeElapsed = now - state.startTime;
 
@@ -933,27 +951,30 @@
         const runSec = Math.floor((now - state.startTime) / 1000);
         els.statusEl.title = `已运行: ${runSec}s`;
 
-        // 增加 forceClose 的显示状态
-        if (forceClose) {
-          els.statusEl.innerHTML = `${checking_SPINNER}<span>正在中止任务...</span>`;
-          els.statusEl.className = 'muted status-label status-prepare'; // 使用 prepare 的黄色或定义新的样式
-        } else if (successlimited) {
-          // 显示数量达标的提示
-          els.statusEl.innerHTML = `${checking_SPINNER}<span>数量达标，正在结束任务...</span>`;
-          els.statusEl.className = 'muted status-label status-prepare';
-        }
-        else if (processed === 0) {
-          // 刚启动，正在下载订阅文件
+        // 刚启动
+        if (processed === 0 && !processResults && !forceClose && !successlimited) {
           els.statusEl.textContent = "正在获取订阅...";
           els.statusEl.className = 'muted status-label status-prepare';
+        }
+        // 如果处于特殊状态 (处理结果/中止/达标)，直接显示 etaText
+        else if (processResults) {
+          els.statusEl.innerHTML = `${checking_SPINNER}<span>${etaText}</span>`;
+          // 这里应用新定义的 class
+          els.statusEl.className = 'muted status-label status-process';
+        }
 
-        } else if (etaText === '计算中...') {
+        // 正在中止或达标
+        else if (forceClose || successlimited) {
+          els.statusEl.innerHTML = `${checking_SPINNER}<span>${etaText}</span>`;
+          els.statusEl.className = 'muted status-label status-prepare';
+        }
+        else if (etaText === '计算中...') {
           // 已开始处理，但 ETA 未算出
           els.statusEl.innerHTML = `${checking_SPINNER}<span>已启动, 计算剩余时间...</span>`;
           els.statusEl.className = 'muted status-label status-calculating';
         } else if (!etaText) {
-          els.statusEl.innerHTML = `<span>正在处理检测结果...</span>`;
-          els.statusEl.className = 'muted status-label status-prepare';
+          els.statusEl.innerHTML = `<span>正在保存检测结果...</span>`;
+          els.statusEl.className = 'muted status-label status-process';
         } else {
           // 正常显示倒计时
           els.statusEl.innerHTML = `${checking_SPINNER}<span>运行中, 预计剩余: ${etaText}</span>`;

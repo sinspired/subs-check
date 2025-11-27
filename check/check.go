@@ -41,6 +41,7 @@ var (
 	TotalBytes     atomic.Uint64
 	ForceClose     atomic.Bool
 	Successlimited atomic.Bool
+	ProcessResults atomic.Bool
 
 	Bucket *ratelimit.Bucket
 )
@@ -211,6 +212,7 @@ func Check() ([]Result, error) {
 	proxyutils.ResetRenameCounter()
 	ForceClose.Store(false)
 	Successlimited.Store(false)
+	ProcessResults.Store(false)
 
 	ProxyCount.Store(0)
 	Available.Store(0)
@@ -413,6 +415,9 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 	if config.GlobalConfig.SuccessLimit > 0 && pc.available >= config.GlobalConfig.SuccessLimit {
 		slog.Info(fmt.Sprintf("达到成功节点数量限制 %d, 收集结果完成。", config.GlobalConfig.SuccessLimit))
 	}
+
+	// 标记检测完成，开始处理结果，保存，上传等
+	ProcessResults.Store(true)
 
 	// 检查订阅成功率并发出警告
 	pc.checkSubscriptionSuccessRate(proxies)

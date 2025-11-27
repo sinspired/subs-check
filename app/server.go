@@ -290,6 +290,7 @@ func (app *App) getStatus(c *gin.Context) {
 		"progress":   check.Progress.Load(),
 		"forceClose": check.ForceClose.Load(),
 		"successlimited": check.Successlimited.Load(),
+		"processResults": check.ProcessResults.Load(),
 		"lastCheck":  lastCheck,
 	})
 }
