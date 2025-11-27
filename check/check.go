@@ -446,6 +446,9 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 	var proxyIndex atomic.Int64
 	proxyIndex.Store(-1) // 初始化为 -1
 
+	// 定义主动 GC 的阈值
+	const gcThreshold = 50000
+
 	// 启动工作协程池
 	for range concurrency {
 		wg.Go(func() {
@@ -461,6 +464,22 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 				}
 
 				mapping := proxies[index]
+
+				// 任务取出后，立即断开源切片的引用
+				// 此时，如果 mapping 没被后续 CreateClient 引用，它就是垃圾；
+				// 如果 mapping 被传给了 Client，等 Job.Close() 时它也会变成垃圾。
+				proxies[index] = nil
+
+				// 周期性强制归还内存
+				// 只有当索引达到阈值倍数时触发
+				if index > 0 && index%gcThreshold == 0 {
+					// 异步执行，尽量不阻塞分发，但在 CPU 极高时可能会有些许延迟
+					go func(currentIdx int64) {
+						slog.Info(fmt.Sprintf("已处理 %d 个节点，正在执行主动内存回收...", currentIdx))
+						debug.FreeOSMemory()
+					}(index)
+				}
+
 				cli := CreateClient(mapping)
 				if cli == nil {
 					// 创建失败：视为 alive 完成（失败），不进入 speed/media
@@ -488,6 +507,8 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 
 	// 等待所有工作协程完成
 	wg.Wait()
+	// 分发结束，再次强制清理（此时 proxies 切片虽然 length 很大，但全是 nil）
+	debug.FreeOSMemory()
 }
 
 // 测活
