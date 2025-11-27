@@ -2,9 +2,7 @@
 <p align="center">
   <img src="doc/logo/logo.png" alt="Project Logo" width="200"/>
 </p>
-
 <h1 align="center">Subs-Check</h1>
-
 <p align="center" color="#6a737d">
 High-performance proxy subscription checker.
 </p>
@@ -41,6 +39,7 @@ High-performance proxy subscription checker.
 - [x] 📊 [统计订阅链接总数、可用节点数量、成功率](#7-统计订阅链接总数可用节点成功率)
 - [x] 🔗 适配多种非标订阅格式，提高获取订阅成功率
 - [x] 📣 增加消息通知范围：`节点状态`、`版本更新`、`Geo地理数据库更新`
+- [x] ♾️ 支持检测百万-千万量级的节点库，依然保持较低的内存占用
 - [ ] 🚧 本项目现接受issure反馈
 
 ### 📖 教程
