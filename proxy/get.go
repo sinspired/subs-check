@@ -183,9 +183,9 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 
 	// 不管物理内存（RAM）有多大，32位程序能寻址的虚拟内存通常被限制在 2GB 到 3GB 之间。
 	if is32Bit {
-		minCurrency = 1
+		minCurrency = min(10, config.GlobalConfig.Concurrent)
 		slog.Warn("32 位程序强制保守拉取订阅", "并发", minCurrency)
-		slog.Warn("建议使用 x64 位程序释放最佳性能！！")
+		slog.Warn("建议使用 x64 位程序释放最佳性能！")
 
 		// 激进的 GC 策略：内存增长 20% 就触发 GC（默认是 100%）
 		debug.SetGCPercent(20)
