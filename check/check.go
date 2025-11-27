@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -165,9 +166,9 @@ func NewProxyChecker(proxyCount int) *ProxyChecker {
 		// 使用相对平滑的衰减方案
 		fnAlive := NewLogDecay(400, 0.005, 400)
 		fnMedia := NewExpDecay(400, 0.001, 100)
-		// if !speedON {
-		// 	fnMedia = NewExpDecay(400, 0.001, 10)
-		// }
+		if !speedON {
+			fnMedia = NewExpDecay(400, 0.001, 150)
+		}
 
 		aliveConc = min(proxyCount, RoundInt(fnAlive(float64(threadCount))))
 		speedConc = min(calcSpeedConcurrency(proxyCount), proxyCount)
@@ -198,7 +199,7 @@ func NewProxyChecker(proxyCount int) *ProxyChecker {
 		mediaConcurrent: mediaConc,
 
 		// 设置缓冲通道
-		aliveChan: make(chan *ProxyJob, int(float64(aliveConc)*1.1)),
+		aliveChan: make(chan *ProxyJob, int(float64(aliveConc)*1.2)),
 		speedChan: make(chan *ProxyJob, speedChanLength),
 		mediaChan: make(chan *ProxyJob, mediaConc*2),
 
@@ -257,7 +258,7 @@ func Check() ([]Result, error) {
 		proxyutils.SmartShuffleByServer(tail, cfg)
 
 		cidr := proxyutils.ThresholdToCIDR(cfg.Threshold)
-		slog.Info(fmt.Sprintf("节点乱序, 相同 CIDR%s 范围 IP 的最小间距: %d", cidr, cfg.MinSpacing))
+		slog.Info(fmt.Sprintf("节点乱序, 相同 CIDR%s 最小间距: %d", cidr, cfg.MinSpacing))
 	}
 
 	if len(proxies) == 0 {
@@ -425,6 +426,7 @@ func (pc *ProxyChecker) run(proxies []map[string]any) ([]Result, error) {
 		proxies[i] = nil
 	}
 	runtime.GC() // 提示 GC 回收
+	debug.FreeOSMemory()
 
 	return pc.results, nil
 }
@@ -691,6 +693,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 				}
 
 				job.Close()
+				job = nil
 			}
 		})
 	}
@@ -1007,9 +1010,6 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 
 	// 3. 初始化 Context 并赋值给 pc
 	pc.ctx, pc.cancel = context.WithCancel(context.Background())
-	// 创建一个本地变量捕获 ctx，供下方的 DialContext 闭包使用
-	// 这样即使 pc.ctx 后来变成 nil，clientCtx 依然有效
-	clientCtx := pc.ctx
 
 	// 4. 初始化 Transport
 	statsTransport := &StatsTransport{}
@@ -1022,25 +1022,16 @@ func CreateClient(mapping map[string]any) *ProxyClient {
 		DialContext: func(reqCtx context.Context, network, addr string) (net.Conn, error) {
 			// 防止 Goroutine 泄漏的 Context 控制逻辑
 			mergedCtx, mergedCancel := context.WithCancel(reqCtx)
+			defer mergedCancel() // 拨号完成后自动清理
 
-			// 使用 channel 确保 goroutine 退出
-			dialDone := make(chan struct{})
-
+			// 启动一个 goroutine，监听全局 pc.ctx
 			go func() {
 				select {
-				// 由 <-pc.ctx.Done()，改为使用 clientCtx
-				case <-clientCtx.Done():
+				case <-pc.ctx.Done(): // ProxyClient.Close() 时触发
 					mergedCancel()
 				case <-reqCtx.Done(): // 请求超时/取消
-					// 这里的 mergedCancel 会由 defer 触发，这里只需退出监控
-				case <-dialDone: // 拨号完成
-					// 退出监控
+					// defer 会处理 mergedCancel，这里只需退出
 				}
-			}()
-
-			defer func() {
-				close(dialDone) // 通知监控协程退出
-				mergedCancel()  // 确保清理 mergedCtx
 			}()
 
 			host, portStr, err := net.SplitHostPort(addr)
@@ -1116,12 +1107,9 @@ func (pc *ProxyClient) Close() {
 		pc.mProxy.Close()
 	}
 
-	// 交给 GC 处理
-	// pc.mProxy = nil
-	// pc.Client = nil
-	// pc.Transport = nil
-	// pc.ctx = nil    <-- 罪魁祸首
-	// pc.cancel = nil
+	// 置空
+	pc.mProxy = nil
+	pc.Transport = nil
 }
 
 // countingReadCloser 封装了 io.ReadCloser，用于统计读取的字节数。
