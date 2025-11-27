@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/debug"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -968,11 +968,13 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 		}
 
 		// 排序：按成功率降序，再按URL升序
-		sort.Slice(pairs, func(i, j int) bool {
-			if pairs[i].Rate == pairs[j].Rate {
-				return pairs[i].URL < pairs[j].URL
+		slices.SortFunc(pairs, func(a, b pair) int {
+			// 先按成功率降序 (b - a)
+			if n := cmpFloat(b.Rate, a.Rate); n != 0 {
+				return n
 			}
-			return pairs[i].Rate > pairs[j].Rate
+			// 再按URL升序 (a - b)
+			return strings.Compare(a.URL, b.URL)
 		})
 
 		// URL 列表保存为标准 YAML 数组
@@ -992,6 +994,16 @@ func (pc *ProxyChecker) checkSubscriptionSuccessRate(allProxies []map[string]any
 			slog.Warn("保存过滤后的订阅统计失败", "err", err)
 		}
 	}
+}
+
+func cmpFloat(a, b float64) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
 }
 
 type ProxyClient struct {
