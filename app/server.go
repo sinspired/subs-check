@@ -288,6 +288,7 @@ func (app *App) getStatus(c *gin.Context) {
 		"proxyCount": check.ProxyCount.Load(),
 		"available":  check.Available.Load(),
 		"progress":   check.Progress.Load(),
+		"forceClose": check.ForceClose.Load(),
 		"lastCheck":  lastCheck,
 	})
 }

@@ -558,6 +558,8 @@
 
       const d = r.payload || {};
       const checking = !!d.checking;
+      // 获取后端返回的 forceClose 状态
+      const forceClose = !!d.forceClose;
 
       let realStartTime = null;
       if (checking && lastLogLines && lastLogLines.length > 0) {
@@ -581,6 +583,13 @@
 
       if (checking) {
         const processed = d.progress || 0;
+        if (forceClose) {
+          updateToggleUI('stopping');
+        } else if (processed === 0) {
+          updateToggleUI('preparing');
+        } else {
+          updateToggleUI('checking');
+        }
 
         // ==================== 阶段 1: 准备阶段 (Progress = 0) ====================
         if (processed === 0) {
@@ -602,14 +611,13 @@
         }
         // ==================== 阶段 2: 检测阶段 (Progress > 0) ====================
         else {
-          updateToggleUI('checking');
           showProgressUI(true); // 隐藏 History 面板，显示进度条
 
           // 恢复标题 (为下次显示做准备)
           restoreHistoryTitle();
 
           // updateProgress 会接管 StatusEl 的倒计时显示
-          updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo, realStartTime);
+          updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, true, lastChecked, lastCheckInfo, realStartTime, forceClose);
 
           hideLastCheckResult(); // 确保 History 隐藏
 
@@ -627,7 +635,7 @@
         // 恢复标题
         restoreHistoryTitle();
 
-        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked, lastCheckInfo);
+        updateProgress(d.proxyCount || 0, d.progress || 0, d.available || 0, false, lastChecked, lastCheckInfo, null, false);
 
         // 如果是刚启动尚未有数据，清空进度条
         if (els.progressBar && (d.progress === 0 || d.proxyCount === 0)) {
@@ -742,19 +750,20 @@
       return Math.floor(seconds) + '秒';
     }
   }
-
-
-  /**
-   *更新进度条
-   *
-   * @param {*} total
-   * @param {*} processed
-   * @param {*} available
-   * @param {*} checking
-   * @param {*} lastChecked
-   * @param {*} lastCheckData
-   */
-  function updateProgress(total, processed, available, checking, lastChecked, lastCheckData, serverStartTime = null) {
+   
+/**
+ *更新进度条
+ *
+ * @param {*} total 
+ * @param {*} processed 
+ * @param {*} available 
+ * @param {*} checking 
+ * @param {*} lastChecked 
+ * @param {*} lastCheckData 
+ * @param {*} [serverStartTime=null] 
+ * @param {boolean} [forceClose=false] 
+ */
+function updateProgress(total, processed, available, checking, lastChecked, lastCheckData, serverStartTime = null, forceClose = false) {
     // 初始化状态对象
     if (!updateProgress.etaState) {
       updateProgress.etaState = {
@@ -831,7 +840,12 @@
     // --- 4. 智能 ETA 算法 ---
     let etaText = state.cachedEtaText;
 
-    if (checking && total > 0 && processed < total) {
+       // 如果 forceClose 为真，覆盖 ETA 显示
+    if (forceClose) {
+      etaText = '正在中止...';
+      state.cachedEtaText = etaText;
+    } 
+    else if (checking && total > 0 && processed < total) {
       const totalTimeElapsed = now - state.startTime;
 
       // 如果是从日志恢复的时间，totalTimeElapsed 可能已经很大（例如 50000ms）。
@@ -915,7 +929,12 @@
         const runSec = Math.floor((now - state.startTime) / 1000);
         els.statusEl.title = `已运行: ${runSec}s`;
 
-        if (processed === 0) {
+        // 增加 forceClose 的显示状态
+        if (forceClose) {
+           els.statusEl.innerHTML = `${checking_SPINNER}<span>正在中止任务...</span>`;
+           els.statusEl.className = 'muted status-label status-prepare'; // 使用 prepare 的黄色或定义新的样式
+        } 
+        else if (processed === 0) {
           // 刚启动，正在下载订阅文件
           els.statusEl.textContent = "正在获取订阅...";
           els.statusEl.className = 'muted status-label status-prepare';
@@ -1666,7 +1685,7 @@
       if (doc.errors && doc.errors.length > 0) {
         return showToast("YAML 语法错误：" + doc.errors[0].message, "error", 5000);
       }
-      const formatted = doc.toString({ lineWidth: 0 }); 
+      const formatted = doc.toString({ lineWidth: 0 });
       setEditorContent(formatted);
       const r = await sfetch(API.config, {
         method: 'POST',
