@@ -443,14 +443,15 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 	var wg sync.WaitGroup
 
 	// 使用原子索引来分发任务
-	var proxyIndex int64 = -1
+	var proxyIndex atomic.Int64
+	proxyIndex.Store(-1) // 初始化为 -1
 
 	// 启动工作协程池
 	for range concurrency {
 		wg.Go(func() {
 			for {
 				// 原子地获取下一个代理索引
-				index := atomic.AddInt64(&proxyIndex, 1)
+				index := proxyIndex.Add(1)
 				if index >= int64(len(proxies)) {
 					return // 所有代理都已处理完毕
 				}
