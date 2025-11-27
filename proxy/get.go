@@ -176,8 +176,25 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 		}
 	}()
 
+	// 最低拉取并发数
+	minCurrency := 50
+
+	// 检测是否为 32 位系统
+	// ^uint(0)>>32 在 32位系统上等于 0，在 64位系统上等于 1
+	is32Bit := ^uint(0)>>32 == 0
+
+	// 不管物理内存（RAM）有多大，32位程序能寻址的虚拟内存通常被限制在 2GB 到 3GB 之间。
+	if is32Bit {
+		minCurrency = 1
+		slog.Warn("32 位程序强制保守拉取订阅", "并发", minCurrency)
+		slog.Warn("建议使用 x64 位程序释放最佳性能！！")
+
+		// 激进的 GC 策略：内存增长 20% 就触发 GC（默认是 100%）
+		debug.SetGCPercent(20)
+	}
+
 	// 获取订阅节点，生成proxyChan
-	concurrency := min(config.GlobalConfig.Concurrent, 50)
+	concurrency := min(config.GlobalConfig.Concurrent, minCurrency)
 	sem := make(chan struct{}, concurrency)
 	listenPort := strings.TrimPrefix(config.GlobalConfig.ListenPort, ":")
 	subStorePort := strings.TrimPrefix(config.GlobalConfig.SubStorePort, ":")
@@ -654,7 +671,7 @@ func resolveSubUrls() ([]string, int, int, int) {
 				urls = append(urls, remote...)
 			}
 		}
-	}else{
+	} else {
 		slog.Info("获取订阅列表")
 	}
 

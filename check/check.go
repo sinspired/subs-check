@@ -91,25 +91,22 @@ type ProxyChecker struct {
 
 // ProxyJob 在测活-测速-流媒体检测任务间传输信息
 type ProxyJob struct {
-	// 先放所有需要 8 字节对齐的字段（包括 sync.Once、string、*ProxyClient、chan、slice、map 等）
-	doneOnce sync.Once    // 必须放在前面！保证其内部 uint64 对齐
-	Client   *ProxyClient // 指针 4→8 对齐
-
-	CfLoc string // string 需要 8 字节对齐
-	CfIP  string
-
-	// 然后放 Result（里面有 string 和 map，也需要对齐）
+	Client *ProxyClient
 	Result Result
 
-	// 最后放不需要严格对齐的小字段
-	Speed int // int 在32位是4字节
+	CfLoc string
+	CfIP  string
 
-	NeedCF         bool
-	IsCfAccessible bool
+	doneOnce sync.Once
 
 	aliveMarked int32
 	speedMarked int32
 	mediaMarked int32
+
+	Speed int
+
+	NeedCF         bool
+	IsCfAccessible bool
 }
 
 // Close 确保 ProxyJob 的底层资源(mihomo客户端)被正确释放一次。
@@ -584,7 +581,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 					job.Close()
 					continue
 				}
-				getBytes := func() uint64 { return atomic.LoadUint64(&job.Client.Transport.BytesRead) }
+				getBytes := func() uint64 { return job.Client.Transport.BytesRead.Load() }
 				speed, _, err := platform.CheckSpeed(job.Client.Client, Bucket, getBytes)
 				success := err == nil && speed >= config.GlobalConfig.MinSpeed
 				if atomic.CompareAndSwapInt32(&job.speedMarked, 0, 1) {
@@ -1096,7 +1093,7 @@ func (pc *ProxyClient) Close() {
 
 	// 3. 统计数据回收
 	if pc.Transport != nil {
-		TotalBytes.Add(atomic.LoadUint64(&pc.Transport.BytesRead))
+		TotalBytes.Add(pc.Transport.BytesRead.Load())
 		if pc.Transport.Base != nil {
 			pc.Transport.Base.CloseIdleConnections()
 			pc.Transport.Base.DisableKeepAlives = true
@@ -1115,21 +1112,23 @@ func (pc *ProxyClient) Close() {
 // countingReadCloser 封装了 io.ReadCloser，用于统计读取的字节数。
 type countingReadCloser struct {
 	io.ReadCloser
-	counter *uint64
+	counter *atomic.Uint64
 }
 
 // Read 为 countingReadCloser 实现 io.Reader 接口。
 func (c *countingReadCloser) Read(p []byte) (int, error) {
 	n, err := c.ReadCloser.Read(p)
-	atomic.AddUint64(c.counter, uint64(n))
+	if n > 0 {
+		c.counter.Add(uint64(n))
+	}
 	return n, err
 }
 
 // StatsTransport 是一个 http.RoundTripper 的封装，用于统计从响应体中读取的字节数。
 type StatsTransport struct {
 	Base         *http.Transport
-	BytesRead    uint64
-	BytesWritten uint64
+	BytesRead    atomic.Uint64
+	BytesWritten atomic.Uint64
 }
 
 // RoundTrip 为 StatsTransport 实现 http.RoundTripper 接口。
@@ -1140,18 +1139,17 @@ func (s *StatsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // countingConn 包裹 net.Conn，在网络连接层统计读/写字节数。
 type countingConn struct {
 	net.Conn
-	readCounter  *uint64
-	writeCounter *uint64
+	readCounter  *atomic.Uint64
+	writeCounter *atomic.Uint64
 	networkLimit bool
 }
 
 func (c *countingConn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	if n > 0 {
-		atomic.AddUint64(c.readCounter, uint64(n))
-		// 在连接层消耗 token 以实现更精确的网络速率限制（当全局 Bucket 可用时）
+		c.readCounter.Add(uint64(n))
+		// 在连接层消耗 token
 		if Bucket != nil && c.networkLimit {
-			// 阻塞直到可消费 n 个 token（以字节为单位）
 			Bucket.Wait(int64(n))
 		}
 	}
@@ -1161,7 +1159,7 @@ func (c *countingConn) Read(b []byte) (int, error) {
 func (c *countingConn) Write(b []byte) (int, error) {
 	n, err := c.Conn.Write(b)
 	if n > 0 {
-		atomic.AddUint64(c.writeCounter, uint64(n))
+		c.writeCounter.Add(uint64(n))
 	}
 	return n, err
 }
