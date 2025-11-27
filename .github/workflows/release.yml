@@ -128,9 +128,7 @@ jobs:
             项目: `${{ github.repository }}`
 
             *说明:*
-              - 添加超级解码，提高拉取订阅成功率
-              - 优化WebUI，提升体验
-              - 错误修复
-              - 请添加tg群反馈或在频道留言
+              - 前置转换避免触发SetString bug(mihomo已合并PR)
+              - 支持检测百万-千万级节点池而保持较低内存占用
               
             🔗 [查看详情](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
