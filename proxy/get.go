@@ -68,12 +68,12 @@ func logSubscriptionStats(total, local, remote, history int) {
 		args = append(args, "历史", history)
 	}
 	if total < local+remote+history {
-		args = append(args, "总计(去重)", total)
+		args = append(args, "总计[去重]", total)
 	} else {
 		args = append(args, "总计", total)
 	}
 
-	slog.Info("订阅链接数量", args...)
+	slog.Info("订阅数量", args...)
 
 	if len(config.GlobalConfig.NodeType) > 0 {
 		val := fmt.Sprintf("[%s]", strings.Join(config.GlobalConfig.NodeType, ","))
@@ -230,7 +230,7 @@ func GetProxies() ([]map[string]any, int, int, int, error) {
 
 	saveStats(validSubs, subNodeCounts)
 	// 打印去重统计日志
-	slog.Info("节点池解析",
+	slog.Info("节点解析",
 		"原始", rawCount,
 		"去重", len(finalProxies),
 		"丢弃", rawCount-len(finalProxies),
@@ -265,7 +265,6 @@ func processSubscription(urlStr, tag string, wasSucced, wasHistory bool, out cha
 	count := 0
 	filterTypes := config.GlobalConfig.NodeType
 
-	
 	for _, node := range nodes {
 		slog.Debug("解析代理节点成功", "node", node)
 		// 类型过滤
@@ -655,6 +654,8 @@ func resolveSubUrls() ([]string, int, int, int) {
 				urls = append(urls, remote...)
 			}
 		}
+	}else{
+		slog.Info("获取订阅列表")
 	}
 
 	requiredListenPort := strings.TrimSpace(strings.TrimPrefix(config.GlobalConfig.ListenPort, ":"))

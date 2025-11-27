@@ -241,7 +241,7 @@
       const line = logs[i];
 
       // 1. 查找目标：订阅统计行
-      if (line.includes('订阅链接数量') && line.includes('总计')) {
+      if (line.includes('订阅数量') && line.includes('总计')) {
 
         let isValid = false;
 
@@ -331,7 +331,7 @@
   }
 
   /**
-     * 渲染获取订阅链接数量
+     * 渲染获取订阅数量
      * 格式示例：本地:66 | 远程:24 | 历史:2 | 总计:90 [已去重]
      */
   function renderPrepareToHistory(stats) {
@@ -809,7 +809,7 @@
         state.history.push({ t: now, c: processed });
         state.lastRecordHistory = now;
         // 保留最近 30 秒
-        const threshold = now - 30000;
+        const threshold = now - 60000;
         while (state.history.length > 0 && state.history[0].t < threshold) {
           state.history.shift();
         }
@@ -844,7 +844,7 @@
       }
       // 计算期：每 1 秒刷新一次 UI
       // 这里的 2000 是刷新间隔。由于上面重置了 lastUpdateUI = 0，刷新页面后第一次必定进入此分支
-      else if (now - state.lastUpdateUI > 2000) {
+      else if (now - state.lastUpdateUI > 1000) {
 
         // --- A. 计算实时速率 (Real-time Rate) ---
         let realTimeRate = 0;
