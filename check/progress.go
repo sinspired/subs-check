@@ -196,28 +196,57 @@ func (pt *ProgressTracker) refreshDynamic() {
 		speedBias, mediaBias = 1.0, 1.0
 	}
 
-	// speedRatio：以 aliveSucc 为基准
+	// speedRatio：测速基础率 (分母是活的节点数)
 	speedRatio := 0.0
 	if aliveSucc > 0 {
 		speedRatio = float64(speedDone) / (float64(aliveSucc) * speedBias)
 	}
 
-	// mediaRatio：基准为 speedSucc（若开启测速），否则为 aliveSucc
-	base := speedSucc
-	if !speedON {
-		base = aliveSucc
+	// mediaRatio： (分母取决于上一级是谁)
+	// 基准为 speedSucc（若开启测速），否则为 aliveSucc
+	// 如果开启测速，分母是测速成功数；否则是存活数
+
+	mediaBase := aliveSucc
+	if speedON {
+		mediaBase = speedSucc
 	}
 	mediaRatio := 0.0
-	if base > 0 {
-		mediaRatio = float64(mediaDone) / (float64(base) * mediaBias)
+	if mediaBase > 0 {
+		mediaRatio = float64(mediaDone) / (float64(mediaBase) * mediaBias)
 	}
 
+	// 3. 计算最终加权进度
 	// 后续阶段的实际贡献 = 该阶段完成率 * 该阶段权重 * 主进度(aliveRatio)
 	// 这样即使后续阶段瞬间完成，如果主进度才走了 10%，后续阶段最多也只能贡献 10% 的权重分
+	
+	// P1: 测活贡献 = 基础率 * 权重
 	pAlive := aliveRatio * progressWeight.alive
-	pSpeed := speedRatio * progressWeight.speed * aliveRatio // 乘上 aliveRatio
-	pMedia := mediaRatio * progressWeight.media * aliveRatio // 乘上 aliveRatio
 
+	// P2: 测速贡献 = 基础率 * 权重 * 上一级全局进度(aliveRatio)
+	pSpeed := 0.0
+	if progressWeight.speed > 0 { // 只有权重>0 (即开启测速) 时才计算
+		pSpeed = speedRatio * progressWeight.speed * aliveRatio
+	}
+
+	// P3: 媒体贡献
+	pMedia := 0.0
+	if progressWeight.media > 0 {
+		// 确定约束系数 (Constraint Factor)
+		// 媒体检测进度的“天花板”由上一级决定
+		var constraint float64
+		if speedON {
+			// 如果有测速，约束系数 = 全局测速进度 (即 speedRatio * aliveRatio)
+			// 只有当测活和测速都真的往前走了，媒体进度的权重才会被释放出来
+			constraint = speedRatio * aliveRatio
+		} else {
+			// 如果没测速，约束系数 = 全局测活进度
+			constraint = aliveRatio
+		}
+
+		pMedia = mediaRatio * progressWeight.media * constraint
+	}
+
+	// 4. 汇总
 	p := pAlive + pSpeed + pMedia
 
 	// finalized 优先：一旦 finalize，直接显示 100%
