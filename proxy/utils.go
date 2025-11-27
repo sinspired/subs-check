@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,6 +37,13 @@ var protocolSchemes = map[string]string{
 	"wireguard": "wireguard://", "wg": "wg://",
 	"mieru":  "mieru://",
 	"anytls": "anytls://",
+}
+
+// 越长的关键字越靠前，防止 "hysteria" 错误匹配到 "hysteria2"
+var sortedProtocolKeys = []string{
+	"shadowsocks", "hysteria2", "wireguard", "juicity", "hysteria", "socks5h", "socks4", "socks5",
+	"vless", "vmess", "trojan", "https", "http2", "tuic5", "mieru", "anytls",
+	"http", "tuic", "ssr", "hy2", "ss", "wg", "hy",
 }
 
 var (
@@ -91,29 +97,31 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 
 			// 简单的合法性校验，防止将普通文本误判为节点
 			if host != "" && port != "" {
-				if _, err := strconv.Atoi(port); err == nil {
-					prefix, isKnown := protocolSchemes[fileGuessedScheme]
+				if isDigit(port) {
+					if _, err := strconv.Atoi(port); err == nil {
+						prefix, isKnown := protocolSchemes[fileGuessedScheme]
 
-					// 只有当文件名暗示了明确的、非通用的代理协议 (如 vmess, ss, hysteria) 时，才使用单一前缀。
-					// 如果是 "" (未知)，则进入 Else 分支进行激进猜测。
-					if isKnown {
-						slog.Debug("通过文件名猜测到协议", "raw", subURL, "type", fileGuessedScheme)
-						batchLinks = append(batchLinks, fmt.Sprintf("%s%s:%s", prefix, host, port))
-					} else {
-						slog.Debug("未发现协议，同时生成http(s)/socks5协议", "raw", subURL, "数量", len(links))
-						if fileGuessedScheme != "all" {
-							if len(links) >= 100000 {
-								batchLinks = append(batchLinks, fmt.Sprintf("https://%s:%s", host, port))
-							} else {
-								//TODO: 使用配置文件控制
-								// (无协议 或 http/https)
-								// 同时生成 3 种最常见的标准代理协议，交给后续连通性测试去筛选
-								// 1. 尝试 HTTPS (type: http, tls: true)
-								batchLinks = append(batchLinks, fmt.Sprintf("https://%s:%s", host, port))
-								// 2. 尝试 SOCKS5
-								batchLinks = append(batchLinks, fmt.Sprintf("socks5://%s:%s", host, port))
-								// 3. 尝试 HTTP (type: http, tls: false)
-								batchLinks = append(batchLinks, fmt.Sprintf("http://%s:%s", host, port))
+						// 只有当文件名暗示了明确的、非通用的代理协议 (如 vmess, ss, hysteria) 时，才使用单一前缀。
+						// 如果是 "" (未知)，则进入 Else 分支进行激进猜测。
+						if isKnown {
+							slog.Debug("通过文件名猜测到协议", "raw", subURL, "type", fileGuessedScheme)
+							batchLinks = append(batchLinks, prefix+host+":"+port)
+						} else {
+							slog.Debug("未发现协议，同时生成http(s)/socks5协议", "raw", subURL, "数量", len(links))
+							if fileGuessedScheme != "all" {
+								if len(links) >= 100000 {
+									batchLinks = append(batchLinks, "https://"+host+":"+port)
+								} else {
+									//TODO: 使用配置文件控制
+									// (无协议 或 http/https)
+									// 同时生成 3 种最常见的标准代理协议，交给后续连通性测试去筛选
+									// 1. 尝试 HTTPS (type: http, tls: true)
+									batchLinks = append(batchLinks, "https://"+host+":"+port)
+									// 2. 尝试 SOCKS5
+									batchLinks = append(batchLinks, "socks5://"+host+":"+port)
+									// 3. 尝试 HTTP (type: http, tls: false)
+									batchLinks = append(batchLinks, "http://"+host+":"+port)
+								}
 							}
 						}
 					}
@@ -145,6 +153,16 @@ func ParseProxyLinksAndConvert(links []string, subURL string) []ProxyNode {
 	return finalNodes
 }
 
+// 辅助函数：快速检查字符串是否全为数字
+func isDigit(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // ConvertProtocolMap 处理非标准 JSON ({"vless": [...], "hysteria": [...]})
 func ConvertProtocolMap(con map[string]any) []ProxyNode {
 	var allLinks []string
@@ -156,32 +174,38 @@ func ConvertProtocolMap(con map[string]any) []ProxyNode {
 			continue
 		}
 
-		// 提取列表内容
-		var items []string
-		if v, ok := val.([]string); ok {
-			items = v
-		} else if vAny, ok := val.([]any); ok {
-			for _, s := range vAny {
-				if str, ok := s.(string); ok {
-					items = append(items, str)
+		// 优化：手动类型断言，避免反射带来的额外开销
+		switch v := val.(type) {
+		case []string:
+			for _, item := range v {
+				item = strings.TrimSpace(item)
+				if item == "" {
+					continue
+				}
+				if strings.Contains(item, "://") {
+					allLinks = append(allLinks, FixupProxyLink(item))
+				} else {
+					host, port := SplitHostPortLoose(item)
+					if host != "" && port != "" {
+						allLinks = append(allLinks, prefix+host+":"+port)
+					}
 				}
 			}
-		}
-
-		// 格式化链接
-		for _, item := range items {
-			item = strings.TrimSpace(item)
-			if item == "" {
-				continue
-			}
-
-			if strings.Contains(item, "://") {
-				allLinks = append(allLinks, FixupProxyLink(item))
-			} else {
-				// 拼接协议头
-				host, port := SplitHostPortLoose(item)
-				if host != "" && port != "" {
-					allLinks = append(allLinks, prefix+host+":"+port)
+		case []any:
+			for _, s := range v {
+				if str, ok := s.(string); ok {
+					str = strings.TrimSpace(str)
+					if str == "" {
+						continue
+					}
+					if strings.Contains(str, "://") {
+						allLinks = append(allLinks, FixupProxyLink(str))
+					} else {
+						host, port := SplitHostPortLoose(str)
+						if host != "" && port != "" {
+							allLinks = append(allLinks, prefix+host+":"+port)
+						}
+					}
 				}
 			}
 		}
@@ -220,14 +244,21 @@ func NormalizeNode(m map[string]any) {
 	}
 
 	// 2. 布尔值标准化 (防止 panic bug)
-	normalizeBool(m, "tls")
-	normalizeBool(m, "udp")
-	normalizeBool(m, "skip-cert-verify")
-	normalizeBool(m, "tfo")
-	normalizeBool(m, "allow-insecure")
-	normalizeBool(m, "xudp")
-	normalizeBool(m, "reuse-addr")
-	normalizeBool(m, "disable-sni")
+	checkBool(m, "tls")
+	checkBool(m, "udp")
+	checkBool(m, "skip-cert-verify")
+	checkBool(m, "tfo")
+	checkBool(m, "allow-insecure")
+	// 次常用
+	if _, ok := m["xudp"]; ok {
+		checkBool(m, "xudp")
+	}
+	if _, ok := m["reuse-addr"]; ok {
+		checkBool(m, "reuse-addr")
+	}
+	if _, ok := m["disable-sni"]; ok {
+		checkBool(m, "disable-sni")
+	}
 
 	// 3. 协议特定修正与默认值注入
 	if t, ok := m["type"].(string); ok {
@@ -246,7 +277,7 @@ func NormalizeNode(m map[string]any) {
 			// 除非端口是 443 且未指定 TLS，否则保持原样或默认 false
 			if _, hasTls := m["tls"]; !hasTls {
 				// 启发式：如果是 443 端口，大概率是 HTTPS
-				if p := ToIntPort(m["port"]); p == 443 {
+				if p, ok := m["port"].(int); ok && p == 443 {
 					m["tls"] = true
 				} else {
 					m["tls"] = false
@@ -258,7 +289,7 @@ func NormalizeNode(m map[string]any) {
 				delete(m, "obfs_password")
 			}
 		case "vmess", "vless":
-			if val, ok := m["security"].(string); ok && strings.ToLower(val) == "tls" {
+			if val, ok := m["security"].(string); ok && strings.EqualFold(val, "tls") {
 				m["tls"] = true
 			}
 		}
@@ -269,46 +300,43 @@ func NormalizeNode(m map[string]any) {
 }
 
 func normalizeWsFields(m map[string]any) {
-	var wsPath, wsHeaders any
-	hasWsFields := false
+	// 只有当明确存在 key 时才进行后续 map 分配操作
+	pathV, hasPath := m["ws-path"]
+	headV, hasHead := m["ws-headers"]
 
-	// 提取扁平字段
-	if v, ok := m["ws-path"]; ok {
-		wsPath = v
+	if !hasPath && !hasHead {
+		return
+	}
+
+	if hasPath {
 		delete(m, "ws-path")
-		hasWsFields = true
 	}
-	if v, ok := m["ws-headers"]; ok {
-		wsHeaders = v
+	if hasHead {
 		delete(m, "ws-headers")
-		hasWsFields = true
 	}
 
-	// 如果存在，合并入 ws-opts
-	if hasWsFields {
-		wsOpts := make(map[string]any)
-		if existing, ok := m["ws-opts"].(map[string]any); ok {
-			wsOpts = existing
-		}
+	wsOpts, ok := m["ws-opts"].(map[string]any)
+	if !ok {
+		// 懒分配：仅在需要时创建 map
+		wsOpts = make(map[string]any, 2)
+	}
 
-		if wsPath != nil {
-			wsOpts["path"] = wsPath
-		}
-		if wsHeaders != nil {
-			wsOpts["headers"] = wsHeaders
-		}
+	if hasPath {
+		wsOpts["path"] = pathV
+	}
+	if hasHead {
+		wsOpts["headers"] = headV
+	}
 
-		m["ws-opts"] = wsOpts
-		// 确保 network 被标记为 ws
-		if _, ok := m["network"]; !ok {
-			m["network"] = "ws"
-		}
+	m["ws-opts"] = wsOpts
+	if _, ok := m["network"]; !ok {
+		m["network"] = "ws"
 	}
 }
 
-// normalizeBool 强制将 map 中的特定字段转换为 bool 类型
+// checkBool 强制将 map 中的特定字段转换为 bool 类型
 // 规避 Mihomo decoder 在处理 uint 转 bool 时的 panic bug
-func normalizeBool(m map[string]any, key string) {
+func checkBool(m map[string]any, key string) {
 	val, ok := m[key]
 	if !ok {
 		return
@@ -316,83 +344,92 @@ func normalizeBool(m map[string]any, key string) {
 
 	switch v := val.(type) {
 	case bool:
-		// 已经是 bool，无需处理
 		return
+	case int:
+		m[key] = v != 0
 	case string:
-		lower := strings.ToLower(v)
-		switch lower {
+		// 快速路径：常见值检查
+		switch v {
 		case "true", "1":
 			m[key] = true
 		case "false", "0":
 			m[key] = false
 		default:
-			// 无法识别的字符串
-			// 这里保守起见，保持原样或设为 false，防止 decoder 报错
+			// 无法识别则删除，比保留字符串导致的 panic 好
 			delete(m, key)
 		}
-	case int:
-		m[key] = v != 0
-	case int8:
-		m[key] = v != 0
-	case int16:
-		m[key] = v != 0
-	case int32:
+	// 处理 json 数字解码可能的类型
+	case float64:
 		m[key] = v != 0
 	case int64:
 		m[key] = v != 0
-	case uint:
-		// 将 uint 转换为 bool，避免进入 Mihomo 的错误分支
-		m[key] = v != 0
-	case uint8:
-		m[key] = v != 0
-	case uint16:
-		m[key] = v != 0
-	case uint32:
-		m[key] = v != 0
-	case uint64:
-		m[key] = v != 0
-	case float32:
-		m[key] = v != 0
-	case float64:
-		// JSON 解析数字通常是 float64
-		m[key] = v != 0
 	default:
-		// 其他无法转换的类型，直接删除该字段，避免传给 Mihomo 导致未知错误
-		delete(m, key)
+		// 其他情况尝试转 string
+		s := fmt.Sprintf("%v", v)
+		if s == "true" || s == "1" {
+			m[key] = true
+		} else {
+			m[key] = false
+		}
 	}
 }
 
 // FixupProxyLink 修复非标准链接头
 func FixupProxyLink(link string) string {
 	// 常见错误：hy:// 应为 hysteria://
-	if strings.HasPrefix(link, "hy://") {
-		return strings.Replace(link, "hy://", "hysteria://", 1)
-	}
-	if strings.HasPrefix(link, "hy2://") {
-		return strings.Replace(link, "hy2://", "hysteria2://", 1)
+	if len(link) > 4 {
+		if strings.HasPrefix(link, "hy://") {
+			return "hysteria://" + link[5:]
+		}
+		if strings.HasPrefix(link, "hy2://") {
+			return "hysteria2://" + link[6:]
+		}
 	}
 	return link
 }
 
 // ToIntPort 极其宽容的端口转换函数
 func ToIntPort(v any) int {
+	if v == nil {
+		return 0
+	}
 	switch val := v.(type) {
 	case int:
 		return val
 	case float64:
 		return int(val)
 	case string:
+		if val == "" {
+			return 0
+		}
 		// 尝试解析 "443" 或 "443.0"
-		clean := strings.Split(val, ".")[0]
-		if i, err := strconv.Atoi(clean); err == nil {
+		// 使用 Cut 去掉可能的 .0
+		if before, _, found := strings.Cut(val, "."); found {
+			if i, err := strconv.Atoi(before); err == nil {
+				return i
+			}
+		} else {
+			if i, err := strconv.Atoi(val); err == nil {
+				return i
+			}
+		}
+		return 0
+	case int64:
+		return int(val)
+	case uint:
+		return int(val)
+	case uint16:
+		return int(val)
+	case float32:
+		return int(val)
+	default:
+		// 最后的兜底，极少进入
+		s := fmt.Sprintf("%v", v)
+		if i, err := strconv.Atoi(s); err == nil {
 			return i
 		}
+		return 0
 	}
-	// 尝试强转其他数值类型 (int64, uint 等)
-	if i, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-		return i
-	}
-	return 0
 }
 
 // --------基础工具--------
@@ -402,14 +439,21 @@ func EnsureScheme(s string) string {
 	if strings.Contains(s, "://") {
 		return s
 	}
-	// 本地环境默认 HTTP
-	if utils.IsLocalURL(strings.Split(s, ":")[0]) {
+
+	if strings.HasPrefix(s, "127.0.0.1") || strings.HasPrefix(s, "localhost") {
 		return "http://" + s
 	}
+
 	// Github 默认 HTTPS
 	if strings.HasPrefix(s, "raw.githubusercontent.com/") || strings.HasPrefix(s, "github.com/") {
 		return "https://" + s
 	}
+
+	// 本地环境默认 HTTP
+	if utils.IsLocalURL(strings.Split(s, ":")[0]) {
+		return "http://" + s
+	}
+
 	return "http://" + s
 }
 
@@ -421,46 +465,66 @@ func SplitHostPortLoose(hp string) (string, string) {
 		return host, port
 	}
 	// 回退逻辑：取最后一个冒号
-	if idx := strings.LastIndex(hp, ":"); idx > 0 && idx < len(hp)-1 {
-		return hp[:idx], hp[idx+1:]
+	lastColon := strings.LastIndexByte(hp, ':')
+	if lastColon > 0 && lastColon < len(hp)-1 {
+		// 排除 IPv6 的情况 (冒号在方括号内)
+		// 简单 heuristic: 如果有 ']' 且位置在冒号之后，那这个冒号可能不是端口分隔符
+		// 但通常 [::1]:8080，LastIndexByte 找到的是最后一个冒号，肯定是端口
+		// 唯独 [::1] 这种没有端口的纯 IPv6 需要注意
+		if hp[len(hp)-1] == ']' {
+			return hp, ""
+		}
+		return hp[:lastColon], hp[lastColon+1:]
 	}
 	return hp, ""
 }
 
-var (
-	sortedProtocolKeys     []string
-	sortedProtocolKeysOnce sync.Once
-)
+// var (
+// 	sortedProtocolKeys     []string
+// 	sortedProtocolKeysOnce sync.Once
+// )
 
 // guessSchemeByURL 根据 URL 文件名猜测协议
 func guessSchemeByURL(raw string) string {
-	uParsed, err := url.Parse(raw)
-	if err != nil {
-		return "" // 解析失败，无法提取文件名，放弃猜测
-	}
+	// uParsed, err := url.Parse(raw)
+	// if err != nil {
+	// 	return "" // 解析失败，无法提取文件名，放弃猜测
+	// }
 
-	filename := strings.ToLower(filepath.Base(uParsed.Path))
-	// 移除扩展名
-	if idx := strings.Index(filename, "."); idx > 0 {
+	// filename := strings.ToLower(filepath.Base(uParsed.Path))
+	pathStr := raw
+	if idx := strings.Index(pathStr, "://"); idx >= 0 {
+		pathStr = pathStr[idx+3:]
+	}
+	// 去掉 query/fragment
+	if idx := strings.IndexAny(pathStr, "?#"); idx >= 0 {
+		pathStr = pathStr[:idx]
+	}
+	// 获取 base
+	filename := filepath.Base(pathStr)
+	filename = strings.ToLower(filename)
+
+	// 去掉扩展名
+	if idx := strings.LastIndexByte(filename, '.'); idx > 0 {
 		filename = filename[:idx]
 	}
 
-	// 1. 初始化排序后的 Key 列表 (仅执行一次)
-	sortedProtocolKeysOnce.Do(func() {
-		keys := lo.Keys(protocolSchemes)
-		// 只有不在 protocolSchemes 里的才需要加到 extras
-		extras := []string{"http2"}
-		keys = append(keys, extras...)
-		keys = lo.Uniq(keys)
+	// // 初始化排序后的 Key 列表 (仅执行一次)
+	// sortedProtocolKeysOnce.Do(func() {
+	// 	keys := lo.Keys(protocolSchemes)
+	// 	// 只有不在 protocolSchemes 里的才需要加到 extras
+	// 	extras := []string{"http2"}
+	// 	keys = append(keys, extras...)
+	// 	keys = lo.Uniq(keys)
 
-		// 按长度降序排序
-		sort.Slice(keys, func(i, j int) bool {
-			return len(keys[i]) > len(keys[j])
-		})
-		sortedProtocolKeys = keys
-	})
+	// 	// 按长度降序排序
+	// 	sort.Slice(keys, func(i, j int) bool {
+	// 		return len(keys[i]) > len(keys[j])
+	// 	})
+	// 	sortedProtocolKeys = keys
+	// })
 
-	// 2. 按顺序遍历匹配
+	// 直接使用手动排序后的列表
 	for _, key := range sortedProtocolKeys {
 		if strings.Contains(filename, key) {
 			if _, ok := protocolSchemes[key]; ok {
@@ -486,20 +550,20 @@ func TryDecodeBase64(data []byte) []byte {
 		return data
 	}
 
-	encodings := []*base64.Encoding{
-		base64.RawURLEncoding, // SSR 最常用
-		base64.URLEncoding,
-		base64.RawStdEncoding,
-		base64.StdEncoding,
+	// 按命中概率排序
+	if d, err := base64.RawURLEncoding.DecodeString(s); err == nil {
+		return d
+	}
+	if d, err := base64.StdEncoding.DecodeString(s); err == nil {
+		return d
+	}
+	if d, err := base64.URLEncoding.DecodeString(s); err == nil {
+		return d
+	}
+	if d, err := base64.RawStdEncoding.DecodeString(s); err == nil {
+		return d
 	}
 
-	for _, enc := range encodings {
-		if decoded, err := enc.DecodeString(s); err == nil {
-			// 简单的启发式检查：如果解码后全是乱码（非文本），可能不是正确的解码
-			// 但这里只要不报错就认为成功
-			return decoded
-		}
-	}
 	return data
 }
 
@@ -509,8 +573,8 @@ func ExtractV2RayLinks(data []byte) []string {
 	var links []string
 	v2rayRegexOnce.Do(func() {
 		// 动态构建正则，匹配所有已知协议头
-		schemes := []string{}
-		seen := map[string]bool{}
+		schemes := make([]string, 0, len(protocolSchemes))
+		seen := make(map[string]bool)
 		for _, p := range protocolSchemes {
 			s := strings.TrimSuffix(strings.ToLower(p), "://")
 			if !seen[s] && s != "" {
@@ -523,15 +587,16 @@ func ExtractV2RayLinks(data []byte) []string {
 		v2rayLinkRegexCompiled = regexp.MustCompile(pattern)
 	})
 
-	rawStr := string(data)
-	links = v2rayLinkRegexCompiled.FindAllString(rawStr, -1)
+	links = v2rayLinkRegexCompiled.FindAllString(string(data), -1)
+
+	if len(links) == 0 {
+		return links
+	}
 
 	// 简单清洗结果
 	out := make([]string, 0, len(links))
 	for _, s := range links {
-		t := strings.TrimSpace(s)
-		t = strings.Trim(t, "\"'`")
-		t = strings.TrimRight(t, ",，;；")
+		t := strings.Trim(s, "\"'`,;：")
 		if t != "" {
 			slog.Debug("正则捕获", "raw", s, "cleaned", t)
 			out = append(out, t)
@@ -794,38 +859,45 @@ func ParseBracketKVProxies(data []byte) []ProxyNode {
 	var nodes []ProxyNode
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		
+		lineBytes := scanner.Bytes()               // 使用 Bytes 避免 string 分配
+		line := string(bytes.TrimSpace(lineBytes)) // 必要的分配
+
+		if line == "" || line[0] == '#' || (len(line) > 1 && line[:2] == "//") {
+			continue
+		}
+		// 如果行是以 { 开头，说明是 JSON，跳过（防止误判 V2Ray JSON）
+		if line[0] == '{' {
+			continue
+		}
+
 		// 1. 基础过滤：跳过空行、注释、JSON行
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
 			continue
 		}
-		// 如果行是以 { 开头，说明是 JSON，跳过（防止误判 V2Ray JSON）
-		if strings.HasPrefix(line, "{") {
-			continue
-		}
+
 		// 必须包含 = 才是 KV 格式
 		if !strings.Contains(line, "=") {
 			continue
 		}
 
-		parts := strings.SplitN(line, "=", 2)
-		left, right := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		left, right, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+
+		left = strings.TrimSpace(left)
+		right = strings.TrimSpace(right)
 
 		// 2. 解析名称
 		name := left
 		// 处理 [Proxy] 块中的 Tag 情况，如 "NodeName" = ...
-		name = strings.Trim(name, "\"") 
-		if idx := strings.Index(left, "]"); idx > 0 {
-			// 处理 [VMess] NodeName = ... 这种旧格式
+		if idx := strings.LastIndexByte(left, ']'); idx >= 0 {
 			name = strings.TrimSpace(left[idx+1:])
 		}
-        
-        // 如果名字为空，尝试使用 server 做默认名，或者跳过
-        if name == "" {
-            // 这种情况比较少见，先占位，后面 server 提取后再补救
-            name = "Unknown" 
-        }
+		name = strings.Trim(name, "\"")
+		if name == "" {
+			name = "Unknown"
+		}
 
 		args := strings.Split(right, ",")
 		if len(args) < 3 {
@@ -845,19 +917,19 @@ func ParseBracketKVProxies(data []byte) []ProxyNode {
 		}
 
 		// 兼容 Shadowsocks 写法
-		if node["type"] == "shadowsocks" {
+		if typeStr == "shadowsocks" {
 			node["type"] = "ss"
 		}
-        
-        // 如果 name 是 Unknown，尝试用 server 补全
-        if name == "Unknown" && serverStr != "" {
-            node["name"] = serverStr
-        }
+
+		// 如果 name 是 Unknown，尝试用 server 补全
+		if name == "Unknown" && serverStr != "" {
+			node["name"] = serverStr
+		}
 
 		// 解析 KV 参数
 		for _, kv := range args[3:] {
-            // 【关键】对参数也进行 TrimSpace
-            kv = strings.TrimSpace(kv)
+			// 【关键】对参数也进行 TrimSpace
+			kv = strings.TrimSpace(kv)
 			if k, v, ok := strings.Cut(kv, "="); ok {
 				key := strings.ToLower(strings.TrimSpace(k))
 				val := strings.TrimSpace(v)
@@ -873,10 +945,10 @@ func ParseBracketKVProxies(data []byte) []ProxyNode {
 					node["servername"] = val
 				case "udp", "tfo", "tls", "skip-cert-verify":
 					m := map[string]any{key: val}
-					normalizeBool(m, key)
+					checkBool(m, key)
 					node[key] = m[key]
-                case "obfs-host":
-                    node["servername"] = val // 兼容 obfs-host
+				case "obfs-host":
+					node["servername"] = val // 兼容 obfs-host
 				case "ws":
 					if val == "true" {
 						node["network"] = "ws"
