@@ -61,7 +61,7 @@ High-performance proxy subscription checker.
 ### 📣 使用交流，功能讨论，issure反馈，新版本通知
 
 - > Telegram 群组: [subs-check性能版](https://t.me/subs_check_pro)⁠
-- > Telegram 频道: [关注频道](https://t.me/subs_check_ai)⁠
+- > Telegram 频道: [关注频道](https://t.me/sinspired_ai)⁠
 
 > [!TIP]
 >
