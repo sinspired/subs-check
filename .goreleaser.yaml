@@ -25,6 +25,8 @@ changelog:
       - "^Merge pull request"
       - "^Merge branch"
       - "go mod tidy"
+  # 格式
+  format: "{{.SHA}}: {{.Message}}"
   # 提交分组配置
   groups:
     - title: "✨ 新功能"

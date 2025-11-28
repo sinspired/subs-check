@@ -128,7 +128,7 @@ jobs:
             项目: `${{ github.repository }}`
 
             *说明:*
-              - 前置转换避免触发SetString bug(mihomo已合并PR)
-              - 支持检测百万-千万级节点池而保持较低内存占用
+              - 提升性能，减少内存占用
+              - 错误修复，WebUI体验提升
               
             🔗 [查看详情](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})
