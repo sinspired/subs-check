@@ -353,7 +353,6 @@ sub-urls-remote:
   # - "https://example.com/sub-list.txt"
   # - "https://example.com/sub-list.yaml"
   # - "https://raw.githubusercontent.com/beck-8/sub-urls/main/%E5%B0%8F%E8%80%8C%E7%BE%8E.txt"
-  # - "https://github.com/snakem982/proxypool/raw/main/source/nodelist.txt"
   # - "http://localhost:8199/more/extra.txt"
   - "https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/col.txt"
   - "https://raw.githubusercontent.com/sinspired/airport/main/subs/merged/cm.txt"
@@ -363,7 +362,6 @@ sub-urls-remote:
   - "https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f.yaml"
   - "https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_f2.yaml"
   - "https://raw.githubusercontent.com/liketolivefree/kobabi/main/clash_mt_ir_prov_spr.yaml"
-
 
 # 订阅地址 支持 clash/mihomo/v2ray/base64 格式的订阅链接
 # 如果用户想明确使用clash类型，那可以在支持的订阅链接结尾加上 &flag=clash.meta
@@ -423,3 +421,13 @@ sub-urls:
   - "https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/clashmeta.txt"
   - "https://raw.githubusercontent.com/xiaoji235/airport-free/main/v2ray/v2rayshare.txt"
   - "https://raw.githubusercontent.com/xiaoji235/airport-free/main/v2ray.txt"
+  - "https://raw.githubusercontent.com/ts-sf/fly/main/clash"
+  - "https://raw.githubusercontent.com/mheidari98/.proxy/main/all"
+  - "https://raw.githubusercontent.com/aiboboxx/clashfree/main/clash.yml"
+  - "https://raw.githubusercontent.com/NiceVPN123/NiceVPN/main/Clash.yaml"
+  - "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/sub.txt"
+  - "https://raw.githubusercontent.com/PangTouY00/Auto_proxy/main/Long_term_subscription_num"
+  - "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge_yaml.yml"
+  - "https://raw.githubusercontent.com/Misaka-blog/chromego_merge/main/sub/merged_proxies_new.yaml"
+  - "https://raw.githubusercontent.com/MrMohebi/xray-proxy-grabber-telegram/master/collected-proxies/clash-meta/all.yaml"
+  
