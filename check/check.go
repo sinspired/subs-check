@@ -821,7 +821,7 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 	}
 
 	// 移除旧标签
-	name = regexp.MustCompile(`\s*\|.*`).ReplaceAllString(name, "")
+	name = regexp.MustCompile(`\s*\|(?:NF|D\+|GPT⁺|GPT|GM|X|YT|YT-[^|]+|TK|TK-[^|]+|\d+%)`).ReplaceAllString(name, "")
 
 	var tags []string
 	// 速度标签
