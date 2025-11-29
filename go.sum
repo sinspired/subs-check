@@ -255,8 +255,8 @@ github.com/sina-ghaderi/rabaead v0.0.0-20220730151906-ab6e06b96e8c h1:DjKMC30y6y
 github.com/sina-ghaderi/rabaead v0.0.0-20220730151906-ab6e06b96e8c/go.mod h1:NV/a66PhhWYVmUMaotlXJ8fIEFB98u+c8l/CQIEFLrU=
 github.com/sina-ghaderi/rabbitio v0.0.0-20220730151941-9ce26f4f872e h1:ur8uMsPIFG3i4Gi093BQITvwH9znsz2VUZmnmwHvpIo=
 github.com/sina-ghaderi/rabbitio v0.0.0-20220730151941-9ce26f4f872e/go.mod h1:+e5fBW3bpPyo+3uLo513gIUblc03egGjMM0+5GKbzK8=
-github.com/sinspired/checkip v0.2.11 h1:vudeVX+vwtF2q4pMlVohAHMNJF5ZHDvUrzCG9XM+D6g=
-github.com/sinspired/checkip v0.2.11/go.mod h1:ybBxyz63hwURrM+C3525C21ZH5hW5RXQ88Jg2aUtIag=
+github.com/sinspired/checkip v0.2.13 h1:wmK1k6objNAFoCqIA0WRguDdbfImADThyt7rUWqrMZk=
+github.com/sinspired/checkip v0.2.13/go.mod h1:ybBxyz63hwURrM+C3525C21ZH5hW5RXQ88Jg2aUtIag=
 github.com/sinspired/go-selfupdate v0.0.0-20251008100114-e418e2961b4c h1:5FoYd7GMISes9OrC1ZUZY8SfQhuZew+fYgqk4bpOopA=
 github.com/sinspired/go-selfupdate v0.0.0-20251008100114-e418e2961b4c/go.mod h1:iubJLH5bqY33FqWdqs7cksVl7y2B7y53szU1M7C7SuY=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=

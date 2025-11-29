@@ -844,7 +844,7 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 				tags = append(tags, "GPT")
 			}
 		case "x":
-			if res.X {
+			if res.X && !strings.Contains(name, "⁻¹") && !strings.Contains(name, "🏴‍☠️") {
 				tags = append(tags, "X")
 			}
 		case "netflix":

@@ -14,7 +14,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.52.0
 	github.com/shirou/gopsutil/v4 v4.25.10
-	github.com/sinspired/checkip v0.2.11
+	github.com/sinspired/checkip v0.2.13
 	github.com/sinspired/go-selfupdate v0.0.0-20251008100114-e418e2961b4c
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )

@@ -24,3 +24,4 @@ speed_*.csv
 
 *.exe
 *.syso
+.wiki/

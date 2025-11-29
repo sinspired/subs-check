@@ -49,25 +49,18 @@ func cfCommonHeaders() map[string]string {
 
 // CheckCloudflare 检测当前客户端是否可以访问 Cloudflare CDN
 func CheckCloudflare(httpClient *http.Client) (cloudflare bool, cfRelayLoc string, cfRelayIP string) {
+	cfRelayLoc, cfRelayIP = GetCFTrace(httpClient)
 
-	ok, err := checkCFEndpoint(httpClient, "https://cp.cloudflare.com/generate_204", 204)
-	if err == nil && ok {
-		slog.Debug("Cloudflare 可达")
-		return true, "", ""
+	if cfRelayLoc != "" && cfRelayIP != "" {
+		slog.Debug(fmt.Sprintf("Cloudflare CDN 检测成功: loc=%s, ip=%s", cfRelayLoc, cfRelayIP))
+		return true, cfRelayLoc, cfRelayIP
 	}
 
-	ok, err = checkCFEndpoint(httpClient, "https://cloudflare.com", 200)
+	ok, err := checkCFEndpoint(httpClient, "https://cloudflare.com", 200)
 	if err == nil && ok {
-		slog.Debug("Cloudflare 可达")
+		slog.Debug("Cloudflare 可达，但未获取到 loc/ip")
 		return true, "", ""
 	}
-
-	// cfRelayLoc, cfRelayIP = GetCFTrace(httpClient)
-
-	// if cfRelayLoc != "" && cfRelayIP != "" {
-	// 	slog.Debug(fmt.Sprintf("Cloudflare CDN 检测成功: loc=%s, ip=%s", cfRelayLoc, cfRelayIP))
-	// 	return true, cfRelayLoc, cfRelayIP
-	// }
 
 	return false, "", ""
 }
