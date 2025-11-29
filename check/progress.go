@@ -165,7 +165,6 @@ func (pt *ProgressTracker) refresh() {
 }
 
 // refreshDynamic 根据各阶段完成率的加权和来计算进度。
-// refreshDynamic 根据各阶段完成率的加权和来计算进度。
 func (pt *ProgressTracker) refreshDynamic() {
 	// 只读一次快照式获取所有需要的原子值
 	total := int(pt.totalJobs.Load())
@@ -218,14 +217,21 @@ func (pt *ProgressTracker) refreshDynamic() {
 	// 3. 计算最终加权进度
 	// 后续阶段的实际贡献 = 该阶段完成率 * 该阶段权重 * 主进度(aliveRatio)
 	// 这样即使后续阶段瞬间完成，如果主进度才走了 10%，后续阶段最多也只能贡献 10% 的权重分
-	
+
 	// P1: 测活贡献 = 基础率 * 权重
 	pAlive := aliveRatio * progressWeight.alive
 
 	// P2: 测速贡献 = 基础率 * 权重 * 上一级全局进度(aliveRatio)
 	pSpeed := 0.0
 	if progressWeight.speed > 0 { // 只有权重>0 (即开启测速) 时才计算
-		pSpeed = speedRatio * progressWeight.speed * aliveRatio
+		switch stage {
+		case 0:
+			pSpeed = speedRatio * progressWeight.speed * aliveRatio
+		case 1:
+			pSpeed = speedRatio * progressWeight.speed
+		default:
+			pSpeed = speedRatio * progressWeight.speed
+		}
 	}
 
 	// P3: 媒体贡献
@@ -242,8 +248,15 @@ func (pt *ProgressTracker) refreshDynamic() {
 			// 如果没测速，约束系数 = 全局测活进度
 			constraint = aliveRatio
 		}
+		switch stage {
+		case 0:
+			pMedia = mediaRatio * progressWeight.media * constraint
+		case 1:
+			pSpeed = mediaRatio * progressWeight.media
+		default:
+			pSpeed = speedRatio * progressWeight.media
+		}
 
-		pMedia = mediaRatio * progressWeight.media * constraint
 	}
 
 	// 4. 汇总

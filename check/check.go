@@ -607,6 +607,12 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 
 				if config.GlobalConfig.SuccessLimit > 0 && pc.available.Load() >= config.GlobalConfig.SuccessLimit {
 					stopOnce.Do(func() {
+						// aliveDoneTotal := int64(float64(pc.pt.totalJobs.Load()) * float64(progressWeight.alive) / 100.0)
+						// slog.Info("按权重计算的测活总数", "count", aliveDoneTotal)
+
+						// pc.pt.aliveDone.Store(int32(aliveDoneTotal))
+
+						pc.pt.FinishAliveStage()
 						if mediaON {
 							if speedON {
 								Successlimited.Store(true)
@@ -615,12 +621,14 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 								Successlimited.Store(true)
 								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
 							}
-						} else if speedON {
-							Successlimited.Store(true)
-							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待测速和节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
 						} else {
-							Successlimited.Store(true)
-							slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
+							if speedON {
+								Successlimited.Store(true)
+								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待测速和节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
+							} else {
+								Successlimited.Store(true)
+								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待节点重命名任务完成...", config.GlobalConfig.SuccessLimit))
+							}
 						}
 
 						cancel()
@@ -673,6 +681,11 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 					// 设置成功数量限制
 					if config.GlobalConfig.SuccessLimit > 0 && pc.available.Load() >= config.GlobalConfig.SuccessLimit {
 						stopOnce.Do(func() {
+							// aliveDoneTotal := int64(float64(pc.pt.totalJobs.Load()) * float64(progressWeight.alive) / 100.0)
+							// slog.Info("按权重计算的测活总数", "count", aliveDoneTotal)
+
+							// pc.pt.aliveDone.Store(int32(aliveDoneTotal))
+							pc.pt.FinishAliveStage()
 							if mediaON {
 								Successlimited.Store(true)
 								slog.Warn(fmt.Sprintf("达到成功节点数量限制 %d, 等待媒体检测任务完成...", config.GlobalConfig.SuccessLimit))
