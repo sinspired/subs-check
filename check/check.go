@@ -612,6 +612,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 
 						// pc.pt.aliveDone.Store(int32(aliveDoneTotal))
 
+						Successlimited.Store(true) 
 						pc.pt.FinishAliveStage()
 						if mediaON {
 							if speedON {
@@ -685,6 +686,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 							// slog.Info("按权重计算的测活总数", "count", aliveDoneTotal)
 
 							// pc.pt.aliveDone.Store(int32(aliveDoneTotal))
+							Successlimited.Store(true) 
 							pc.pt.FinishAliveStage()
 							if mediaON {
 								Successlimited.Store(true)
