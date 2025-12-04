@@ -121,14 +121,14 @@ listen-port: ":8199"
 enable-web-ui: true
 # 填写Web控制面板的api-key，如果为空，则自动生成 !请在终端窗口查看apikey
 # 配置文件为空时，支持使用环境变量设置 API_KEY
-api-key: ""
+api-key: "lhWD520+.ll"
 
 # 如果你要分享订阅，请设置订阅分享密码
 # 订阅访问地址格式：http://127.0.0.1:8199/sub/{share-password}/filename.yaml
 # 文件位置放在 output/filename.yaml
 # 比如: http://127.0.0.1:8199/sub/{share-password}/all.yaml
 # 首次设置需重启生效
-share-password: ""
+share-password: "xt520"
 
 # -----------SUB-STORE-----------
 # sub-store的启动端口，为空则不启动sub-store
