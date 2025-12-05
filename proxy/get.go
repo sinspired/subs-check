@@ -378,7 +378,7 @@ func parseSubscriptionData(data []byte, subURL string) ([]ProxyNode, error) {
 		}
 	}
 
-	// 尝试 V2Ray Core JSON
+	// 尝试 xray JSON
 	if nodes := ParseV2RayJsonLines(data); len(nodes) > 0 {
 		slog.Debug("解析成功", "订阅", subURL, "格式", "V2Ray JSON Lines", "数量", len(nodes))
 		return nodes, nil
@@ -632,8 +632,8 @@ func fetchOnce(target string, useProxy bool, timeoutSec int, ua string) ([]byte,
 		return nil, fmt.Errorf("%d", resp.StatusCode), fatal
 	}
 
-	// 限制最大读取 50MB
-	const MaxLimit = 50 * 1024 * 1024
+	// 限制最大读取 100MB
+	const MaxLimit = 100 * 1024 * 1024
 
 	// 如果 Content-Length 存在且超过限制，直接报错，避免无谓的读取
 	if resp.ContentLength > MaxLimit {

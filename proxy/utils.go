@@ -1032,7 +1032,7 @@ func ExtractAndParseProxies(data []byte) []ProxyNode {
 	return nodes
 }
 
-// ParseV2RayJsonLines 解析 V2Ray Core 的 Outbound JSON (按行)
+// ParseV2RayJsonLines 解析 xray-json
 // 这是一个简化的实现，提取核心字段
 func ParseV2RayJsonLines(data []byte) []ProxyNode {
 	var nodes []ProxyNode
