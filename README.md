@@ -23,7 +23,7 @@ High-performance proxy subscription checker.
 - [x] 🔋 [**优化内存占用**](#3-优化内存)  
 - [x] 🎲 [**智能节点乱序**](#4-智能节点乱序减少节点被测速-测死-的概率)，减少节点测死风险
 - [x] 🕒 [**上次成功和历次检测可用节点保存与加载**](#5-保存并加载-历次-检测可用节点)  
-- [x] 🚦 [**自动检测系统代理、GitHub代理并设置**](#-优化系统代理和github代理设置可选)
+- [x] 🚦 [**自动检测系统代理、GitHub 代理并设置**](#-优化系统代理和-github-代理设置可选)
 - [x] 💻 支持 `Windows` `Linux` `macOS` **多平台部署**
 - [x] 🐳 支持 `docker` 部署
 - [x] 🪟 Windows 可搭配 [Subs-Check_GUI程序](https://github.com/sinspired/SubsCheck-Win-GUI)，包含多项优化
@@ -40,12 +40,12 @@ High-performance proxy subscription checker.
 - [x] 🔗 适配多种非标订阅格式，提高获取订阅成功率
 - [x] 📣 增加消息通知范围：`节点状态`、`版本更新`、`Geo地理数据库更新`
 - [x] ♾️ 支持检测百万-千万量级的节点库，依然保持较低的内存占用
-- [ ] 🚧 本项目现接受issure反馈
+- [ ] 🚧 本项目现接受 issure 反馈
 
 ### 📖 教程
 
 - 🐳 教程：[Docker 部署](#-docker-运行)
-  - [🔁 使用 WatchTowe 自动更新docker镜像并通知](#-使用watchtower自动更新docker镜像并通知)
+  - [🔁 使用 WatchTowe 自动更新 docker 镜像并通知](#-使用-watchtower-自动更新-docker-镜像并通知)
 - 📘 教程：[随时随地管理 subs-check 检测与订阅](#️-cloudflare-tunnel隧道映射外网访问)
   - [🔀 使用 `路径` 映射端口](#-使用路径映射端口)
   - [🌐 使用 `子域` 映射](#-使用子域映射端口)
@@ -58,10 +58,10 @@ High-performance proxy subscription checker.
   - [🔐 使用 `分享码` 分享)](#-使用-分享码-分享)
   - [🗂️ 无密码保护分享](#️-无密码保护分享)
 
-### 📣 使用交流，功能讨论，issure反馈，新版本通知
+### 📣 使用交流，功能讨论，issure 反馈，新版本通知
 
-- > Telegram 群组: [subs-check性能版](https://t.me/subs_check_pro)⁠
-- > Telegram 频道: [关注频道](https://t.me/sinspired_ai)⁠
+- > Telegram 群组：[subs-check性能版](https://t.me/subs_check_pro)⁠
+- > Telegram 频道：[关注频道](https://t.me/sinspired_ai)⁠
 
 > [!TIP]
 >
@@ -162,7 +162,7 @@ services:
     network_mode: bridge
 ```
 
-### 🔁 使用WatchTower自动更新docker镜像并通知
+### 🔁 使用 WatchTower 自动更新 docker 镜像并通知
 
 <details>
   <summary>展开查看</summary>
@@ -204,9 +204,9 @@ docker run -d \
 
 </details>
 
-### 🪜 优化系统代理和github代理设置（可选）
+### 🪜 优化系统代理和 GitHub 代理设置（可选）
 
-> 新增: 自动检测并设置系统代理;自动检测筛选github代理并设置
+> 新增: 自动检测并设置系统代理;自动检测筛选 GitHub 代理并设置
 <details>
   <summary>展开查看</summary>
   
