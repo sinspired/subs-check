@@ -10,28 +10,8 @@ import (
 	"github.com/sinspired/subs-check/config"
 )
 
-// 默认使用动态权重显示进度条
-var progressAlgorithm ProgressAlgorithm
-
-// 新增：用于 UI 显示当前阶段名称
+// 用于 UI 显示当前阶段名称
 var currentStepName atomic.Value
-
-func init() {
-	if config.GlobalConfig.ProgressMode == "stage" {
-		progressAlgorithm = StagePriorityProgress
-	} else {
-		progressAlgorithm = DynamicWeightProgress
-	}
-	currentStepName.Store("进度")
-}
-
-// ProgressAlgorithm 切换进度显示
-type ProgressAlgorithm int
-
-const (
-	DynamicWeightProgress ProgressAlgorithm = iota // 总数恒等于节点总数，按权重映射百分比
-	StagePriorityProgress                          // 阶段优先：显示当前阶段完成/阶段总
-)
 
 // ProgressWeight 不同检测阶段的进度权重
 type ProgressWeight struct {
@@ -60,6 +40,7 @@ type ProgressTracker struct {
 	finalized atomic.Bool
 }
 
+// NewProgressTracker 初始化进度追踪器并重置外部原子变量。
 func NewProgressTracker(total int) *ProgressTracker {
 	pt := &ProgressTracker{}
 	if total > math.MaxInt32 {
@@ -73,9 +54,19 @@ func NewProgressTracker(total int) *ProgressTracker {
 
 	// 初始化进度权重
 	progressWeight = getCheckWeight(speedON, mediaON)
+
+	// 默认阶段名（根据配置）
+	mode := config.GlobalConfig.ProgressMode
+	if mode == "stage" {
+		currentStepName.Store("测活")
+	} else {
+		currentStepName.Store("进度")
+	}
+
 	return pt
 }
 
+// getCheckWeight 根据启用的检查来确定进度权重的分配。
 func getCheckWeight(speedON, mediaON bool) ProgressWeight {
 	w := ProgressWeight{alive: 85, speed: 10, media: 5} // 默认权重 (全部开启时)
 
@@ -91,7 +82,7 @@ func getCheckWeight(speedON, mediaON bool) ProgressWeight {
 	return w
 }
 
-// CountAlive 标记一个存活检测已完成
+// CountAlive 标记一个存活检测已完成，并更新进度。
 func (pt *ProgressTracker) CountAlive(success bool) {
 	pt.aliveDone.Add(1)
 	if success {
@@ -100,7 +91,7 @@ func (pt *ProgressTracker) CountAlive(success bool) {
 	pt.refresh()
 }
 
-// CountSpeed 标记一个速度测试已完成
+// CountSpeed 标记一个速度测试已完成，并更新进度。
 func (pt *ProgressTracker) CountSpeed(success bool) {
 	pt.speedDone.Add(1)
 	if success {
@@ -109,12 +100,13 @@ func (pt *ProgressTracker) CountSpeed(success bool) {
 	pt.refresh()
 }
 
-// CountMedia 标记一个媒体检测已完成
+// CountMedia 标记一个媒体检测已完成，并更新进度。
 func (pt *ProgressTracker) CountMedia() {
 	pt.mediaDone.Add(1)
 	pt.refresh()
 }
 
+// FinishAliveStage 在所有存活检测完成后，将追踪器转换到下一阶段。
 func (pt *ProgressTracker) FinishAliveStage() {
 	aliveSucc := int(pt.aliveSuccess.Load())
 	// 如果没有活节点，直接结束
@@ -122,10 +114,12 @@ func (pt *ProgressTracker) FinishAliveStage() {
 		pt.Finalize()
 		return
 	}
+	// 切换为测速阶段
 	pt.currentStage.Store(1)
 	pt.refresh()
 }
 
+// FinishSpeedStage 在所有速度测试完成后，将追踪器转换到媒体检测阶段。
 func (pt *ProgressTracker) FinishSpeedStage() {
 	if !mediaON {
 		pt.refresh()
@@ -136,10 +130,12 @@ func (pt *ProgressTracker) FinishSpeedStage() {
 		pt.Finalize()
 		return
 	}
+	// 切换为媒体检测阶段
 	pt.currentStage.Store(2)
 	pt.refresh()
 }
 
+// Finalize 确保进度被标记为 100% 完成。
 func (pt *ProgressTracker) Finalize() {
 	pt.finalized.Store(true)
 	// 强制设置为 100%
@@ -148,18 +144,20 @@ func (pt *ProgressTracker) Finalize() {
 		total = 1 // 防止除以0
 	}
 	Progress.Store(total)
+	pt.refresh()
 }
 
+// refresh 根据所选算法更新进度的统一入口。
 func (pt *ProgressTracker) refresh() {
-	switch progressAlgorithm {
-	case DynamicWeightProgress:
-		pt.refreshDynamic()
-	case StagePriorityProgress:
+	switch config.GlobalConfig.ProgressMode {
+	case "stage":
 		pt.refreshStage()
+	default:
+		pt.refreshDynamic()
 	}
 }
 
-// refreshDynamic 优化后的动态权重算法，支持中途停止信号
+// refreshDynamic 根据各阶段完成率的加权和来计算进度，支持中途停止信号
 func (pt *ProgressTracker) refreshDynamic() {
 	// 1. 确定计算基数（分母）
 	// 如果触发了限制（成功数达到 or 强制关闭），分母不再是总订阅数，而是“实际已测活数”
@@ -332,7 +330,7 @@ func (pt *ProgressTracker) refreshStage() {
 	}
 }
 
-// showProgress 优化后的 CLI 显示，增加阶段名称
+// showProgress 负责在控制台中渲染进度条。
 func (pc *ProxyChecker) showProgress(done <-chan struct{}) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -349,6 +347,7 @@ func (pc *ProxyChecker) showProgress(done <-chan struct{}) {
 	}
 }
 
+// renderProgressString 计算并格式化进度条字符串。
 func (pc *ProxyChecker) renderProgressString() string {
 	currentChecked := int(Progress.Load())
 	total := int(ProxyCount.Load())
@@ -363,7 +362,7 @@ func (pc *ProxyChecker) renderProgressString() string {
 	var percent float64
 	if total == 0 {
 		percent = 0                // total为0时进度为0，除非 finalized
-		if ProcessResults.Load() { // 借用 check/main.go 里的全局变量判断是否结束
+		if ProcessResults.Load() { // 借用 check.go 里的全局变量判断是否结束
 			percent = 100
 		}
 	} else {
