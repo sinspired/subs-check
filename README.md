@@ -2,19 +2,20 @@
 <p align="center">
   <img src="doc/logo/logo.png" alt="Project Logo" width="200"/>
 </p>
-<h1 align="center">Subs-Check</h1>
+<h1 align="center">Subs-Check⁺ 性能版</h1>
 <p align="center" color="#6a737d">
 High-performance proxy subscription checker.
 </p>
+<p align="center">
+<a href="https://github.com/sinspired/subs-check/releases"><img src="https://img.shields.io/github/v/release/sinspired/subs-check?logo=github&include_prereleases" /></a>
+<a href="https://hub.docker.com/r/sinspired/subs-check"><img src="https://img.shields.io/docker/pulls/sinspired/subs-check?logo=docker" /></a>
+<a href="https://ghcr.io/sinspired/subs-check"><img src="https://img.shields.io/badge/ghcr.io-available-blue?logo=github" /></a>
+<a href="https://github.com/sinspired/SubsCheck-Win-GUI/releases/latest"><img src="https://img.shields.io/github/v/release/sinspired/SubsCheck-Win-GUI?display_name=release&style=social&logo=github&label=Windows图形界面" /></a>
+</p>
 
-[![Release](https://img.shields.io/github/v/release/sinspired/subs-check?logo=github)](https://github.com/sinspired/subs-check/releases)
-[![Docker Pulls](https://img.shields.io/docker/pulls/sinspired/subs-check?logo=docker)](https://hub.docker.com/r/sinspired/subs-check)
-[![GHCR](https://img.shields.io/badge/ghcr.io-available-blue?logo=github)](https://ghcr.io/sinspired/subs-check)
-[![GitHub Release](https://img.shields.io/github/v/release/sinspired/SubsCheck-Win-GUI?display_name=release&style=social&logo=github&label=WindowsGUI界面)](https://github.com/sinspired/SubsCheck-Win-GUI/releases/latest)
+# 🚀 高性能代理检测工具
 
-# 🚀 subs-check 性能版
-
-[ **测活、测速、媒体解锁** ] 检测工具，支持自动无缝版本更新；支持 `100-1000` 高并发低占用运行，检测结果更准确。全新设计，适配PC和手机设备的现代 WebUI 配置管理界面，自动生成 `mihomo` 和 `singbox` 订阅，集成 `sub-store` 前端和后端，消除使用门槛，支持一键复制分享。
+**测活、测速、媒体解锁**，代理检测工具，支持 `100-1000` 高并发低占用运行，检测结果更准确。全新设计，适配PC和手机设备的现代 WebUI 配置管理界面，自动生成 `mihomo` 和 `singbox` 订阅，集成 `sub-store` 前端和后端，消除使用门槛，支持一键复制分享；支持自动无缝版本更新。
 
 ## ✨ 新增功能
 
