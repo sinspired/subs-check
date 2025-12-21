@@ -607,12 +607,7 @@ func (pc *ProxyChecker) runSpeedStage(ctx context.Context, cancel context.Cancel
 
 				if config.GlobalConfig.SuccessLimit > 0 && pc.available.Load() >= config.GlobalConfig.SuccessLimit {
 					stopOnce.Do(func() {
-						// aliveDoneTotal := int64(float64(pc.pt.totalJobs.Load()) * float64(progressWeight.alive) / 100.0)
-						// slog.Info("按权重计算的测活总数", "count", aliveDoneTotal)
-
-						// pc.pt.aliveDone.Store(int32(aliveDoneTotal))
-
-						Successlimited.Store(true) 
+						Successlimited.Store(true)
 						pc.pt.FinishAliveStage()
 						if mediaON {
 							if speedON {
@@ -682,11 +677,7 @@ func (pc *ProxyChecker) runMediaStageAndCollect(db *maxminddb.Reader, ctx contex
 					// 设置成功数量限制
 					if config.GlobalConfig.SuccessLimit > 0 && pc.available.Load() >= config.GlobalConfig.SuccessLimit {
 						stopOnce.Do(func() {
-							// aliveDoneTotal := int64(float64(pc.pt.totalJobs.Load()) * float64(progressWeight.alive) / 100.0)
-							// slog.Info("按权重计算的测活总数", "count", aliveDoneTotal)
-
-							// pc.pt.aliveDone.Store(int32(aliveDoneTotal))
-							Successlimited.Store(true) 
+							Successlimited.Store(true)
 							pc.pt.FinishAliveStage()
 							if mediaON {
 								Successlimited.Store(true)
@@ -835,9 +826,6 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 		name = strings.TrimSpace(v)
 	}
 
-	// 移除旧标签
-	name = regexp.MustCompile(`\s*\|(?:NF|D\+|GPT⁺|GPT|GM|X|YT|YT-[^|]+|TK|TK-[^|]+|\d+%)`).ReplaceAllString(name, "")
-
 	var tags []string
 	// 速度标签
 	if config.GlobalConfig.SpeedTestURL != "" && speed > 0 {
@@ -849,6 +837,12 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 		}
 		tags = append(tags, speedStr)
 	}
+
+	if config.GlobalConfig.MediaCheck {
+		// 移除旧标签
+		name = regexp.MustCompile(`\s*\|(?:NF|D\+|GPT⁺|GPT|GM|X|YT|YT-[^|]+|TK|TK-[^|]+|\d+%)`).ReplaceAllString(name, "")
+	}
+
 	// 平台标签（按用户配置顺序）
 	for _, plat := range config.GlobalConfig.Platforms {
 		switch plat {
