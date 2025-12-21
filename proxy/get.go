@@ -878,18 +878,24 @@ func buildCandidateURLs(u string) ([]string, bool) {
 func hasDatePlaceholder(s string) bool {
 	ls := strings.ToLower(s)
 	return strings.Contains(ls, "{ymd}") || strings.Contains(ls, "{y}") ||
-		strings.Contains(ls, "{m}") || strings.Contains(ls, "{d}") ||
+		strings.Contains(ls, "{m}") || strings.Contains(ls, "{mm}") ||
+		strings.Contains(ls, "{d}") || strings.Contains(ls, "{dd}") ||
 		strings.Contains(ls, "{y-m-d}") || strings.Contains(ls, "{y_m_d}")
 }
 
 func replaceDatePlaceholders(s string, t time.Time) string {
 	reMap := map[*regexp.Regexp]string{
-		regexp.MustCompile(`(?i)\{Ymd\}`):   t.Format("20060102"),
-		regexp.MustCompile(`(?i)\{Y-m-d\}`): t.Format("2006-01-02"),
-		regexp.MustCompile(`(?i)\{Y_m_d\}`): t.Format("2006_01_02"),
-		regexp.MustCompile(`(?i)\{Y\}`):     t.Format("2006"),
-		regexp.MustCompile(`(?i)\{m\}`):     t.Format("01"),
-		regexp.MustCompile(`(?i)\{d\}`):     t.Format("02"),
+		regexp.MustCompile(`(?i)\{ymd\}`):   t.Format("20060102"),
+		regexp.MustCompile(`(?i)\{y-m-d\}`): t.Format("2006-01-02"),
+		regexp.MustCompile(`(?i)\{y_m_d\}`): t.Format("2006_01_02"),
+		regexp.MustCompile(`(?i)\{yy\}`):     t.Format("2006"),
+		regexp.MustCompile(`(?i)\{y\}`):     t.Format("2006"),
+		// 月份：补零 vs 不补零
+		regexp.MustCompile(`(?i)\{mm\}`): t.Format("01"),
+		regexp.MustCompile(`(?i)\{m\}`):  t.Format("1"),
+		// 日期：补零 vs 不补零
+		regexp.MustCompile(`(?i)\{dd\}`): t.Format("02"),
+		regexp.MustCompile(`(?i)\{d\}`):  t.Format("2"),
 	}
 	out := s
 	for re, val := range reMap {
