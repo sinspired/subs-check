@@ -65,6 +65,7 @@ type Config struct {
 	SubStorePushService  string   `yaml:"sub-store-push-service"`
 	SubStoreProduceCron  string   `yaml:"sub-store-produce-cron"`
 	MihomoOverwriteURL   string   `yaml:"mihomo-overwrite-url"`
+	ISPCheck			 bool     `yaml:"isp-check"`
 	MediaCheck           bool     `yaml:"media-check"`
 	Platforms            []string `yaml:"platforms"`
 	MaxMindDBPath        string   `yaml:"maxmind-db-path"`
@@ -107,6 +108,7 @@ var OriginDefaultConfig = &Config{
 	DownloadMB: 20,
 	EnableSelfUpdate:true,
 	CronCheckUpdate: "0 0,9,21 * * *",
+	ISPCheck:    true,
 }
 
 // GlobalConfig 指向当前生效配置
