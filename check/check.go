@@ -897,6 +897,14 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 		tags = append(tags, tag)
 	}
 
+	// 运营商标签
+	if config.GlobalConfig.ISPCheck {
+		ISPTag := proxyutils.GetISPInfo(httpClient.Client)
+		if ISPTag != "" {
+			tags = append(tags, ISPTag)
+		}
+	}
+
 	// 将所有标记添加到名称中
 	if len(tags) > 0 {
 		name += "|" + strings.Join(tags, "|")

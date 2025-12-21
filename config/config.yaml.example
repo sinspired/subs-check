@@ -201,6 +201,9 @@ node-type:
 # false: 保留
 drop-bad-cf-nodes: false
 
+# 检测 isp 类型
+isp-check: true
+
 # 是否开启流媒体检测，其中IP欺诈依赖重命名
 media-check: true
 platforms:
