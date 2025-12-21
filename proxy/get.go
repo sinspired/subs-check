@@ -695,11 +695,11 @@ func resolveSubUrls() ([]string, int, int, int) {
 
 			if _, err := os.Stat(localLastSuccedFile); err == nil {
 				historyNum++
-				urls = append([]string{localLastSucced + "#KeepSucceed"}, urls...)
+				urls = append([]string{localLastSucced + "#Succeed"}, urls...)
 			}
 			if _, err := os.Stat(localHistoryFile); err == nil {
 				historyNum++
-				urls = append([]string{localHistory + "#KeepHistory"}, urls...)
+				urls = append([]string{localHistory + "#History"}, urls...)
 			}
 		}
 	}
@@ -888,7 +888,7 @@ func replaceDatePlaceholders(s string, t time.Time) string {
 		regexp.MustCompile(`(?i)\{ymd\}`):   t.Format("20060102"),
 		regexp.MustCompile(`(?i)\{y-m-d\}`): t.Format("2006-01-02"),
 		regexp.MustCompile(`(?i)\{y_m_d\}`): t.Format("2006_01_02"),
-		regexp.MustCompile(`(?i)\{yy\}`):     t.Format("2006"),
+		regexp.MustCompile(`(?i)\{yy\}`):    t.Format("2006"),
 		regexp.MustCompile(`(?i)\{y\}`):     t.Format("2006"),
 		// 月份：补零 vs 不补零
 		regexp.MustCompile(`(?i)\{mm\}`): t.Format("01"),
