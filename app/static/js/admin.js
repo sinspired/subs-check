@@ -53,7 +53,7 @@
     downloadLogsBtnSide: $('#downloadLogsBtnSide'),
     searchBtn: $('#searchBtn'),
     logoutBtn: $('#logoutBtn'),
-    logoutBtnMobile: $('#logoutBtnMobile'),
+    logoutBtnMobile: $('#btnlogoutMobile'),
     openEditorBtn: $('#openEditor'),
     themeToggleBtn: $('#themeToggle'),
     iconMoon: $('#iconMoon'),

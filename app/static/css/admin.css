@@ -261,12 +261,6 @@ header {
   color: var(--muted);
 }
 
-/* 小屏退出按钮 */
-.logout-mobile {
-  padding: 8px 16px;
-  font-size: 14px;
-}
-
 /* 卡片 */
 .card {
   background: var(--card);
@@ -853,7 +847,7 @@ main {
   background: transparent;
 }
 
-#btnHistoryExit,
+#btnlogoutMobile,
 #btnShare,
 #btnSubStore {
   display: none;
@@ -1578,7 +1572,7 @@ main {
   }
 
   /* 小屏显示退出和分享按钮 */
-  #btnHistoryExit,
+  #btnlogoutMobile,
   #btnShare,
   #btnSubStore {
     display: inline-block;
