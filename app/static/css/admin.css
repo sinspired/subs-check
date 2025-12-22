@@ -51,6 +51,9 @@
   --font-code: "Cascadia Code",
     "Source Code Pro", Menlo, Consolas, monospace;
 
+  --bg-hover-1: rgba(255, 255, 255, 0.2);
+  --bg-hover-2: rgba(255, 255, 255, 0.2);
+
   --invert: 0%;
 }
 
@@ -86,6 +89,9 @@
   --glass-border: rgba(255, 255, 255, 0.04);
   --glass-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   --glass-blur: 12px;
+
+  --bg-hover-1: rgba(3, 232, 209, 0.08);
+  --bg-hover-2: rgba(2, 87, 130, 0.1);
 
   --invert: 100%;
 }
@@ -224,33 +230,39 @@ header {
 /* 主题切换 */
 .theme-toggle {
   z-index: 9999;
-  /* 显示在登录页面 */
   display: flex;
   flex-direction: row;
   align-items: center;
 }
 
+.theme-toggle:hover {
+  background: var(--card-bg);
+  transform: rotate(15deg);
+}
+
 .icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
+  border-radius: 50%;
+  /* Circle */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  transition: transform .12s ease, box-shadow .12s ease;
+  transition: all 0.3s ease;
 }
 
 .icon-btn .icon {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
 }
 
 .icon-btn:hover {
   box-shadow: var(--glass-shadow);
-  background: linear-gradient(180deg, var(--glass-bg), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(180deg, var(--bg-hover-1), var(--bg-hover-2));
 }
 
 /* 主题切换提示 */
@@ -839,12 +851,41 @@ main {
 }
 
 .btn.small {
-  padding: 4px 8px;
+  padding: 2px 4px;
   font-size: 12px;
   border-radius: 12px;
   cursor: pointer;
   border: none;
   background: transparent;
+}
+
+.btn-icon {
+  color: var(--muted);
+}
+
+.icon-small {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1;
+  padding-top: 2px;
+}
+
+.icon-md {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.4;
+  padding-top: 2px;
+}
+
+.btn-round {
+  border-radius: 50%;
+  padding: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
 }
 
 #btnlogoutMobile,

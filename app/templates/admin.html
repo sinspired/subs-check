@@ -72,11 +72,29 @@
       <!-- 主题切换按钮 -->
       <div class="theme-toggle" role="group" aria-label="主题切换" style="display:flex;align-items:center;">
         <button id="themeToggle" class="icon-btn" aria-pressed="false" aria-label="切换主题" title="切换主题">
-          <span class="icon" id="iconMoon">☀️</span>
-          <span class="icon" id="iconSun" style="display:none;margin-bottom: 3px;">🌙</span>
+          <!-- <span class="icon" id="iconMoon">☀️</span>
+          <span class="icon" id="iconSun" style="display:none;margin-bottom: 3px;">🌙</span> -->
+
+          <svg class="icon" id="iconMoon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" style="display: none;">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="icon" id="iconSun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+
         </button>
-        <span class="muted theme-label">切换主题</span>
       </div>
+      <!-- <span class="muted theme-label">切换主题</span> -->
     </div>
   </header>
 
@@ -225,11 +243,38 @@
               <div id="historyPlaceholder" class="history-placeholder" style="display:none;">
                 <div class="history-title-row"
                   style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-                  <div id="history-title" class="history-title" style="font-weight:600;font-size:13px;color:var(--muted)">上次检测</div>
+                  <div id="history-title" class="history-title"
+                    style="font-weight:600;font-size:13px;color:var(--muted)">上次检测</div>
                   <div style="margin-left:14px">
-                    <button id="btnSubStore" class="btn small" title="进入sub-store，编辑、管理、分享订阅">管理</button>
-                    <button id="btnShare" class="btn small" title="分享订阅">分享</button>
-                    <button id="btnlogoutMobile" class="btn small" title="退出并清除本地 API 密钥">退出</button>
+                    <button id="btnSubStore" class="btn small" title="进入sub-store，编辑、管理、分享订阅">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" class="btn-icon icon-small"
+                        fill="currentColor">
+                        <path
+                          d="M12.6 35C8.2 21.8 21 8.5 34.3 12.5c3.4 1 8.2 4.9 15.2 11.8l10.2 10.3-2.8 2.8-2.8 2.8-10-9.9c-8.2-8.2-10.7-9.9-14.2-9.9-9.2 0-12.5 10.6-5.4 17.4l3.8 3.8-2.8 3-2.8 3-4.2-4.1c-2.3-2.2-4.9-6-5.6-8.4h-.2z" />
+                        <path
+                          d="M48.1 46.5l-7.4 7.6 3.8 3.8 3.8 3.8-2.8 2.8-2.8 3-6.7-6.8-6.8-6.7 6.4-6.4c3.4-3.4 6.7-6.4 7.2-6.4s2 1.8 5.6 5.2zM59.7 46.5l7.4 7.6-3.8 3.8-3.8 3.8 2.8 2.8 2.8 3 6.7-6.8 6.8-6.7-6.4-6.4c-3.4-3.4-6.7-6.4-7.2-6.4s-2 1.8-5.6 5.2zM24.4 70.4c-4.5 5.2-5 10.8-1.3 14.6 4 4 10.3 3.4 14.8-1.3l3.8-3.8 3 2.8 3 2.8-4.1 4.2c-8 8.2-18.4 8.8-26 1-7.7-7.6-7.4-17.5.9-26l4-4.2 3 2.8 2.8 2.7-3.8 4.4zM83.6 37.6c4.5-5.2 5-10.8 1.3-14.6-4-4-10.3-3.4-14.8 1.3l-3.8 3.8-3-2.8-3-2.8 4.1-4.2c8-8.2 18.4-8.8 26-1 7.7 7.6 7.4 17.5-.9 26l-4 4.2-3-2.8-2.8-2.7 3.8-4.4z" />
+                        <path
+                          d="M95.4 73c4.4 13.3-8.4 26.5-21.6 22.5-3.4-1-8.2-4.9-15.2-11.8L48.4 73.4l2.8-2.8 2.8-2.8 10 9.9c8.2 8.2 10.7 9.9 14.2 9.9 9.2 0 12.5-10.6 5.4-17.4l-3.8-3.8 2.8-3 2.8-3 4.2 4.1c2.3 2.2 4.9 6 5.6 8.4z" />
+                      </svg>
+                      管理</button>
+                    <button id="btnShare" class="btn small" title="分享订阅">
+                      <svg class="btn-icon icon-small" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="18" cy="5" r="3"></circle>
+                        <circle cx="6" cy="12" r="3"></circle>
+                        <circle cx="18" cy="19" r="3"></circle>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                      </svg>
+                      分享</button>
+                    <button id="btnlogoutMobile" class="btn small" title="退出并清除本地 API 密钥">
+                      <svg class="btn-icon icon-small" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                      </svg>
+                      退出</button>
                   </div>
                 </div>
 
@@ -250,13 +295,33 @@
           <div class="logs-header">
             <div style="display:flex;flex-direction:column">
               <div class="title-wrap">
-                <div class="title">最近日志</div>
+                <div class="title">
+                  <svg class="title-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <!-- 文件/日志图标 -->
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <line x1="10" y1="9" x2="8" y2="9"></line>
+                  </svg>
+                  最近日志
+                </div>
+
                 <div id="status" class="muted status-label status-idle">状态：未登录</div>
               </div>
               <div class="muted">点击日志暂停刷新，点击其他区域恢复滚动</div>
             </div>
             <div>
-              <button id="refreshLogs" class="btn" disabled>刷新</button>
+              <button id="refreshLogs" class="btn btn-round" disabled title="刷新">
+                <svg class="btn-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
+                  <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -270,11 +335,50 @@
       <aside class="card editor" id="editorContainer">
         <div class="editor-controls">
           <div class="title-wrap">
-            <div class="title">配置编辑器</div>
-            <div style="display:flex;flex-direction: row;gap:8px">
-              <button id="searchBtn" class="btn">搜索</button> <!-- 新增：搜索按钮，在重载左侧 -->
-              <button id="reloadCfg" class="btn" disabled>重载</button>
-              <button id="saveCfg" class="btn" disabled>保存</button>
+            <div class="title">
+              <svg class="title-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <!-- 齿轮图标 -->
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 
+             1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 
+             1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 
+             1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 
+             1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 
+             1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 
+             1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 
+             1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 
+             1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              配置编辑器
+            </div>
+            <div style="display:flex;flex-direction: row;gap:0px">
+              <button id="searchBtn" class="btn btn-round" title="搜索">
+                <svg class="btn-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </button>
+
+              <button id="reloadCfg" class="btn btn-round" disabled title="重载">
+                <svg class="btn-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
+                  <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
+                </svg>
+              </button>
+
+              <button id="saveCfg" class="btn btn-round" disabled title="保存">
+                <svg class="btn-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+              </button>
             </div>
           </div>
           <!-- <div class="muted">在此编辑并保存配置</div> -->

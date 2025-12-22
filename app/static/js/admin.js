@@ -1751,6 +1751,7 @@
 
   async function getVersion() {
     if (!sessionKey) return;
+    els.versionInline.onclick = () => window.open("https://github.com/sinspired/subs-check/releases/latest", "_blank");
     try {
       const r = await sfetch(API.version);
       const p = r.payload;
@@ -1758,7 +1759,6 @@
       if (p?.latest_version && p.version != p.latest_version) {
         els.versionInline.textContent = `有新版本 v${p.latest_version}`;
         els.versionInline.classList.add("new-version");
-        els.versionInline.onclick = () => window.open("https://github.com/sinspired/subs-check/releases/latest", "_blank");
       }
     } catch (e) { }
   }
