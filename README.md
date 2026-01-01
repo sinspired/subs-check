@@ -337,10 +337,9 @@ speed-test-url: https://custom-domain/speedtest?bytes=1073741824
 
 ## 🔔 通知渠道配置（可选）
 
-<details>
-  <summary>展开查看</summary>
-
 > **📦 支持 100+ 通知渠道**，通过 [Apprise](https://github.com/caronc/apprise) 发送通知。
+
+### [📖 查看中文文档](https://sinspired.github.io/apprise_vercel/)
 
 ### 🌐 Vercel 部署
 
@@ -365,6 +364,8 @@ docker run --name apprise \
   -d caronc/apprise:latest
 ```
 
+<details>
+  <summary>配置方法</summary>
 ### 📝 配置文件中配置通知
 
 ```yaml
