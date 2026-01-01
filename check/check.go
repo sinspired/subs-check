@@ -447,7 +447,7 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 	proxyIndex.Store(-1) // 初始化为 -1
 
 	// 定义主动 GC 的阈值
-	const gcThreshold = 50000
+	const gcThreshold = 200000
 
 	// 启动工作协程池
 	for range concurrency {
@@ -475,7 +475,7 @@ func (pc *ProxyChecker) distributeJobs(proxies []map[string]any, ctx context.Con
 				if index > 0 && index%gcThreshold == 0 {
 					// 异步执行，尽量不阻塞分发，但在 CPU 极高时可能会有些许延迟
 					go func(currentIdx int64) {
-						slog.Info(fmt.Sprintf("已处理 %d 个节点，正在执行主动内存回收...", currentIdx))
+						slog.Debug(fmt.Sprintf("已处理 %d 个节点，正在执行主动内存回收...", currentIdx))
 						debug.FreeOSMemory()
 					}(index)
 				}
