@@ -215,7 +215,7 @@ platforms:
   # - tiktok
   # - netflix
   # - disney
-  # - x
+  - x
 
 # 增强的位置显示开关,默认开启
 # 无法访问 CF 的 CF 节点: HK⁻¹
@@ -253,6 +253,7 @@ apprise-api-server: "https://apprise.linkpc.dpdns.org/notify"
 # QQ邮箱：mailto://{QQ号}:{邮箱授权码}@qq.com
 # 邮箱授权码：设置-账号-POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务-开通-继续获取授权码
 # 访问 https://sinspired.github.io/apprise_vercel 查看设置 3分钟搞定通知渠道 教程
+# 访问 https://apprise.linkpc.dpdns.org 测试通知渠道是否正确
 recipient-url:
   # - "bark://api.day.app/xxxxxxxxxxxxxxx"
   # - "ntfy://mytopic"
