@@ -873,8 +873,14 @@ main {
 .icon-md {
   width: 16px;
   height: 16px;
+  stroke-width: 1;
+  padding-top: 3px;
+}
+
+.icon-md-btn {
+  width: 16px;
+  height: 16px;
   stroke-width: 1.4;
-  padding-top: 2px;
 }
 
 .btn-round {
@@ -887,6 +893,11 @@ main {
   justify-content: center;
   border: none;
 }
+
+#saveCfg svg {
+  color: var(--accent);
+}
+
 
 #btnlogoutMobile,
 #btnShare,
