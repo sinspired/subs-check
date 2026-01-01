@@ -41,7 +41,7 @@
         "info": {
           "0804": {
             "ProductName": "subs-check",
-            "FileDescription": "Subs-Check 高并发增强版",
+            "FileDescription": "Subs-Check 性能版",
             "CompanyName": "sinspired",
             "FileVersion": "${VERSION}",
             "ProductVersion": "${VERSION}",
@@ -55,7 +55,7 @@
           },
           "0404": {
             "ProductName": "subs-check",
-            "FileDescription": "Subs-Check 高並發增強版",
+            "FileDescription": "Subs-Check 性能版",
             "CompanyName": "sinspired",
             "FileVersion": "${VERSION}",
             "ProductVersion": "${VERSION}",
@@ -69,7 +69,7 @@
           },
           "0409": {
             "ProductName": "subs-check",
-            "FileDescription": "Subs-Check High Concurrency Edition",
+            "FileDescription": "Subs-Check Pro",
             "CompanyName": "sinspired",
             "FileVersion": "${VERSION}",
             "ProductVersion": "${VERSION}",
