@@ -10,7 +10,7 @@ High-performance proxy subscription checker.
 <a href="https://github.com/sinspired/subs-check/releases"><img src="https://img.shields.io/github/v/release/sinspired/subs-check?logo=github&include_prereleases"/></a>
 <a href="https://hub.docker.com/r/sinspired/subs-check"><img src="https://img.shields.io/docker/pulls/sinspired/subs-check?logo=docker" /></a>
 <a href="https://ghcr.io/sinspired/subs-check"><img src="https://img.shields.io/badge/ghcr.io-available-blue?logo=github"/></a>
-<a href="https://github.com/sinspired/SubsCheck-Win-GUI/releases/latest"><img src="https://img.shields.io/github/v/release/sinspired/SubsCheck-Win-GUI?display_name=release&style=social&logo=github&label=Windows图形界面"/></a>
+<img alt="GitHub Release" src="https://img.shields.io/github/v/release/sinspired/SubsCheck-Win-GUI?display_name=release&style=social&logo=github&label=Windows%E5%9B%BE%E5%BD%A2%E7%95%8C%E9%9D%A2">
 </p>
 
 # 🚀 高性能代理检测工具
