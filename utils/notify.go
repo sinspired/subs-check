@@ -7,178 +7,160 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/sinspired/subs-check/config"
 )
 
-// NotifyRequest 定义发送通知的请求结构
 type NotifyRequest struct {
-	URLs  string `json:"urls"`  // 通知目标的 URL（如 mailto://、discord://）
-	Body  string `json:"body"`  // 通知内容
-	Title string `json:"title"` // 通知标题（可选）
+	URLs  string `json:"urls"`
+	Body  string `json:"body"`
+	Title string `json:"title"`
 }
 
-// Notify 发送通知
-func Notify(request NotifyRequest) error {
-	// 构建请求体
-	body, err := json.Marshal(request)
+// Notify 发送通知请求，支持通过指定代理发送
+func Notify(req NotifyRequest, proxy string) error {
+	body, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("构建请求体失败: %w", err)
 	}
 
-	// 发送请求
-	resp, err := http.Post(config.GlobalConfig.AppriseAPIServer, "application/json", bytes.NewBuffer(body))
+	transport := &http.Transport{}
+	if proxy != "" {
+		proxyURL, err := url.Parse(proxy)
+		if err != nil {
+			return fmt.Errorf("代理地址无效: %w", err)
+		}
+		transport.Proxy = http.ProxyURL(proxyURL)
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   5 * time.Second,
+	}
+
+	httpReq, err := http.NewRequest("POST", config.GlobalConfig.AppriseAPIServer, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("构建请求失败: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("发送请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("通知失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("通知失败，状态码: %d, 响应: %s", resp.StatusCode, string(b))
 	}
 
 	return nil
 }
 
-func SendNotify(length int) {
+// sendWithRetry 通过多种代理方式重试发送通知
+func sendWithRetry(req NotifyRequest, name string) {
+	proxyChain := []string{
+		"", // 优先尝试直连
+		func() string {
+			if IsSysProxyAvailable {
+				return config.GlobalConfig.SystemProxy
+			}
+			return ""
+		}(),
+		func() string {
+			if GetSysProxy() {
+				return config.GlobalConfig.SystemProxy
+			}
+			return ""
+		}(),
+		"socks5://test:test@51.75.126.18:1080", 
+	}
+
+	var lastErr error
+	for i, p := range proxyChain {
+		if lastErr := Notify(req, p); lastErr == nil {
+			stage := []string{"ok", "代理", "代理变化", "兜底"}[i]
+			slog.Info(fmt.Sprintf("%s 通知发送成功 [%s]", name, stage))
+			return
+		}
+	}
+
+	slog.Error(fmt.Sprintf("%s 发送通知失败: %v", name, lastErr))
+}
+
+// broadcastNotify 广播通知到所有配置的目标
+func broadcastNotify(buildBody func(u string) NotifyRequest) {
 	if config.GlobalConfig.AppriseAPIServer == "" {
 		return
-	} else if len(config.GlobalConfig.RecipientURL) == 0 {
+	}
+	if len(config.GlobalConfig.RecipientURL) == 0 {
 		slog.Error("请配置通知目标: recipient-url")
 		return
 	}
 
-	for _, url := range config.GlobalConfig.RecipientURL {
-		request := NotifyRequest{
-			URLs: url,
-			Body: fmt.Sprintf("✅ 可用节点：%d\n🕒 %s",
-				length,
-				GetCurrentTime()),
-			Title: config.GlobalConfig.NotifyTitle,
-		}
-		var err error
-		for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
-			err = Notify(request)
-			if err == nil {
-				slog.Info(fmt.Sprintf("%s 通知发送成功", strings.SplitN(url, "://", 2)[0]))
-				break
-			}
-		}
-		if err != nil {
-			slog.Error(fmt.Sprintf("%s 发送通知失败: %v", strings.SplitN(url, "://", 2)[0], err))
-		}
+	for _, u := range config.GlobalConfig.RecipientURL {
+		req := buildBody(u)
+		name := strings.SplitN(u, "://", 2)[0]
+		sendWithRetry(req, name)
 	}
 }
 
+// GetCurrentTime 获取当前时间的字符串表示
 func GetCurrentTime() string {
 	return time.Now().Format("2006-01-02 15:04:05")
 }
 
-func SendNotifyGeoDBUpdate(version string) {
-	if config.GlobalConfig.AppriseAPIServer == "" {
-		return
-	} else if len(config.GlobalConfig.RecipientURL) == 0 {
-		slog.Error("请配置通知目标: recipient-url")
-		return
-	}
+// SendNotify 发送节点可用数量通知
+func SendNotify(length int) {
+	broadcastNotify(func(u string) NotifyRequest {
+		return NotifyRequest{
+			URLs:  u,
+			Body:  fmt.Sprintf("✅ 可用节点：%d\n🕒 %s", length, GetCurrentTime()),
+			Title: config.GlobalConfig.NotifyTitle,
+		}
+	})
+}
 
-	for _, url := range config.GlobalConfig.RecipientURL {
-		request := NotifyRequest{
-			URLs: url,
-			Body: fmt.Sprintf("✅ 已更新到：%s\n🕒 %s",
-				version,
-				GetCurrentTime()),
+// SendNotifyGeoDBUpdate 发送 GeoDB 更新通知
+func SendNotifyGeoDBUpdate(version string) {
+	broadcastNotify(func(u string) NotifyRequest {
+		return NotifyRequest{
+			URLs:  u,
+			Body:  fmt.Sprintf("✅ 已更新到：%s\n🕒 %s", version, GetCurrentTime()),
 			Title: "🔔 MaxMind数据库状态",
 		}
-		var err error
-		for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
-			err = Notify(request)
-			if err == nil {
-				slog.Info(fmt.Sprintf("%s MaxMind数据库更新通知发送成功", strings.SplitN(url, "://", 2)[0]))
-				break
-			}
-		}
-		if err != nil {
-			slog.Error(fmt.Sprintf("%s MaxMind数据库更新发送通知失败: %v", strings.SplitN(url, "://", 2)[0], err))
-		}
-	}
+	})
 }
 
-// SendNotifySelfUpdate 版本更新通知
-func SendNotifySelfUpdate(current string, lastest string) {
-	if config.GlobalConfig.AppriseAPIServer == "" {
-		return
-	} else if len(config.GlobalConfig.RecipientURL) == 0 {
-		slog.Error("请配置通知目标: recipient-url")
-		return
-	}
-
-	for _, url := range config.GlobalConfig.RecipientURL {
-		request := NotifyRequest{
-			URLs: url,
-			Body: fmt.Sprintf("✅ %s\n🕒 %s",
-				current+" -> "+lastest,
-				GetCurrentTime()),
+// SendNotifySelfUpdate 发送自更新通知
+func SendNotifySelfUpdate(current, latest string) {
+	broadcastNotify(func(u string) NotifyRequest {
+		return NotifyRequest{
+			URLs:  u,
+			Body:  fmt.Sprintf("✅ %s -> %s\n🕒 %s", current, latest, GetCurrentTime()),
 			Title: "🔔 subs-check 自动更新",
 		}
-		var err error
-		for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
-			err = Notify(request)
-			if err == nil {
-				slog.Info(fmt.Sprintf("%s 版本更新 通知发送成功", strings.SplitN(url, "://", 2)[0]))
-				break
-			}
-		}
-		if err != nil {
-			slog.Error(fmt.Sprintf("%s 版本更新 发送通知失败: %v", strings.SplitN(url, "://", 2)[0], err))
-		}
-	}
+	})
 }
 
-// SendNotifyDetectLatestRelease 版本更新通知
-func SendNotifyDetectLatestRelease(current string, lastest string, isDockerOrGui bool, downloadURL string) {
-	if config.GlobalConfig.AppriseAPIServer == "" {
-		return
-	} else if len(config.GlobalConfig.RecipientURL) == 0 {
-		slog.Error("请配置通知目标: recipient-url")
-		return
-	}
-
-	for _, url := range config.GlobalConfig.RecipientURL {
-		var request NotifyRequest
+// SendNotifyDetectLatestRelease 发送检测到新版本通知
+func SendNotifyDetectLatestRelease(current, latest string, isDockerOrGui bool, downloadURL string) {
+	broadcastNotify(func(u string) NotifyRequest {
+		var body string
 		if isDockerOrGui {
-
-			request = NotifyRequest{
-				URLs: url,
-				Body: fmt.Sprintf("🏷 %s\n🔗 请及时更新%s\n🕒 %s",
-					lastest, downloadURL,
-					GetCurrentTime()),
-				Title: "📦 subs-check 发现新版本",
-			}
+			body = fmt.Sprintf("🏷 %s\n🔗 请及时更新 %s\n🕒 %s", latest, downloadURL, GetCurrentTime())
 		} else {
-			request = NotifyRequest{
-				URLs: url,
-				Body: fmt.Sprintf("🏷 %s\n✏️ 请编辑config.yaml，开启更新\n📄 update: true\n🕒 %s",
-					lastest,
-					GetCurrentTime()),
-				Title: "📦 subs-check 发现新版本",
-			}
+			body = fmt.Sprintf("🏷 %s\n✏️ 请编辑 config.yaml 开启自动更新\n📄 update: true\n🕒 %s", latest, GetCurrentTime())
 		}
 
-		var err error
-		for i := 0; i < config.GlobalConfig.SubUrlsReTry; i++ {
-			err = Notify(request)
-			if err == nil {
-				slog.Info(fmt.Sprintf("%s 版本检测 通知发送成功", strings.SplitN(url, "://", 2)[0]))
-				break
-			}
+		return NotifyRequest{
+			URLs:  u,
+			Body:  body,
+			Title: "📦 subs-check 发现新版本",
 		}
-		if err != nil {
-			slog.Error(fmt.Sprintf("%s 版本检测 发送通知失败: %v", strings.SplitN(url, "://", 2)[0], err))
-		}
-	}
+	})
 }
