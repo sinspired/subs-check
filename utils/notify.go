@@ -103,6 +103,7 @@ func broadcastNotify(buildBody func(u string) NotifyRequest) {
 	}
 
 	for _, u := range config.GlobalConfig.RecipientURL {
+		// TODO: 根据通知渠道补全参数
 		req := buildBody(u)
 		name := strings.SplitN(u, "://", 2)[0]
 		sendWithRetry(req, name)
