@@ -201,8 +201,9 @@ node-type:
 # false: 保留
 drop-bad-cf-nodes: false
 
-# 检测 isp 类型
-isp-check: true
+# 检测 isp 类型，比如: [原生|住宅]、[广播|机房]
+# 默认关闭，设置为 true 开启
+isp-check: false
 
 # 是否开启流媒体检测，其中IP欺诈依赖重命名
 media-check: true

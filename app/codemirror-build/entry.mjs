@@ -44,6 +44,7 @@ const configCompletions = [
   { label: "rename-node", type: "property", detail: "是否重命名节点", section: "节点处理", isArray: false },
   { label: "node-prefix", type: "property", detail: "节点前缀", section: "节点处理", isArray: false },
   { label: "node-type", type: "property", detail: "只测试指定协议的节点", section: "节点处理", isArray: true },
+  { label: "isp-check", type: "property", detail: "是否开启isp检测", section: "节点质量", isArray: false },
   { label: "media-check", type: "property", detail: "是否开启解锁检测", section: "媒体解锁", isArray: false },
   { label: "platforms", type: "property", detail: "流媒体检测平台列表", section: "媒体解锁", isArray: true },
   { label: "drop-bad-cf-nodes", type: "property", detail: "是否丢弃无法访问 cloudflare 的节点", section: "节点处理", isArray: false },
@@ -117,6 +118,10 @@ const valueCompletions = {
   "rename-node": [
     { label: "true", detail: "启用节点重命名（默认）" },
     { label: "false", detail: "禁用" }
+  ],
+  "isp-check": [
+    { label: "true", detail: "启用isp检测" },
+    { label: "false", detail: "禁用（默认）" }
   ],
   "media-check": [
     { label: "true", detail: "启用流媒体解锁检测" },
@@ -462,7 +467,7 @@ const placeholderMatcher = new MatchDecorator({
   regexp: new RegExp(
     [
       // 匹配所有 configCompletions 中的 label
-      '(?<=^[ \t]*)(print-progress|progress-mode|update|update-on-startup|cron-check-update|prerelease|update-timeout|concurrent|alive-concurrent|speed-concurrent|media-concurrent|check-interval|cron-expression|success-limit|timeout|speed-test-url|min-speed|download-timeout|download-mb|total-speed-limit|threshold|rename-node|node-prefix|node-type|media-check|platforms|drop-bad-cf-nodes|enhanced-tag|maxmind-db-path|output-dir|keep-success-proxies|listen-port|enable-web-ui|api-key|share-password|callback-script|apprise-api-server|recipient-url|notify-title|sub-store-port|sub-store-path|mihomo-overwrite-url|singbox-latest|singbox-old|sub-store-sync-cron|sub-store-produce-cron|sub-store-push-service|save-method|webdav-url|webdav-username|webdav-password|github-gist-id|github-token|github-api-mirror|worker-url|worker-token|s3-endpoint|s3-access-id|s3-secret-key|s3-bucket|s3-use-ssl|s3-bucket-lookup|system-proxy|github-proxy|ghproxy-group|sub-urls-retry|sub-urls-timeout|sub-urls-stats|success-rate|sub-urls-remote|sub-urls)(?=\s*:\s*)',
+      '(?<=^[ \t]*)(print-progress|progress-mode|update|update-on-startup|cron-check-update|prerelease|update-timeout|concurrent|alive-concurrent|speed-concurrent|media-concurrent|check-interval|cron-expression|success-limit|timeout|speed-test-url|min-speed|download-timeout|download-mb|total-speed-limit|threshold|rename-node|node-prefix|node-type|isp-check|media-check|platforms|drop-bad-cf-nodes|enhanced-tag|maxmind-db-path|output-dir|keep-success-proxies|listen-port|enable-web-ui|api-key|share-password|callback-script|apprise-api-server|recipient-url|notify-title|sub-store-port|sub-store-path|mihomo-overwrite-url|singbox-latest|singbox-old|sub-store-sync-cron|sub-store-produce-cron|sub-store-push-service|save-method|webdav-url|webdav-username|webdav-password|github-gist-id|github-token|github-api-mirror|worker-url|worker-token|s3-endpoint|s3-access-id|s3-secret-key|s3-bucket|s3-use-ssl|s3-bucket-lookup|system-proxy|github-proxy|ghproxy-group|sub-urls-retry|sub-urls-timeout|sub-urls-stats|success-rate|sub-urls-remote|sub-urls)(?=\s*:\s*)',
 
       // 列表项：- openai / - "openai"
       '(?<=^[ \\t]*-\\s*["\']?)(openai|iprisk|gemini|tiktok|youtube|disney|netflix|x|ss|trojan|vless|vmess|shadowsocks)(?=["\']?\\b)',

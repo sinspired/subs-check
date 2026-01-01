@@ -108,7 +108,7 @@ var OriginDefaultConfig = &Config{
 	DownloadMB: 20,
 	EnableSelfUpdate:true,
 	CronCheckUpdate: "0 0,9,21 * * *",
-	ISPCheck:    true,
+	// ISPCheck:    true,
 }
 
 // GlobalConfig 指向当前生效配置
