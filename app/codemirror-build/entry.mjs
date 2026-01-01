@@ -227,6 +227,8 @@ const arrayItemCompletions = {
     { label: "shadowsocks", detail: "Shadowsocks 协议" },
   ],
   "recipient-url": [
+    { label: "bark://api.day.app/xxxxxxxxxxxxxxx", detail: "Bark(iOS) 通知格式：bark://api.day.app/{device_key}" },
+    { label: "ntfy://mytopic", detail: "Ntfy ntfy://{topic}" },
     { label: "tgram://xxxxxx/-1002149239223", detail: "Telegram 通知格式：tgram://{bot_token}/{chat_id}" },
     { label: "dingtalk://xxxxxx@xxxxxxx", detail: "钉钉通知格式：dingtalk://{Secret}@{ApiKey}" },
     { label: "mailto://xxxxx:xxxxxx@qq.com", detail: "QQ邮箱：mailto://QQ号:邮箱授权码@qq.com" }
@@ -482,7 +484,7 @@ const placeholderMatcher = new MatchDecorator({
       '(?<=^[ \\t]*threshold:\\s*["\']?)(1.00|0.75|0.50|0.25|1|0.5)(?=["\']?)',
 
       // 列表项：- tgram / dingtalk / mailto
-      '(?<=^[ \\t]*-\\s*["\']?)(tgram|dingtalk|mailto)(?=["\']?\\b)',
+      '(?<=^[ \\t]*-\\s*["\']?)(bark|ntfy|tgram|x|twitter|line|slack|qq|discord|whatsapp|dingtalk|wecom|feishu|mailto)(?=["\']?\\b)',
 
       // // 注释内的占位符 {xxx},避免小白误解
       // '(?<=#.*?)(\{[A-Za-z0-9_-]+\})(?=.*$)',

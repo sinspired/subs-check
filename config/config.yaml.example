@@ -244,7 +244,7 @@ callback-script: ""
 # 填写搭建的apprise API server 地址
 # 示例：https://notify.xxxx.us.kg/notify
 # 内置apprise服务，不想搭建仅需填写 recipient-url 即可
-apprise-api-server: "https://apprised.netlib.re/notify"
+apprise-api-server: "https://apprise.linkpc.dpdns.org/notify"
 # 通知渠道
 # 支持100+ 个通知渠道，详细格式请参照 https://github.com/caronc/apprise
 # 格式参考：
@@ -252,7 +252,10 @@ apprise-api-server: "https://apprised.netlib.re/notify"
 # 钉钉格式：dingtalk://{Secret}@{ApiKey}
 # QQ邮箱：mailto://{QQ号}:{邮箱授权码}@qq.com
 # 邮箱授权码：设置-账号-POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务-开通-继续获取授权码
+# 访问 https://sinspired.github.io/apprise_vercel 查看设置 3分钟搞定通知渠道 教程
 recipient-url:
+  # - "bark://api.day.app/xxxxxxxxxxxxxxx"
+  # - "ntfy://mytopic"
   # - "tgram://xxxxxx/-1002149239223"
   # - "dingtalk://xxxxxx@xxxxxxx"
   # - "mailto://xxxxx:xxxxxx@qq.com"
