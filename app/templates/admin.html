@@ -291,11 +291,12 @@
           </div>
         </div>
         <!-- 日志卡片 -->
-        <div class="logsCard card" id="logArea">
-          <div class="logs-header">
-            <div style="display:flex;flex-direction:column">
+        <div class="card logsCard" id="logArea">
+          <!-- 卡片头部 -->
+          <div class="card-header">
+            <div class="title-line">
               <div class="title-wrap">
-                <div class="title">
+                <div class="title-with-icon">
                   <svg class="title-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                     <!-- 文件/日志图标 -->
@@ -305,54 +306,64 @@
                     <line x1="16" y1="17" x2="8" y2="17"></line>
                     <line x1="10" y1="9" x2="8" y2="9"></line>
                   </svg>
-                  最近日志
+                  <span class="title-text">最近日志</span>
                 </div>
 
-                <div id="status" class="muted status-label status-idle">状态：未登录</div>
+                <div class="muted title-status status-idle" id="status">
+                  未登录
+                </div>
               </div>
-              <div class="muted">点击日志暂停刷新，点击其他区域恢复滚动</div>
+              <!-- 卡片按钮 -->
+              <div class="card-action">
+                <button id="refreshLogs" class="btn btn-round" disabled title="刷新">
+                  <svg class="btn-icon icon-md-btn" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
+                    <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div>
-              <button id="refreshLogs" class="btn btn-round" disabled title="刷新">
-                <svg class="btn-icon icon-md-btn" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="23 4 23 10 17 10"></polyline>
-                  <polyline points="1 20 1 14 7 14"></polyline>
-                  <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
-                  <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
-                </svg>
-              </button>
+            <div class="card-tip muted">
+              点击日志暂停刷新，点击其他区域恢复滚动
             </div>
           </div>
-
-          <div id="logContainer" class="logs-window" role="log" aria-live="polite">
+          <!-- 日志容器 -->
+          <div class="logs-wrapper" id="logContainer" role="log" aria-live="polite">
             尚未登录，请输入 API 密钥并验证以查看运行日志。
           </div>
         </div>
       </section>
 
       <!-- 右侧配置编辑器 -->
-      <aside class="card editor" id="editorContainer">
-        <div class="editor-controls">
-          <div class="title-wrap">
-            <div class="title">
-              <svg class="title-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                <!-- 齿轮图标 -->
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 
-             1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 
-             1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 
-             1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 
-             1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 
-             1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 
-             1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 
-             1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 
-             1.65 0 0 0-1.51 1z"></path>
-              </svg>
-              配置编辑器
+      <aside class="card editorCard" id="editorContainer">
+        <div class="card-header">
+          <div class="title-line">
+            <div class="title-wrap">
+              <div class="title-with-icon">
+                <svg class="title-icon icon-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <!-- 齿轮图标 -->
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 
+                    1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 
+                    1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 
+                    1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 
+                    1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 
+                    1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 
+                    1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 
+                    1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 
+                    1.65 0 0 0-1.51 1z">
+                  </path>
+                </svg>
+                <span class="title-text">配置编辑器</span>
+              </div>
             </div>
-            <div style="display:flex;flex-direction: row;gap:0px">
+
+            <!-- 卡片按钮 -->
+            <div class="card-action">
               <button id="searchBtn" class="btn btn-round" title="搜索">
                 <svg class="btn-icon icon-md-btn" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -381,11 +392,8 @@
               </button>
             </div>
           </div>
-          <!-- <div class="muted">在此编辑并保存配置</div> -->
-          <div style="align-self: flex-start; margin-top: -20px;">
-            <span class="muted config-path" title="{{.configPath}}">{{.configPath}}</span>
-          </div>
 
+          <div class="card-tip muted" title="{{.configPath}}">{{.configPath}}</div>
         </div>
 
         <!-- 编辑器区域 -->

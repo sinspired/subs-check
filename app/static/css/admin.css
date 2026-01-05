@@ -34,7 +34,6 @@
 
   --scroll-bg: rgba(0, 211, 215, 0.2);
 
-
   /* 玻璃效果 */
   --glass-bg: rgba(255, 255, 255, 0.06);
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -46,10 +45,11 @@
   --mobile-subtract: 240px;
   --gap: 8px;
 
-  --font-pingfang: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei";
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
-  --font-code: "Cascadia Code",
-    "Source Code Pro", Menlo, Consolas, monospace;
+  --font-pingfang: system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC',
+    'Microsoft YaHei';
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Courier New',
+    monospace;
+  --font-code: 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
 
   --bg-hover-1: rgba(255, 255, 255, 0.2);
   --bg-hover-2: rgba(255, 255, 255, 0.2);
@@ -119,7 +119,8 @@ body {
   background: transparent;
   color: var(--fg);
   cursor: pointer;
-  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease,
+    background-color 0.12s ease;
   backdrop-filter: blur(6px);
   font-size: 14px;
 }
@@ -127,7 +128,11 @@ body {
 .btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: var(--glass-shadow);
-  background: linear-gradient(180deg, var(--glass-bg), rgba(250, 250, 250, 0.02));
+  background: linear-gradient(
+    180deg,
+    var(--glass-bg),
+    rgba(250, 250, 250, 0.02)
+  );
   border-color: var(--glass-border);
   color: var(--fg);
 }
@@ -185,7 +190,6 @@ header {
   line-height: 1.2;
   display: inline-block;
 }
-
 
 .slogan {
   font-weight: normal;
@@ -288,14 +292,16 @@ main {
   height: calc(100vh - var(--header-height));
 }
 
-
 /* 三列布局容器 */
 .layout {
   display: grid;
   gap: var(--gap);
   min-height: 0;
   height: 100%;
-  grid-template-columns: minmax(200px, max-content) minmax(300px, 1fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(200px, max-content) minmax(300px, 1fr) minmax(
+      300px,
+      1fr
+    );
 }
 
 /* 父容器必须有min-height:0 否则日志会撑破容器 */
@@ -325,17 +331,6 @@ main {
 .sidebar-top,
 .sidebar-bottom {
   width: 100%;
-}
-
-.sidebar .title-wrap {
-  display: flex;
-  justify-content: center;
-  /* 水平居中 */
-  align-items: center;
-  /* 垂直居中（可选） */
-  margin: 0;
-  padding: 0;
-  /* 去掉内边距 */
 }
 
 .sidebar .title {
@@ -385,7 +380,7 @@ main {
   padding: 10px 20px;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
-  transition: background-color .12s ease, transform .08s ease;
+  transition: background-color 0.12s ease, transform 0.08s ease;
   cursor: pointer;
   /* border-radius: 10px; */
   box-sizing: border-box;
@@ -396,7 +391,11 @@ main {
 }
 
 .list-item:hover {
-  background: linear-gradient(180deg, var(--glass-bg), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(
+    180deg,
+    var(--glass-bg),
+    rgba(255, 255, 255, 0.02)
+  );
   box-shadow: var(--glass-shadow);
 }
 
@@ -447,7 +446,6 @@ main {
   background-color: rgba(255, 255, 255, 0.1);
   /* 半透明 hover 效果，适配玻璃背景 */
 }
-
 
 #shareMenu .menu-content .list-item:first-of-type {
   border-radius: 1em 1em 0 0;
@@ -563,7 +561,6 @@ main {
   }
 }
 
-
 /* 进度卡片 */
 .progressCard {
   flex: 0 0 auto;
@@ -592,7 +589,6 @@ main {
 }
 
 /* 圆形图标按钮 */
-/* 圆形图标按钮 */
 .toggle-btn {
   position: relative;
   display: inline-flex;
@@ -604,7 +600,7 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: transparent;
   cursor: pointer;
-  transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* icon 样式：适配SVG */
@@ -618,7 +614,7 @@ main {
   height: 30px;
   color: white;
   /* currentColor继承此色 */
-  transition: color .2s ease;
+  transition: color 0.2s ease;
 }
 
 .toggle-btn .btn-icon svg {
@@ -660,7 +656,11 @@ main {
 
 .toggle-btn.state-starting,
 .toggle-btn.state-stopping {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.02)
+  );
   color: var(--muted);
   border-color: rgba(255, 255, 255, 0.06);
 }
@@ -705,7 +705,7 @@ main {
 .progress-bar-wrap {
   display: flex;
   align-items: center;
-  gap: 8px
+  gap: 8px;
 }
 
 /* 进度条优化 */
@@ -779,7 +779,6 @@ main {
 }
 
 @keyframes progressShimmer {
-
   0%,
   100% {
     opacity: 1;
@@ -793,7 +792,7 @@ main {
 .history-placeholder {
   padding: 0px 0px;
   border-radius: 8px;
-  background: var(--card-bg, transparent)
+  background: var(--card-bg, transparent);
 }
 
 .history-title-row {
@@ -898,14 +897,63 @@ main {
   color: var(--accent);
 }
 
-
 #btnlogoutMobile,
 #btnShare,
 #btnSubStore {
   display: none;
 }
 
+.card-header {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 1rem;
+  padding-left: 4px;
+}
 
+.title-line {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.title-wrap {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+  align-items: center;
+}
+
+.title-text {
+  font-weight: 600;
+}
+
+.card-action {
+  display: flex;
+  flex-direction: row;
+  gap: 0px;
+}
+.title-status {
+  font-weight: 600;
+  font-size: 12px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.card-tip {
+  padding-right: 1em;
+}
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 0px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
 
 /* 日志卡片 */
 .logsCard {
@@ -916,40 +964,9 @@ main {
   min-height: 0;
 }
 
-.logs-header {
-  /* flex: 0 0 auto; */
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0px;
-  margin-bottom: 8px;
-  flex-shrink: 0;
-}
-
-
-
-.muted {
-  color: var(--muted);
-  font-size: 12px;
-  margin-bottom: 0px;
-  position: relative;
-}
-
-.title-wrap {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0px;
-  padding: 4px 0 8px 0;
-}
-
 /* 状态标签 */
-.title {
-  font-weight: 600;
-}
-
 .status-label {
-  margin-left: 10px;
+  align-items: center;
   font-weight: 600;
   font-size: 12px;
   background: transparent;
@@ -969,7 +986,7 @@ main {
 }
 
 .status-process {
-  color: var(--success)
+  color: var(--success);
 }
 
 .status-logged {
@@ -984,7 +1001,7 @@ main {
   color: var(--danger);
 }
 
-.logs-window {
+.logs-wrapper {
   flex: 1 1 auto;
   min-height: 0;
   padding: 14px;
@@ -1006,14 +1023,9 @@ main {
   /* 水平/垂直偏移0，模糊10px，浅黑阴影 */
 }
 
-.logs-window:hover {
+.logs-wrapper:hover {
   /* border-color: var(--accent); */
   box-shadow: inset 0 0 15px var(--window-shadow-hover);
-}
-
-.logs-window,
-.editor-wrapper {
-  margin-top: 8px;
 }
 
 /* 日志颜色样式 */
@@ -1044,36 +1056,10 @@ main {
 /* 灰色 */
 
 /* 编辑器 */
-.editor {
+.editorCard {
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-.editor-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.editor-controls .title-wrap {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  width: 100%;
-  min-width: 0;
-  margin-top: -4px;
-  margin-bottom: 4px;
-}
-
-.config-path {
-  white-space: normal;
-  word-break: break-all;
-  align-self: flex-start;
-  /* 单独让它靠左 */
-  margin-top: 20px;
 }
 
 /* 编辑器容器 */
@@ -1081,7 +1067,7 @@ main {
   position: relative;
   flex: 1 1 auto;
   min-height: 300px;
-  margin-top: 20px;
+  /* margin-top: 20px; */
   overflow: hidden;
 
   background: transparent;
@@ -1134,7 +1120,7 @@ main {
 
 /* 自动完成提示 */
 .cm-tooltip-autocomplete {
-  &>ul>li[aria-selected] {
+  & > ul > li[aria-selected] {
     background: rgba(0, 197, 201, 0.7) !important;
     color: var(--fg) !important;
     font-weight: 600;
@@ -1199,7 +1185,6 @@ main {
   box-shadow: 1px 1px 10px var(--accent-light);
 }
 
-
 /* 滚动条 */
 ::-webkit-scrollbar {
   width: 7px;
@@ -1232,7 +1217,6 @@ main {
   /* ✅ 避免挡住页面点击 */
 }
 
-
 .toast {
   position: relative;
   /* ✅ 让进度条定位在内部 */
@@ -1253,8 +1237,8 @@ main {
   line-height: 1.2;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
   /* box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); */
-  animation: toastIn .4s ease;
-  transition: opacity .3s ease, transform .3s ease;
+  animation: toastIn 0.4s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 
   border-radius: 6px;
   border-left: 6px solid transparent;
@@ -1282,8 +1266,6 @@ main {
     width: 0%;
   }
 }
-
-
 
 .toast .icon {
   margin: 0;
@@ -1331,8 +1313,6 @@ main {
   background-color: #ef4444;
 }
 
-
-
 @keyframes toastIn {
   from {
     opacity: 0;
@@ -1351,7 +1331,6 @@ main {
     transform: translateX(20px);
   }
 }
-
 
 /* 登录窗口 */
 .login-modal {
@@ -1382,7 +1361,7 @@ main {
 /* 添加背景烟雾 */
 .login-card::before,
 .login-card::after {
-  content: "";
+  content: '';
   position: absolute;
   left: 50%;
   top: 50%;
@@ -1392,9 +1371,13 @@ main {
   border-radius: 50%;
   pointer-events: none;
   z-index: -1;
-  background: radial-gradient(circle at 40% 40%, var(--accent), transparent 40%);
+  background: radial-gradient(
+    circle at 40% 40%,
+    var(--accent),
+    transparent 40%
+  );
   filter: blur(60px);
-  opacity: .50;
+  opacity: 0.5;
   /* will-change: transform, opacity, filter; */
 }
 
@@ -1412,25 +1395,30 @@ main {
   }
 
   50% {
-    transform: translate(-50%, -50%) rotate(180deg) translate(20px, -10px) scale(1.13);
+    transform: translate(-50%, -50%) rotate(180deg) translate(20px, -10px)
+      scale(1.13);
   }
 
   100% {
-    transform: translate(-50%, -50%) rotate(360deg) translate(0px, 0px) scale(1.05);
+    transform: translate(-50%, -50%) rotate(360deg) translate(0px, 0px)
+      scale(1.05);
   }
 }
 
 @keyframes swirlB {
   0% {
-    transform: translate(-50%, -50%) rotate(0deg) translate(30px, 10px) scale(1.1);
+    transform: translate(-50%, -50%) rotate(0deg) translate(30px, 10px)
+      scale(1.1);
   }
 
   50% {
-    transform: translate(-50%, -50%) rotate(180deg) translate(-10px, 20px) scale(1.13);
+    transform: translate(-50%, -50%) rotate(180deg) translate(-10px, 20px)
+      scale(1.13);
   }
 
   100% {
-    transform: translate(-50%, -50%) rotate(360deg) translate(50px, -80px) scale(1.05);
+    transform: translate(-50%, -50%) rotate(360deg) translate(50px, -80px)
+      scale(1.05);
   }
 }
 
@@ -1571,7 +1559,7 @@ main {
 }
 
 /* 响应式 */
-@media(min-width:900px) {
+@media (min-width: 900px) {
   .theme-label {
     display: inline-block;
   }
@@ -1581,7 +1569,7 @@ main {
   }
 }
 
-@media(max-width:899px) {
+@media (max-width: 899px) {
   .project-name {
     font-size: 21px;
   }
@@ -1660,7 +1648,7 @@ main {
 
   /* 指定移动设备高度 */
   .logsCard,
-  .editor {
+  .editorCard {
     height: calc(100vh - var(--mobile-subtract));
     min-height: 500px;
     overflow: hidden;
@@ -1668,7 +1656,7 @@ main {
     flex-direction: column;
   }
 
-  .logs-window {
+  .logs-wrapper {
     font-size: 13px;
     flex: 1;
     overflow-y: auto;
@@ -1721,8 +1709,7 @@ main {
   }
 }
 
-@media(max-width:899px) {
-
+@media (max-width: 899px) {
   /* 编辑器 */
   #configEditor,
   .cm-editor {
