@@ -1753,12 +1753,14 @@
     if (!sessionKey) return;
     els.versionInline.onclick = () => window.open("https://github.com/sinspired/subs-check/releases/latest", "_blank");
     try {
-      const r = await sfetch(API.version);
+      const r = await sfetch(API.publicVersion);
       const p = r.payload;
       if (p?.version && els.versionInline) els.versionInline.textContent = p.version;
       if (p?.latest_version && p.version != p.latest_version) {
         els.versionInline.textContent = `有新版本 v${p.latest_version}`;
         els.versionInline.classList.add("new-version");
+      }else{  
+        els.versionInline.title = `当前已是最新版本`;
       }
     } catch (e) { }
   }
