@@ -1759,7 +1759,7 @@
       if (p?.latest_version && p.version != p.latest_version) {
         els.versionInline.textContent = `有新版本 v${p.latest_version}`;
         els.versionInline.classList.add("new-version");
-      }else{  
+      } else {
         els.versionInline.title = `当前已是最新版本`;
       }
     } catch (e) { }
