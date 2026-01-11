@@ -1,7 +1,7 @@
 {
-  "name": "Subs-Check",
-  "short_name": "Subs-Check",
-  "description": "Subs-Check 高并发增强版.",
+  "name": "Subs-Check-Pro",
+  "short_name": "SubsCheckPro",
+  "description": "Subs-Check 性能版.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

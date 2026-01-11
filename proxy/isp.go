@@ -83,7 +83,7 @@ func CheckISPInfoWithIPAPI(ctx context.Context, client *http.Client, ip, apiKey 
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "subs-check_pro/isp")
+	req.Header.Set("User-Agent", "subs-check-pro/isp")
 
 	resp, err := client.Do(req)
 	if err != nil {

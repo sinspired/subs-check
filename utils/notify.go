@@ -29,9 +29,9 @@ const (
 	notifyTimeout = 10 * time.Second // 通知请求超时时间
 
 	FallbackProxy = "socks5://test:test@51.75.126.18:1080"                                                     // 兜底代理
-	RepoURL       = "https://github.com/sinspired/subs-check"                                                  // 仓库地址
-	ClickURL      = "https://github.com/sinspired/subs-check/releases/latest"                                  // 点击跳转链接
-	IconURL       = "https://raw.githubusercontent.com/sinspired/subs-check/main/app/static/icon/icon-512.png" // 通用图标 URL
+	RepoURL       = "https://github.com/sinspired/subs-check-pro"                                                  // 仓库地址
+	ClickURL      = "https://github.com/sinspired/subs-check-pro/releases/latest"                                  // 点击跳转链接
+	IconURL       = "https://raw.githubusercontent.com/sinspired/subs-check-pro/main/app/static/icon/icon-512.png" // 通用图标 URL
 )
 
 // NotifyRequest 表示通知请求体

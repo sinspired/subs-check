@@ -1751,7 +1751,7 @@
 
   async function getVersion() {
     if (!sessionKey) return;
-    els.versionInline.onclick = () => window.open("https://github.com/sinspired/subs-check/releases/latest", "_blank");
+    els.versionInline.onclick = () => window.open("https://github.com/sinspired/subs-check-pro/releases/latest", "_blank");
     try {
       const r = await sfetch(API.publicVersion);
       const p = r.payload;
@@ -1773,7 +1773,7 @@
       if (d?.latest_version && d.version != d.latest_version) {
         els.versionBadge.classList.add("new-version");
         els.versionBadge.title = `有新版本 v${d.latest_version}`;
-        els.versionBadge.onclick = () => window.open("https://github.com/sinspired/subs-check/releases/latest", "_blank");
+        els.versionBadge.onclick = () => window.open("https://github.com/sinspired/subs-check-pro/releases/latest", "_blank");
       }
     } catch (e) { }
   }
@@ -1863,7 +1863,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'subs-check-logs.txt';
+      a.download = 'subs-check-pro-logs.txt';
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -2021,13 +2021,13 @@
 
     els.githubMenuBtn?.addEventListener('click', (e) => {
       e.preventDefault();
-      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
+      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check-pro';
       window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer');
     });
 
     els.dockerMenuBtn?.addEventListener('click', (e) => {
       e.preventDefault();
-      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check';
+      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check-pro';
       window.open(DOCKER_URL, '_blank', 'noopener,noreferrer');
     });
 
@@ -2040,13 +2040,13 @@
     // footer 项目地址
     els.githubUrlBtn?.addEventListener('click', (e) => {
       e.preventDefault();
-      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check';
+      const GITHUB_REPO_URL = 'https://github.com/sinspired/subs-check-pro';
       window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer');
     });
 
     els.dockerUrlBtn?.addEventListener('click', (e) => {
       e.preventDefault();
-      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check';
+      const DOCKER_URL = 'https://hub.docker.com/r/sinspired/subs-check-pro';
       window.open(DOCKER_URL, '_blank', 'noopener,noreferrer');
     });
 

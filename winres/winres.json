@@ -47,11 +47,11 @@
             "ProductVersion": "${VERSION}",
             "InternalName": "subs-check",
             "OriginalFilename": "subs-check.exe",
-            "LegalCopyright": "https://github.com/sinspired/subs-check",
+            "LegalCopyright": "https://github.com/sinspired/subs-check-pro",
             "LegalTrademarks": "sinspired",
             "PrivateBuild": "通过 GoReleaser 构建",
             "SpecialBuild": "CI/CD 自动发布",
-            "Comments": "自动更新、自适应高并发、代理检测、流媒体解锁。作者: sinspired | 项目主页: https://github.com/sinspired/subs-check"
+            "Comments": "自动更新、自适应高并发、代理检测、流媒体解锁。作者: sinspired | 项目主页: https://github.com/sinspired/subs-check-pro"
           },
           "0404": {
             "ProductName": "subs-check",
@@ -61,11 +61,11 @@
             "ProductVersion": "${VERSION}",
             "InternalName": "subs-check",
             "OriginalFilename": "subs-check.exe",
-            "LegalCopyright": "https://github.com/sinspired/subs-check",
+            "LegalCopyright": "https://github.com/sinspired/subs-check-pro",
             "LegalTrademarks": "sinspired",
             "PrivateBuild": "透過 GoReleaser 構建",
             "SpecialBuild": "CI/CD 自動發佈",
-            "Comments": "自動更新、自適應高併發、代理檢測、流媒體解鎖。作者: sinspired | 專案主頁: https://github.com/sinspired/subs-check"
+            "Comments": "自動更新、自適應高併發、代理檢測、流媒體解鎖。作者: sinspired | 專案主頁: https://github.com/sinspired/subs-check-pro"
           },
           "0409": {
             "ProductName": "subs-check",
@@ -75,11 +75,11 @@
             "ProductVersion": "${VERSION}",
             "InternalName": "subs-check",
             "OriginalFilename": "subs-check.exe",
-            "LegalCopyright": "https://github.com/sinspired/subs-check",
+            "LegalCopyright": "https://github.com/sinspired/subs-check-pro",
             "LegalTrademarks": "sinspired",
             "PrivateBuild": "Built via GoReleaser",
             "SpecialBuild": "CI/CD Release",
-            "Comments": "Auto-update, High Concurrency, Proxy Detection, Streaming Unlock. Author: sinspired | Website: https://github.com/sinspired/subs-check"
+            "Comments": "Auto-update, High Concurrency, Proxy Detection, Streaming Unlock. Author: sinspired | Website: https://github.com/sinspired/subs-check-pro"
           }
         }
       }

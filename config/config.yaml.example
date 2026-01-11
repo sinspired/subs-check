@@ -117,7 +117,7 @@ listen-port: ":8199"
 # 访问地址：http://127.0.0.1:8199/admin
 # 建议使用 Cloudflare Tunel隧道 映射主机端口
 # 可使用域名编辑、管理配置,开始、结束检测任务
-# 在项目地址 https://github.com/sinspired/subs-check 查看教程
+# 在项目地址 https://github.com/sinspired/subs-check-pro 查看教程
 enable-web-ui: true
 # 填写Web控制面板的api-key，如果为空，则自动生成 !请在终端窗口查看apikey
 # 配置文件为空时，支持使用环境变量设置 API_KEY
@@ -174,7 +174,7 @@ sub-store-sync-cron: "55 5-23/2 * * *"
 # 定时更新订阅
 # SUB_STORE_PRODUCE_CRON 在后台定时处理订阅. 格式为 0 */2 * * *,sub,sub_A;0 */3 * * *,col,col_B
 # 即每 2 小时处理一次单条订阅 sub_A，每 3 小时处理一次组合订阅 col_B。
-# subs-check 默认上传的订阅名为： sub
+# subs-check-pro 默认上传的订阅名为： sub
 # 比如你有一个sub-store订阅,名称为 jichang,就可以填 0 */2 * * *,sub,sub,jichang
 sub-store-produce-cron: "0 */2 * * *,sub,sub"
 # sub-store推送服务地址

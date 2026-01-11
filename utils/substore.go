@@ -96,7 +96,7 @@ func newDefaultSub(data []byte) sub {
 		Content: string(data),
 		Name:    SubName,
 		Remark:  "默认订阅 (无分流规则)",
-		Tag:     []string{"Subs-Check", "已检测"},
+		Tag:     []string{"Subs-Check-Pro", "已检测"},
 		Source:  "local",
 		Process: []Operator{
 			{
@@ -116,7 +116,7 @@ func newMihomoFile() file {
 	return file{
 		Name:        MihomoName,
 		Remark:      "默认 Mihomo 订阅 (带分流规则)",
-		Tag:         []string{"Subs-Check", "已检测"},
+		Tag:         []string{"Subs-Check-Pro", "已检测"},
 		Icon:        "",
 		IsIconColor: true,
 		Source:      "local",
@@ -159,7 +159,7 @@ func newSingboxFile(name, jsURL, jsonURL string) file {
 	return file{
 		Name:        name,
 		Remark:      remark,
-		Tag:         []string{"Subs-Check", "已检测"},
+		Tag:         []string{"Subs-Check-Pro", "已检测"},
 		Icon:        icon,
 		IsIconColor: true,
 		Source:      "remote",

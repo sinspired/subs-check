@@ -46,7 +46,7 @@ func (app *App) handleFileShare(basePath string, isSecret bool) gin.HandlerFunc 
 		if relPath == "" || relPath == "/" {
 			if isSecret {
 				renderSharePage(c, http.StatusOK, SharePageData{
-					Title:       "Subs-Check 文件分享（通过分享码）",
+					Title:       "Subs-Check-PRO 文件分享（通过分享码）",
 					HeaderColor: "#009768", // 绿色
 					HeaderIcon:  "🔒",
 					HeaderTitle: "订阅分享",
@@ -57,7 +57,7 @@ func (app *App) handleFileShare(basePath string, isSecret bool) gin.HandlerFunc 
 				})
 			} else {
 				renderSharePage(c, http.StatusOK, SharePageData{
-					Title:       "Subs-Check 文件分享",
+					Title:       "Subs-Check-PRO 文件分享",
 					HeaderColor: "#d9534f", // 红色
 					HeaderIcon:  "⚠️",
 					HeaderTitle: "注意",
@@ -76,7 +76,7 @@ func (app *App) handleFileShare(basePath string, isSecret bool) gin.HandlerFunc 
 		// 防止路径穿越 (403 Forbidden)
 		if !strings.HasPrefix(absPath, basePath) {
 			renderSharePage(c, http.StatusForbidden, SharePageData{
-				Title:       "非法访问 - Subs-Check",
+				Title:       "非法访问 - Subs-Check-PRO",
 				HeaderColor: "#d9534f", // 红色
 				HeaderIcon:  "🚫",
 				HeaderTitle: "访问被拒绝",
@@ -99,7 +99,7 @@ func (app *App) handleFileShare(basePath string, isSecret bool) gin.HandlerFunc 
 
 			// 渲染 404 页面
 			renderSharePage(c, http.StatusNotFound, SharePageData{
-				Title:       "文件不存在 - Subs-Check",
+				Title:       "文件不存在 - Subs-Check-PRO",
 				HeaderColor: "#d40000ff", // 橙色，表示警告/错误
 				HeaderIcon:  "👻",       // 幽灵图标，表示这里空空如也
 				HeaderTitle: "错误！",

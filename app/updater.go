@@ -19,7 +19,7 @@ import (
 
 var (
 	originExePath string                                                    // exe路径,避免linux syscall路径错误
-	repo          = selfupdate.NewRepositorySlug("sinspired", "subs-check") // 更新仓库
+	repo          = selfupdate.NewRepositorySlug("sinspired", "subs-check-pro") // 更新仓库
 	arch          = getArch()                                               // 架构映射
 	isSysProxy    bool                                                      // 系统代理是否可用
 )
@@ -93,13 +93,13 @@ func detectSuccessNotify(currentVersion string, latest *selfupdate.Release) {
 	}
 
 	if needNotify {
-		fmt.Println("\033[32m🔎 详情查看: https://github.com/sinspired/subs-check")
+		fmt.Println("\033[32m🔎 详情查看: https://github.com/sinspired/subs-check-pro")
 		fmt.Println("🔗 手动更新:", latest.AssetURL, "\033[0m")
 
 		var downloadURL string
 		switch {
 		case isDockerEnv:
-			downloadURL = "docker: ghcr.io/sinspired/subs-check:" + latest.Version()
+			downloadURL = "docker: ghcr.io/sinspired/subs-check-pro:" + latest.Version()
 		case isGUI:
 			downloadURL = "GUI内核: " + latest.AssetURL
 		default:
@@ -295,7 +295,7 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 		return
 	}
 
-	checksumFile := fmt.Sprintf("subs-check_%s_checksums.txt", latest.Version())
+	checksumFile := fmt.Sprintf("subs-check-pro_%s_checksums.txt", latest.Version())
 
 	// 更新前检测系统代理环境
 	isSysProxy = utils.GetSysProxy()
