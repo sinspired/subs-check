@@ -861,7 +861,7 @@ func (pc *ProxyChecker) updateProxyName(res *Result, httpClient *ProxyClient, sp
 
 	if config.GlobalConfig.MediaCheck {
 		// 移除旧标签
-		name = regexp.MustCompile(`\s*\|(?:NF|D\+|GPT⁺|GPT|GM|X|YT|YT-[^|]+|TK|TK-[^|]+|\d+%)`).ReplaceAllString(name, "")
+		name = regexp.MustCompile(`\s*\|(?:NF|D\+|GPT⁺|GPT|GM|X|YT|KeepSucced|KeepHistory|KeepSuccess|YT-[^|]+|TK|TK-[^|]+|\d+%)`).ReplaceAllString(name, "")
 	}
 
 	// 平台标签（按用户配置顺序）
