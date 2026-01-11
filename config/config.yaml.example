@@ -95,8 +95,8 @@ update: true
 # 启动时检查更新版本
 update-on-startup: true
 # 定时检查更新
-# "0 0,9,21 * * *" 默认每天0点,9点,21点检查更新
-cron-check-update: "0 0,9,21 * * *"
+# "0 0,9,21 * * *" 默认每天9点,21点检查更新
+cron-check-update: "0 9,21 * * *"
 # 使用预发布版本
 prerelease: false
 # 下载新版本超时时间(分钟)(默认2分钟)
