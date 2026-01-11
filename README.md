@@ -1,3 +1,6 @@
+> [!WARNING]
+> 由于本项目已趋于稳定甚至开始变得无聊，部分现有代码和功能已成为负担，故迁移代码到仓库 [👉sinspired/subs-check-pro](https://github.com/sinspired/subs-check-pro)，随缘更新。本仓库归档，目前功能稳定，可继续使用。
+
 <!-- 项目logo -->
 <p align="center">
   <img src="doc/logo/logo.png" alt="Project Logo" width="200"/>
