@@ -18,10 +18,10 @@ import (
 )
 
 var (
-	originExePath string                                                    // exe路径,避免linux syscall路径错误
+	originExePath string                                                        // exe路径,避免linux syscall路径错误
 	repo          = selfupdate.NewRepositorySlug("sinspired", "subs-check-pro") // 更新仓库
-	arch          = getArch()                                               // 架构映射
-	isSysProxy    bool                                                      // 系统代理是否可用
+	arch          = getArch()                                                   // 架构映射
+	isSysProxy    bool                                                          // 系统代理是否可用
 )
 
 // 获取当前架构映射,和GitHub release对应
@@ -83,8 +83,9 @@ func detectSuccessNotify(currentVersion string, latest *selfupdate.Release) {
 	if needNotify {
 		slog.Warn("发现新版本",
 			"当前版本", currentVersion,
-			slog.String("最新版本", latest.Version()),
+			slog.String("最新版本（Pro）", latest.Version()),
 		)
+		slog.Warn("新版本已重构代码，将不再考虑向下兼容，请慎重升级！")
 	}
 
 	// 提示用户开启自动更新（仅 CLI 且未开启自动更新）
@@ -343,7 +344,7 @@ func (app *App) CheckUpdateAndRestart(silentUpdate bool) {
 		return
 	}
 
-	slog.Warn(fmt.Sprintf("检测到新版本，自动更新重启：%s -> %s", curVer.String(), latest.Version()))
+	slog.Warn(fmt.Sprintf("检测到新版本（Pro），自动更新重启：%s -> %s", curVer.String(), latest.Version()))
 
 	exe, err := os.Executable()
 	if err != nil {
