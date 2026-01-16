@@ -65,7 +65,7 @@ type Config struct {
 	SubStorePushService  string   `yaml:"sub-store-push-service"`
 	SubStoreProduceCron  string   `yaml:"sub-store-produce-cron"`
 	MihomoOverwriteURL   string   `yaml:"mihomo-overwrite-url"`
-	ISPCheck			 bool     `yaml:"isp-check"`
+	ISPCheck             bool     `yaml:"isp-check"`
 	MediaCheck           bool     `yaml:"media-check"`
 	Platforms            []string `yaml:"platforms"`
 	MaxMindDBPath        string   `yaml:"maxmind-db-path"`
@@ -82,6 +82,7 @@ type Config struct {
 	GithubProxy          string   `yaml:"github-proxy"`
 	GithubProxyGroup     []string `yaml:"ghproxy-group"`
 	EnableSelfUpdate     bool     `yaml:"update"`
+	EnableCronCheck      bool     `yaml:"enable-cron-check"`
 	UpdateOnStartup      bool     `yaml:"update-on-startup"`
 	CronCheckUpdate      string   `yaml:"cron-check-update"`
 	Prerelease           bool     `yaml:"prerelease"`
@@ -105,9 +106,9 @@ var OriginDefaultConfig = &Config{
 		// "netflix",
 		// "disney",
 	},
-	DownloadMB: 20,
-	EnableSelfUpdate:true,
-	CronCheckUpdate: "0 0,9,21 * * *",
+	DownloadMB:       20,
+	EnableSelfUpdate: true,
+	CronCheckUpdate:  "0 0,9,21 * * *",
 	// ISPCheck:    true,
 }
 

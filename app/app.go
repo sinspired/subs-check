@@ -298,7 +298,7 @@ func (app *App) triggerCheck() {
 func (app *App) checkProxies() error {
 	if config.GlobalConfig.PrintProgress {
 		slog.Info("启动检测任务", "进度", "显示")
-	}else{
+	} else {
 		slog.Info("启动检测任务", "进度", "隐藏")
 	}
 
@@ -451,13 +451,19 @@ func (app *App) SetupUpdateTasks() {
 		schedule = "0 12 * * 5"
 	}
 
-	if enableSelfUpdate {
-		slog.Debug("程序将定时更新并重启", "schedule", schedule)
+	if config.GlobalConfig.EnableCronCheck {
+		if enableSelfUpdate {
+			slog.Debug("程序将定时更新并重启", "schedule", schedule)
+		} else {
+			slog.Debug("程序将定时检查新版本(不自动更新)", "schedule", schedule)
+		}
 	} else {
-		slog.Debug("程序将定时检查新版本(不自动更新)", "schedule", schedule)
+		slog.Debug("程序未启用定时检查更新任务")
+		return
 	}
+
 	_, err := updateCron.AddFunc(schedule, func() {
-		if !app.checking.Load() {
+		if !app.checking.Load() && config.GlobalConfig.EnableCronCheck {
 			if !StartFromGUI && enableSelfUpdate && !isDocker {
 				slog.Debug("定时检查版本更新并自动升级...")
 				updateDone := make(chan struct{})

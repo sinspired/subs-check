@@ -90,10 +90,12 @@ threshold: 0.75
 # 是否开启新版本更新
 # 支持启动时检查更新及定时更新任务,无缝升级新版本
 # 支持apprise API通知渠道
-# true: 自动更新; false: 不更新（仍会提醒新版本）
-update: true
+# true: 自动更新; false: 不更新(默认启动时检测更新)
+update: false
 # 启动时检查更新版本
 update-on-startup: true
+# 是否启用定时检查更新，默认关闭，仅在启动时进行一次检查
+enable-cron-check: false
 # 定时检查更新
 # "0 0,9,21 * * *" 默认每天9点,21点检查更新
 cron-check-update: "0 9,21 * * *"
